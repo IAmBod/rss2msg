@@ -1,0 +1,9 @@
+/rss2msg
+/bin/
+*.test
+*.out
+coverage.txt
+.envrc
+.env
+.idea/
+.vscode/
