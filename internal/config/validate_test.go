@@ -99,3 +99,114 @@ func TestValidateRejectsUnknownStateDriver(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestValidateAcceptsCoordinationPostgres(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination = CoordinationConfig{Driver: "postgres", Postgres: CoordinationPGConfig{DSN: "postgres://x"}}
+	if err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateCoordinationPostgresFallsBackToStateDSN(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination = CoordinationConfig{Driver: "postgres"} // empty DSN
+	// goodCfg sets c.State.Postgres.DSN = "postgres://x" — fallback should succeed.
+	if err := Validate(c); err != nil {
+		t.Fatalf("expected fallback to state DSN, got %v", err)
+	}
+}
+
+func TestValidateRejectsUnknownCoordinationDriver(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination = CoordinationConfig{Driver: "redis"}
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "coordination.driver") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsCoordinationPostgresMissingDSN(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.State.Postgres.DSN = ""            // strip state DSN too
+	c.State.Driver = "postgres"          // keep driver
+	c.Coordination = CoordinationConfig{Driver: "postgres"}
+	err := Validate(c)
+	if err == nil {
+		t.Fatal("expected error when both coord and state DSNs empty")
+	}
+}
+
+func TestValidateAcceptsSQSSink(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "sqs-x", Driver: "sqs",
+		SQS: SQSSinkConfig{QueueURL: "https://sqs.us-east-1.amazonaws.com/123/q"},
+	})
+	if err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsSQSWithoutQueueURL(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{Name: "sqs-x", Driver: "sqs"})
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "queue_url") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsFIFOSQSURL(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "sqs-x", Driver: "sqs",
+		SQS: SQSSinkConfig{QueueURL: "https://sqs.us-east-1.amazonaws.com/123/q.fifo"},
+	})
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "FIFO") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateAcceptsSNSSink(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "sns-x", Driver: "sns",
+		SNS: SNSSinkConfig{TopicARN: "arn:aws:sns:us-east-1:123:t"},
+	})
+	if err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsSNSWithoutTopicARN(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{Name: "sns-x", Driver: "sns"})
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "topic_arn") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsFIFOSNSTopicARN(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "sns-x", Driver: "sns",
+		SNS: SNSSinkConfig{TopicARN: "arn:aws:sns:us-east-1:123:t.fifo"},
+	})
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "FIFO") {
+		t.Fatalf("got %v", err)
+	}
+}
