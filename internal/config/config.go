@@ -1,0 +1,112 @@
+package config
+
+import "time"
+
+type Config struct {
+	Log       LogConfig       `mapstructure:"log"`
+	Telemetry TelemetryConfig `mapstructure:"telemetry"`
+	HTTP      HTTPConfig      `mapstructure:"http"`
+	Retry     RetryConfig     `mapstructure:"retry"`
+	Runtime   RuntimeConfig   `mapstructure:"runtime"`
+	State     StateConfig     `mapstructure:"state"`
+	Sinks     []SinkConfig    `mapstructure:"sinks"`
+	Feeds     []FeedConfig    `mapstructure:"feeds"`
+}
+
+type LogConfig struct {
+	Level  string `mapstructure:"level"`
+	Format string `mapstructure:"format"` // json|console
+}
+
+type TelemetryConfig struct {
+	ServiceName string                    `mapstructure:"service_name"`
+	Traces      TelemetrySignalConfig     `mapstructure:"traces"`
+	Metrics     TelemetrySignalConfig     `mapstructure:"metrics"`
+	Logs        TelemetrySignalConfig     `mapstructure:"logs"`
+	Prometheus  TelemetryPrometheusConfig `mapstructure:"prometheus"`
+}
+
+type TelemetrySignalConfig struct {
+	Enabled bool `mapstructure:"enabled"`
+}
+
+type TelemetryPrometheusConfig struct {
+	Enabled bool   `mapstructure:"enabled"`
+	Listen  string `mapstructure:"listen"`
+}
+
+type HTTPConfig struct {
+	UserAgent string        `mapstructure:"user_agent"`
+	Timeout   time.Duration `mapstructure:"timeout"`
+}
+
+type RetryConfig struct {
+	MaxAttempts int           `mapstructure:"max_attempts"`
+	BaseDelay   time.Duration `mapstructure:"base_delay"`
+	MaxDelay    time.Duration `mapstructure:"max_delay"`
+}
+
+type RuntimeConfig struct {
+	ShutdownDrainTimeout time.Duration `mapstructure:"shutdown_drain_timeout"`
+	RunOnceConcurrency   int           `mapstructure:"run_once_concurrency"`
+}
+
+type StateConfig struct {
+	Driver   string                 `mapstructure:"driver"`
+	Postgres PostgresStateConfig    `mapstructure:"postgres"`
+	Extra    map[string]interface{} `mapstructure:",remain"`
+}
+
+type PostgresStateConfig struct {
+	DSN string `mapstructure:"dsn"`
+}
+
+type SinkConfig struct {
+	Name       string                 `mapstructure:"name"`
+	Driver     string                 `mapstructure:"driver"`
+	DeadLetter string                 `mapstructure:"dead_letter"`
+	Postgres   PostgresSinkConfig     `mapstructure:"postgres"`
+	Kafka      KafkaSinkConfig        `mapstructure:"kafka"`
+	Extra      map[string]interface{} `mapstructure:",remain"`
+}
+
+type PostgresSinkConfig struct {
+	DSN   string `mapstructure:"dsn"`
+	Table string `mapstructure:"table"`
+}
+
+type KafkaSinkConfig struct {
+	Brokers     []string `mapstructure:"brokers"`
+	Topic       string   `mapstructure:"topic"`
+	Acks        string   `mapstructure:"acks"`        // "all" | "leader" | "none"
+	Compression string   `mapstructure:"compression"` // "none" | "snappy" | "lz4" | "zstd" | "gzip"
+}
+
+type FeedConfig struct {
+	URL      string         `mapstructure:"url"`
+	Interval time.Duration  `mapstructure:"interval"`
+	Sinks    []string       `mapstructure:"sinks"`
+	HTTP     FeedHTTPConfig `mapstructure:"http"`
+}
+
+type FeedHTTPConfig struct {
+	Timeout time.Duration     `mapstructure:"timeout"`
+	Headers map[string]string `mapstructure:"headers"`
+}
+
+// Defaults returns a Config populated with built-in defaults.
+func Defaults() Config {
+	return Config{
+		Log: LogConfig{Level: "info", Format: "json"},
+		Telemetry: TelemetryConfig{
+			ServiceName: "rss2msg",
+			Traces:      TelemetrySignalConfig{Enabled: true},
+			Metrics:     TelemetrySignalConfig{Enabled: true},
+			Logs:        TelemetrySignalConfig{Enabled: false},
+			Prometheus:  TelemetryPrometheusConfig{Enabled: false, Listen: ":9090"},
+		},
+		HTTP:    HTTPConfig{UserAgent: "rss2msg/0.1", Timeout: 30 * time.Second},
+		Retry:   RetryConfig{MaxAttempts: 3, BaseDelay: 500 * time.Millisecond, MaxDelay: 10 * time.Second},
+		Runtime: RuntimeConfig{ShutdownDrainTimeout: 30 * time.Second, RunOnceConcurrency: 0},
+	}
+}
