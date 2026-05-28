@@ -24,6 +24,11 @@ runtime:
   shutdown_drain_timeout: 30s
   run_once_concurrency: 8
 
+coordination:
+  driver: postgres   # postgres | noop ; default noop
+  postgres:
+    dsn: ${POSTGRES_DSN}  # optional; falls back to state.postgres.dsn
+
 state:
   driver: postgres
   postgres:
@@ -54,6 +59,19 @@ sinks:
     postgres:
       dsn: ${POSTGRES_DSN}
       table: feed_changes_dlq
+  - name: sqs-main
+    driver: sqs
+    sqs:
+      queue_url: https://sqs.us-east-1.amazonaws.com/123456789012/feed-changes
+      region: us-east-1
+      # endpoint_url: http://localhost:4566  # for LocalStack
+    dead_letter: dlq-main
+  - name: sns-main
+    driver: sns
+    sns:
+      topic_arn: arn:aws:sns:us-east-1:123456789012:feed-changes
+      region: us-east-1
+    dead_letter: dlq-main
 
 feeds:
   - url: https://example.com/blog/rss.xml

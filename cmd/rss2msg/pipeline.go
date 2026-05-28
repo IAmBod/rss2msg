@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/iambod/rss2msg/internal/config"
+	"github.com/iambod/rss2msg/internal/coord"
 	"github.com/iambod/rss2msg/internal/feed"
 	"github.com/iambod/rss2msg/internal/model"
 	"github.com/iambod/rss2msg/internal/sink"
@@ -28,6 +29,7 @@ type pipeline struct {
 	log     zerolog.Logger
 	tracer  trace.Tracer
 	instr   telemetry.Instruments
+	coord   coord.Coordinator
 }
 
 type sinkBranch struct {
@@ -43,6 +45,25 @@ func (p *pipeline) RunOnce(ctx context.Context, feedURL string, at time.Time) ([
 
 	log := p.log.With().Str("feed_url", feedURL).Logger()
 	ctx = log.WithContext(ctx)
+
+	release, acquired, err := p.coord.TryAcquire(ctx, feedURL)
+	if err != nil {
+		p.instr.PollSkipped.Add(ctx, 1, metric.WithAttributes(
+			attribute.String("feed_url", feedURL),
+			attribute.String("reason", "coord_error"),
+		))
+		log.Warn().Err(err).Msg("coordinator error; skipping poll")
+		return nil, nil
+	}
+	if !acquired {
+		p.instr.PollSkipped.Add(ctx, 1, metric.WithAttributes(
+			attribute.String("feed_url", feedURL),
+			attribute.String("reason", "not_owner"),
+		))
+		log.Debug().Msg("another instance owns this poll; skipping")
+		return nil, nil
+	}
+	defer func() { _ = release(ctx) }()
 
 	meta, _, err := p.store.GetFeedMeta(ctx, feedURL)
 	if err != nil {
