@@ -1,0 +1,67 @@
+log:
+  level: info
+  format: json
+
+telemetry:
+  service_name: rss2msg
+  traces:   { enabled: true }
+  metrics:  { enabled: true }
+  logs:     { enabled: false }
+  prometheus:
+    enabled: false
+    listen: ":9090"
+
+http:
+  user_agent: "rss2msg/0.1 (+https://example.com)"
+  timeout: 30s
+
+retry:
+  max_attempts: 3
+  base_delay: 500ms
+  max_delay: 10s
+
+runtime:
+  shutdown_drain_timeout: 30s
+  run_once_concurrency: 8
+
+state:
+  driver: postgres
+  postgres:
+    dsn: ${POSTGRES_DSN}
+
+sinks:
+  - name: default
+    driver: kafka
+    kafka:
+      brokers: ["kafka-1:9092"]
+      topic: feed.changes
+    dead_letter: dlq-main
+  - name: pg-main
+    driver: postgres
+    postgres:
+      dsn: ${POSTGRES_DSN}
+      table: feed_changes
+  - name: kafka-main
+    driver: kafka
+    kafka:
+      brokers: ["kafka-1:9092", "kafka-2:9092"]
+      topic: feed.changes
+      acks: all
+      compression: snappy
+    dead_letter: dlq-main
+  - name: dlq-main
+    driver: postgres
+    postgres:
+      dsn: ${POSTGRES_DSN}
+      table: feed_changes_dlq
+
+feeds:
+  - url: https://example.com/blog/rss.xml
+    interval: 5m
+    sinks: [pg-main, kafka-main]
+  - url: https://other.example/atom.xml
+    interval: 15m
+    http:
+      timeout: 10s
+      headers:
+        Authorization: "Bearer ${OTHER_FEED_TOKEN}"
