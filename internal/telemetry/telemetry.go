@@ -10,12 +10,14 @@ import (
 	"os"
 	"sync"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	promexp "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -49,6 +51,15 @@ func (t *Telemetry) Shutdown(ctx context.Context) error {
 func Setup(ctx context.Context, cfg config.Config, out io.Writer) (*Telemetry, error) {
 	t := &Telemetry{}
 	t.Logger = buildLogger(cfg.Log, out)
+
+	// Install the W3C TraceContext + Baggage propagator so that span context
+	// can actually be injected into outbound carriers (e.g. Kafka headers).
+	// Without this the OTEL global propagator is a no-op composite and
+	// traceparent headers would never be produced.
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
 
 	res, err := resource.New(ctx,
 		resource.WithFromEnv(),
@@ -98,7 +109,25 @@ func buildLogger(c config.LogConfig, out io.Writer) zerolog.Logger {
 	if c.Format == "console" {
 		w = zerolog.ConsoleWriter{Out: out}
 	}
-	return zerolog.New(w).Level(lvl).With().Timestamp().Logger()
+	return zerolog.New(w).Level(lvl).Hook(otelLogHook{}).With().Timestamp().Logger()
+}
+
+// otelLogHook decorates every log event whose ctx carries a valid OTEL span
+// with trace_id and span_id fields, enabling cross-correlation between logs
+// and traces. Callers attach a ctx via Event.Ctx(ctx) or by retrieving the
+// per-context logger with zerolog.Ctx(ctx).
+type otelLogHook struct{}
+
+func (otelLogHook) Run(e *zerolog.Event, _ zerolog.Level, _ string) {
+	ctx := e.GetCtx()
+	if ctx == nil {
+		return
+	}
+	sc := trace.SpanContextFromContext(ctx)
+	if !sc.IsValid() {
+		return
+	}
+	e.Str("trace_id", sc.TraceID().String()).Str("span_id", sc.SpanID().String())
 }
 
 func serviceName(cfg config.Config) string {
@@ -142,12 +171,16 @@ func newMeterProvider(ctx context.Context, cfg config.Config, res *resource.Reso
 	}
 
 	if cfg.Telemetry.Prometheus.Enabled {
-		promReader, err := promexp.New()
+		// Use a dedicated prometheus.Registry rather than the process-global
+		// DefaultRegisterer so the /metrics handler only exposes OTEL meters
+		// (and we don't depend on incidental global registrations).
+		reg := prometheus.NewRegistry()
+		promReader, err := promexp.New(promexp.WithRegisterer(reg))
 		if err != nil {
 			return nil, nil, fmt.Errorf("prometheus exporter: %w", err)
 		}
 		opts = append(opts, sdkmetric.WithReader(promReader))
-		stopHTTP, err = startPrometheusServer(cfg.Telemetry.Prometheus.Listen)
+		stopHTTP, err = startPrometheusServer(cfg.Telemetry.Prometheus.Listen, reg)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -164,9 +197,9 @@ func newMeterProvider(ctx context.Context, cfg config.Config, res *resource.Reso
 	return mp, shutdown, nil
 }
 
-func startPrometheusServer(listen string) (func(context.Context) error, error) {
+func startPrometheusServer(listen string, gatherer prometheus.Gatherer) (func(context.Context) error, error) {
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", prometheusHTTPHandler())
+	mux.Handle("/metrics", prometheusHTTPHandler(gatherer))
 	ln, err := net.Listen("tcp", listen)
 	if err != nil {
 		return nil, fmt.Errorf("prometheus listen %q: %w", listen, err)

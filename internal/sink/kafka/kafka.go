@@ -7,6 +7,8 @@ import (
 	"strconv"
 
 	"github.com/twmb/franz-go/pkg/kgo"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 
 	"github.com/iambod/rss2msg/internal/model"
 )
@@ -97,6 +99,19 @@ func (p *Publisher) Publish(ctx context.Context, change model.Change) error {
 			kgo.RecordHeader{Key: "dlq_error", Value: []byte(change.DLQError)},
 			kgo.RecordHeader{Key: "dlq_attempts", Value: []byte(strconv.Itoa(change.DLQAttempts))},
 		)
+	}
+	// Inject W3C trace context so downstream consumers can stitch the trace.
+	// Requires a propagator to be installed (telemetry.Setup installs a
+	// TraceContext+Baggage composite). When no span is active or no
+	// propagator is registered, the carrier is simply empty and no
+	// traceparent/tracestate headers are added.
+	carrier := propagation.MapCarrier{}
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
+	if tp, ok := carrier["traceparent"]; ok {
+		rec.Headers = append(rec.Headers, kgo.RecordHeader{Key: "traceparent", Value: []byte(tp)})
+	}
+	if ts, ok := carrier["tracestate"]; ok && ts != "" {
+		rec.Headers = append(rec.Headers, kgo.RecordHeader{Key: "tracestate", Value: []byte(ts)})
 	}
 	return p.client.ProduceSync(ctx, rec).FirstErr()
 }
