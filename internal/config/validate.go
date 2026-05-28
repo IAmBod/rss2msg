@@ -24,6 +24,12 @@ var knownSinkDrivers = map[string]struct{}{
 	"sns":      {},
 }
 
+var knownCoordinationDrivers = map[string]struct{}{
+	"":         {},
+	"noop":     {},
+	"postgres": {},
+}
+
 // Validate enforces the startup rules from the spec.
 func Validate(c Config) error {
 	if _, ok := knownStateDrivers[c.State.Driver]; !ok {
@@ -33,6 +39,19 @@ func Validate(c Config) error {
 	case "postgres":
 		if strings.TrimSpace(c.State.Postgres.DSN) == "" {
 			return fmt.Errorf("state.postgres.dsn is required when state.driver=postgres")
+		}
+	}
+
+	if _, ok := knownCoordinationDrivers[c.Coordination.Driver]; !ok {
+		return fmt.Errorf("coordination.driver %q is not supported", c.Coordination.Driver)
+	}
+	if c.Coordination.Driver == "postgres" {
+		dsn := strings.TrimSpace(c.Coordination.Postgres.DSN)
+		if dsn == "" {
+			dsn = strings.TrimSpace(c.State.Postgres.DSN)
+		}
+		if dsn == "" {
+			return fmt.Errorf("coordination.postgres.dsn (or state.postgres.dsn fallback) is required when coordination.driver=postgres")
 		}
 	}
 
@@ -53,14 +72,29 @@ func Validate(c Config) error {
 		}
 	}
 	for i, s := range c.Sinks {
-		if s.DeadLetter == "" {
-			continue
+		if s.DeadLetter != "" {
+			if s.DeadLetter == s.Name {
+				return fmt.Errorf("sinks[%d].dead_letter must not refer to its own sink %q", i, s.Name)
+			}
+			if _, ok := names[s.DeadLetter]; !ok {
+				return fmt.Errorf("sinks[%d].dead_letter %q does not refer to a declared sink", i, s.DeadLetter)
+			}
 		}
-		if s.DeadLetter == s.Name {
-			return fmt.Errorf("sinks[%d].dead_letter must not refer to its own sink %q", i, s.Name)
-		}
-		if _, ok := names[s.DeadLetter]; !ok {
-			return fmt.Errorf("sinks[%d].dead_letter %q does not refer to a declared sink", i, s.DeadLetter)
+		switch s.Driver {
+		case "sqs":
+			if strings.TrimSpace(s.SQS.QueueURL) == "" {
+				return fmt.Errorf("sinks[%d] (sqs %q): sqs.queue_url is required", i, s.Name)
+			}
+			if strings.HasSuffix(s.SQS.QueueURL, ".fifo") {
+				return fmt.Errorf("sinks[%d] (sqs %q): FIFO queues are not supported in this version", i, s.Name)
+			}
+		case "sns":
+			if strings.TrimSpace(s.SNS.TopicARN) == "" {
+				return fmt.Errorf("sinks[%d] (sns %q): sns.topic_arn is required", i, s.Name)
+			}
+			if strings.HasSuffix(s.SNS.TopicARN, ".fifo") {
+				return fmt.Errorf("sinks[%d] (sns %q): FIFO topics are not supported in this version", i, s.Name)
+			}
 		}
 	}
 

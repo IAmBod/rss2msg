@@ -68,6 +68,7 @@ func applyDefaults(v *viper.Viper, d Config) {
 	v.SetDefault("retry.max_delay", d.Retry.MaxDelay)
 	v.SetDefault("runtime.shutdown_drain_timeout", d.Runtime.ShutdownDrainTimeout)
 	v.SetDefault("runtime.run_once_concurrency", d.Runtime.RunOnceConcurrency)
+	v.SetDefault("coordination.driver", d.Coordination.Driver)
 }
 
 // expandEnvHook returns a mapstructure DecodeHookFunc that substitutes

@@ -7,8 +7,9 @@ type Config struct {
 	Telemetry TelemetryConfig `mapstructure:"telemetry"`
 	HTTP      HTTPConfig      `mapstructure:"http"`
 	Retry     RetryConfig     `mapstructure:"retry"`
-	Runtime   RuntimeConfig   `mapstructure:"runtime"`
-	State     StateConfig     `mapstructure:"state"`
+	Runtime      RuntimeConfig      `mapstructure:"runtime"`
+	Coordination CoordinationConfig `mapstructure:"coordination"`
+	State        StateConfig        `mapstructure:"state"`
 	Sinks     []SinkConfig    `mapstructure:"sinks"`
 	Feeds     []FeedConfig    `mapstructure:"feeds"`
 }
@@ -51,6 +52,15 @@ type RuntimeConfig struct {
 	RunOnceConcurrency   int           `mapstructure:"run_once_concurrency"`
 }
 
+type CoordinationConfig struct {
+	Driver   string               `mapstructure:"driver"`
+	Postgres CoordinationPGConfig `mapstructure:"postgres"`
+}
+
+type CoordinationPGConfig struct {
+	DSN string `mapstructure:"dsn"`
+}
+
 type StateConfig struct {
 	Driver   string                 `mapstructure:"driver"`
 	Postgres PostgresStateConfig    `mapstructure:"postgres"`
@@ -67,6 +77,8 @@ type SinkConfig struct {
 	DeadLetter string                 `mapstructure:"dead_letter"`
 	Postgres   PostgresSinkConfig     `mapstructure:"postgres"`
 	Kafka      KafkaSinkConfig        `mapstructure:"kafka"`
+	SQS        SQSSinkConfig          `mapstructure:"sqs"`
+	SNS        SNSSinkConfig          `mapstructure:"sns"`
 	Extra      map[string]interface{} `mapstructure:",remain"`
 }
 
@@ -80,6 +92,18 @@ type KafkaSinkConfig struct {
 	Topic       string   `mapstructure:"topic"`
 	Acks        string   `mapstructure:"acks"`        // "all" | "leader" | "none"
 	Compression string   `mapstructure:"compression"` // "none" | "snappy" | "lz4" | "zstd" | "gzip"
+}
+
+type SQSSinkConfig struct {
+	QueueURL    string `mapstructure:"queue_url"`
+	Region      string `mapstructure:"region"`
+	EndpointURL string `mapstructure:"endpoint_url"`
+}
+
+type SNSSinkConfig struct {
+	TopicARN    string `mapstructure:"topic_arn"`
+	Region      string `mapstructure:"region"`
+	EndpointURL string `mapstructure:"endpoint_url"`
 }
 
 type FeedConfig struct {
@@ -105,8 +129,9 @@ func Defaults() Config {
 			Logs:        TelemetrySignalConfig{Enabled: false},
 			Prometheus:  TelemetryPrometheusConfig{Enabled: false, Listen: ":9090"},
 		},
-		HTTP:    HTTPConfig{UserAgent: "rss2msg/0.1", Timeout: 30 * time.Second},
-		Retry:   RetryConfig{MaxAttempts: 3, BaseDelay: 500 * time.Millisecond, MaxDelay: 10 * time.Second},
-		Runtime: RuntimeConfig{ShutdownDrainTimeout: 30 * time.Second, RunOnceConcurrency: 0},
+		HTTP:         HTTPConfig{UserAgent: "rss2msg/0.1", Timeout: 30 * time.Second},
+		Retry:        RetryConfig{MaxAttempts: 3, BaseDelay: 500 * time.Millisecond, MaxDelay: 10 * time.Second},
+		Runtime:      RuntimeConfig{ShutdownDrainTimeout: 30 * time.Second, RunOnceConcurrency: 0},
+		Coordination: CoordinationConfig{Driver: "noop"},
 	}
 }
