@@ -43,3 +43,20 @@ psql "$POSTGRES_DSN" -c 'SELECT feed_url, item_id, kind, detected_at FROM feed_c
 - **Kafka `acks=none` is unsafe.** Combined with the commit-on-success model it can drop messages without state knowing. Stick with the default (`acks: all`) unless you accept the trade-off.
 - **OTEL exporters require an OTLP endpoint env var.** Set `OTEL_EXPORTER_OTLP_ENDPOINT=https://collector:4317` to actually emit traces/metrics. Without it, the providers are configured but no-op.
 - **Dead-letter queues.** Any sink may declare `dead_letter: <other-sink-name>`. On retry exhaustion the change is handed to the DLQ once. If no DLQ is set or the DLQ also fails, the change is dropped from this poll and re-detected on the next.
+- **Running multiple instances.** Set `coordination.driver=postgres` in the
+  config and ensure every instance shares the same Postgres database. Each
+  instance tries `pg_try_advisory_lock` keyed by the feed URL before
+  polling — losers skip that poll cycle silently. No leader election; any
+  instance may pick up any feed. Crashed instances release their locks
+  automatically because Postgres advisory locks die with the session.
+- **AWS credentials.** SQS and SNS use the standard AWS SDK credential chain
+  (`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, shared `~/.aws/credentials`,
+  instance metadata, etc.). The config carries only `region`, `queue_url` /
+  `topic_arn`, and an optional `endpoint_url` for LocalStack-style overrides.
+  FIFO queues/topics are not yet supported.
+- **LocalStack for development.**
+
+      docker run -d --name ls -p 4566:4566 localstack/localstack:3.6
+
+  Then set `endpoint_url: http://localhost:4566` on each SQS/SNS sink and
+  `AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test` in the environment.

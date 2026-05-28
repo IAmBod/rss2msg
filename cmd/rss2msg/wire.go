@@ -5,6 +5,9 @@ import (
 	"fmt"
 
 	"github.com/iambod/rss2msg/internal/config"
+	"github.com/iambod/rss2msg/internal/coord"
+	coordnoop "github.com/iambod/rss2msg/internal/coord/noop"
+	coordpg "github.com/iambod/rss2msg/internal/coord/postgres"
 	"github.com/iambod/rss2msg/internal/feed"
 	"github.com/iambod/rss2msg/internal/retry"
 	"github.com/iambod/rss2msg/internal/sink"
@@ -21,12 +24,16 @@ import (
 type wired struct {
 	store     state.Store
 	registry  *sink.Registry
+	coord     coord.Coordinator
 	pipelines []*pipeline
 }
 
 func (w *wired) Close() {
 	if w.registry != nil {
 		_ = w.registry.Close()
+	}
+	if w.coord != nil {
+		_ = w.coord.Close()
 	}
 	if w.store != nil {
 		_ = w.store.Close()
@@ -53,6 +60,13 @@ func wireAll(ctx context.Context, cfg config.Config, tel *telemetry.Telemetry) (
 		}
 	}
 
+	cd, err := openCoordinator(ctx, cfg.Coordination, cfg.State, len(cfg.Feeds))
+	if err != nil {
+		_ = reg.Close()
+		_ = st.Close()
+		return nil, err
+	}
+
 	fetcher := feed.NewFetcher(feed.Options{
 		UserAgent: cfg.HTTP.UserAgent,
 		Timeout:   cfg.HTTP.Timeout,
@@ -60,12 +74,13 @@ func wireAll(ctx context.Context, cfg config.Config, tel *telemetry.Telemetry) (
 	det := feed.NewDetector()
 	instr, err := telemetry.NewInstruments(tel.Meter)
 	if err != nil {
+		_ = cd.Close()
 		_ = reg.Close()
 		_ = st.Close()
 		return nil, fmt.Errorf("instruments: %w", err)
 	}
 
-	w := &wired{store: st, registry: reg}
+	w := &wired{store: st, registry: reg, coord: cd}
 	for _, fc := range cfg.Feeds {
 		names := config.ResolveFeedSinks(fc)
 		branches := make([]sinkBranch, 0, len(names))
@@ -96,6 +111,7 @@ func wireAll(ctx context.Context, cfg config.Config, tel *telemetry.Telemetry) (
 			log:     tel.Logger,
 			tracer:  tel.Tracer,
 			instr:   instr,
+			coord:   cd,
 		})
 	}
 	return w, nil
@@ -108,6 +124,28 @@ func findSink(list []config.SinkConfig, name string) config.SinkConfig {
 		}
 	}
 	return config.SinkConfig{}
+}
+
+func openCoordinator(ctx context.Context, cc config.CoordinationConfig, sc config.StateConfig, feedCount int) (coord.Coordinator, error) {
+	driver := cc.Driver
+	if driver == "" {
+		driver = "noop"
+	}
+	switch driver {
+	case "noop":
+		return coordnoop.New(), nil
+	case "postgres":
+		dsn := cc.Postgres.DSN
+		if dsn == "" {
+			dsn = sc.Postgres.DSN
+		}
+		if dsn == "" {
+			return nil, fmt.Errorf("coordination postgres: no dsn (and no state.postgres.dsn fallback)")
+		}
+		return coordpg.New(ctx, dsn, feedCount)
+	default:
+		return nil, fmt.Errorf("unsupported coordination driver %q", driver)
+	}
 }
 
 func openStateStore(ctx context.Context, c config.StateConfig) (state.Store, error) {
@@ -131,9 +169,19 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig) (sink.Publisher, 
 	case "rabbitmq":
 		return sinkrabbitmq.New(sc.Name), nil
 	case "sqs":
-		return sinksqs.New(sc.Name), nil
+		return sinksqs.New(ctx, sinksqs.Options{
+			Name:        sc.Name,
+			QueueURL:    sc.SQS.QueueURL,
+			Region:      sc.SQS.Region,
+			EndpointURL: sc.SQS.EndpointURL,
+		})
 	case "sns":
-		return sinksns.New(sc.Name), nil
+		return sinksns.New(ctx, sinksns.Options{
+			Name:        sc.Name,
+			TopicARN:    sc.SNS.TopicARN,
+			Region:      sc.SNS.Region,
+			EndpointURL: sc.SNS.EndpointURL,
+		})
 	default:
 		return nil, fmt.Errorf("unsupported sink driver %q", sc.Driver)
 	}
