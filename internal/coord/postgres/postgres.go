@@ -10,6 +10,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -97,7 +98,12 @@ func (c *Coordinator) TryAcquire(ctx context.Context, feedURL string) (coord.Rel
 	c.held[conn] = struct{}{}
 	c.mu.Unlock()
 
-	release := func(rctx context.Context) error {
+	release := func(_ context.Context) error {
+		// We intentionally ignore the caller's context. The pipeline defers
+		// release on the poll ctx, which is canceled on SIGTERM or per-feed
+		// timeout. Running the unlock on a canceled ctx would error out and
+		// leak the advisory lock in the session, which is then returned to
+		// the pool. Use a fresh bounded ctx instead.
 		c.mu.Lock()
 		if c.held == nil {
 			// Coordinator was closed; conn was hijacked, nothing to do.
@@ -111,11 +117,18 @@ func (c *Coordinator) TryAcquire(ctx context.Context, feedURL string) (coord.Rel
 		delete(c.held, conn)
 		c.mu.Unlock()
 
-		defer conn.Release()
-		_, err := conn.Exec(rctx, `SELECT pg_advisory_unlock($1)`, key)
-		if err != nil {
+		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if _, err := conn.Exec(unlockCtx, `SELECT pg_advisory_unlock($1)`, key); err != nil {
+			// Unlock failed — the conn may still hold the lock. Don't return
+			// it to the pool; hijack and close so the Postgres session dies
+			// and the lock dies with it (same teardown pattern as Close()).
+			raw := conn.Hijack()
+			_ = raw.Close(context.Background())
 			return fmt.Errorf("coord/postgres: pg_advisory_unlock: %w", err)
 		}
+		conn.Release()
 		return nil
 	}
 	return release, true, nil
