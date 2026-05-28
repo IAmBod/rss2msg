@@ -39,7 +39,6 @@ psql "$POSTGRES_DSN" -c 'SELECT feed_url, item_id, kind, detected_at FROM feed_c
 ## Operational notes
 
 - **At-least-once delivery.** If one sink succeeds and another fails on the same poll, the next poll re-detects the item and re-publishes to all sinks. Downstream consumers should dedupe on `item_id` + `content_hash`.
-- **Single-instance only.** v1 does not coordinate across replicas; the state store guarantees correctness across restarts of a single process, not across concurrent processes.
 - **Kafka `acks=none` is unsafe.** Combined with the commit-on-success model it can drop messages without state knowing. Stick with the default (`acks: all`) unless you accept the trade-off.
 - **OTEL exporters require an OTLP endpoint env var.** Set `OTEL_EXPORTER_OTLP_ENDPOINT=https://collector:4317` to actually emit traces/metrics. Without it, the providers are configured but no-op.
 - **Dead-letter queues.** Any sink may declare `dead_letter: <other-sink-name>`. On retry exhaustion the change is handed to the DLQ once. If no DLQ is set or the DLQ also fails, the change is dropped from this poll and re-detected on the next.

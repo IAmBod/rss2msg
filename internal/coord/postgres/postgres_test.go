@@ -88,6 +88,44 @@ func TestCoordinatorReleaseAllowsAcquireAgain(t *testing.T) {
 	_ = rel2(ctx)
 }
 
+func TestReleaseWithCanceledContextStillFreesLock(t *testing.T) {
+	dsn := newDSN(t)
+	ctx := context.Background()
+
+	a, err := coordpg.New(ctx, dsn, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	b, err := coordpg.New(ctx, dsn, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+
+	rel, ok, err := a.TryAcquire(ctx, "https://e/cancel-test")
+	if err != nil || !ok {
+		t.Fatalf("a acquire: %v %v", ok, err)
+	}
+
+	// Simulate the pipeline shutting down: call release with a pre-canceled ctx.
+	cctx, cancel := context.WithCancel(ctx)
+	cancel()
+	_ = rel(cctx) // error is acceptable, but the lock MUST be freed.
+
+	// Give Postgres a moment.
+	time.Sleep(200 * time.Millisecond)
+
+	rel2, ok2, err := b.TryAcquire(ctx, "https://e/cancel-test")
+	if err != nil {
+		t.Fatalf("b acquire after canceled release: %v", err)
+	}
+	if !ok2 {
+		t.Fatalf("b: expected to acquire after a's canceled release, but lock is still held")
+	}
+	_ = rel2(ctx)
+}
+
 func TestCoordinatorClosingReleasesLocks(t *testing.T) {
 	dsn := newDSN(t)
 	ctx := context.Background()
