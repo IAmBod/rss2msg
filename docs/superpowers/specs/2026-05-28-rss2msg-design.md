@@ -88,8 +88,10 @@ Per-feed loop, identical between `serve` (driven by a ticker) and `run-once`
 
 1. **Fetch.** HTTP GET via `gofeed.Parser`. Send `If-Modified-Since` and
    `If-None-Match` headers populated from the previous run (stored next to
-   state). On `304 Not Modified`, skip parsing. HTTP timeout per feed
-   (default 30s, override per feed).
+   state), plus any per-feed `http.headers` overrides from config (typically
+   `Authorization` for private feeds, or extra routing/tracing tags). On
+   `304 Not Modified`, skip parsing. HTTP timeout per feed (default 30s,
+   override per feed).
 2. **Parse.** `gofeed` normalises RSS 2.0, Atom, RDF, and JSON Feed into a
    `*gofeed.Feed` with `Items[]`.
 3. **Compare.** For each item:
@@ -103,17 +105,34 @@ Per-feed loop, identical between `serve` (driven by a ticker) and `run-once`
      not found → `new`; found and hash matches → skip; found and hash
      differs → `updated`.
 4. **Publish + commit.** For each detected change, fan out to the publishers
-   the feed opts into. Only when **every** publish succeeds do we upsert the
-   new hash to the state store. If any publisher fails after retries, leave
-   state untouched — the next poll re-detects the item and retries delivery.
+   the feed opts into (see [Sink resolution](#sink-resolution) — if the feed
+   omits `sinks`, fan out to the sink named `default`). Each publisher's
+   branch ends in one of three states: success, captured-by-DLQ, or dropped.
+   The state store is upserted only when every branch ended in success or
+   captured-by-DLQ; if any branch was dropped, state isn't committed and the
+   next poll re-detects the item. See
+   [Retry / backoff / DLQ](#retry--backoff--dlq) for the per-branch logic.
 
-### Retry / backoff
+### Retry / backoff / DLQ
 
 Each `Publish` call goes through a per-sink retry wrapper: exponential
 backoff with jitter; defaults `max_attempts: 3`, `base_delay: 500ms`,
-`max_delay: 10s`. After exhausting retries the change is dropped from this
-poll cycle (no in-memory queue), but state isn't committed, so the next poll
-re-attempts. **Idempotency is the publisher's responsibility**: Kafka uses
+`max_delay: 10s`. After exhausting retries:
+
+- If the sink has a `dead_letter` configured, the change is handed once to
+  that DLQ sink with the extra DLQ fields described under
+  [Dead-letter queues](#dead-letter-queues). If the DLQ publish itself
+  succeeds, the change is considered handled *for that sink's branch of the
+  fan-out*.
+- If no DLQ is configured, or the DLQ publish itself fails, the failure is
+  logged and the change is dropped from this poll cycle.
+
+Either way the state store is **only** upserted if the original publish to
+**every** non-DLQ sink the feed opted into either succeeded directly or was
+captured by its DLQ. If any branch ended with a logged drop (no DLQ or DLQ
+also failed), state isn't committed and the next poll re-detects the item.
+
+**Idempotency is the publisher's responsibility.** Kafka uses
 the item ID as message key (downstream consumers dedupe on it if they care);
 Postgres uses `INSERT … ON CONFLICT (feed_url, item_id, detected_at) DO NOTHING`,
 which makes within-poll retries safe. Across poll cycles, if delivery to one
@@ -166,11 +185,18 @@ state:
     dsn: ${POSTGRES_DSN}   # viper resolves env vars in strings
 
 sinks:                     # global, named, used by feeds via the name list
+  - name: default          # special name — used by feeds that omit `sinks`
+    driver: kafka
+    kafka:
+      brokers: ["kafka-1:9092"]
+      topic: feed.changes
+    dead_letter: dlq-main  # optional; name of another declared sink
   - name: pg-main
     driver: postgres
     postgres:
       dsn: ${POSTGRES_DSN}
       table: feed_changes
+    # dead_letter omitted → noop DLQ (drop after retries, error log only)
   - name: kafka-main
     driver: kafka
     kafka:
@@ -178,6 +204,12 @@ sinks:                     # global, named, used by feeds via the name list
       topic: feed.changes
       acks: all
       compression: snappy
+    dead_letter: dlq-main
+  - name: dlq-main         # the DLQ is itself just a sink
+    driver: postgres
+    postgres:
+      dsn: ${POSTGRES_DSN}
+      table: feed_changes_dlq
 
 feeds:
   - url: https://example.com/blog/rss.xml
@@ -185,17 +217,65 @@ feeds:
     sinks: [pg-main, kafka-main]
   - url: https://other.example/atom.xml
     interval: 15m
-    sinks: [kafka-main]
+    # no `sinks` → resolves to the sink named "default"
     http:
       timeout: 10s
+      headers:               # per-feed HTTP header overrides
+        Authorization: "Bearer ${OTHER_FEED_TOKEN}"
+        X-Custom-Tag: "team-news"
 ```
+
+### Sink resolution
+
+- If a feed declares `sinks: [name1, name2, …]`, those names are resolved
+  against the registry at startup.
+- If a feed **omits** `sinks` (or sets it to an empty list), it resolves to a
+  single sink named `default`. If no sink named `default` is declared, config
+  validation fails at startup.
+- The name `default` has no other special behaviour — it is a normal sink with
+  any driver. Feeds may also reference it explicitly.
+
+### Dead-letter queues
+
+Each sink may declare `dead_letter: <other-sink-name>`. When `Publish` to a
+sink fails after exhausting retries, the change is handed to that sink's DLQ
+once (no further retry). The DLQ receives the **original `Change` envelope**
+unchanged, plus three extra Kafka headers / JSON top-level fields when
+rendered:
+
+- `dlq_from_sink` — the failing sink's name
+- `dlq_error` — the final error string (truncated to 1 KiB)
+- `dlq_attempts` — the number of attempts that were made
+
+If `dead_letter` is omitted, the DLQ is a no-op: the failure is logged at
+`error` level with the same context fields and the change is dropped from this
+poll cycle (state isn't committed, so the next poll re-detects it — same as
+today). A sink cannot be its own DLQ; DLQ chains may be at most one hop deep
+(DLQ failures are always no-op logged, never re-DLQ'd) — both checked at
+startup.
+
+### Per-feed HTTP header overrides
+
+Each feed may declare `http.headers: { Name: Value, … }`. These headers are
+merged onto every outgoing fetch request for that feed, overriding the
+default `User-Agent` when explicitly set. Values pass through Viper's env-var
+substitution (`${TOKEN_NAME}`) so secrets live in the environment, not in the
+config file. Headers with empty string values are treated as
+"explicitly delete the default" (e.g., to suppress `User-Agent`). The
+`If-Modified-Since` and `If-None-Match` headers managed by the fetcher
+cannot be overridden — config values for them are rejected at startup.
 
 ### Validation (fail fast at startup)
 
 - Every `feeds[].sinks[]` name resolves to a declared sink.
+- Every feed without a `sinks` field has a `default` sink declared.
+- Every `sinks[].dead_letter` (when set) resolves to a different declared sink.
+- No sink names itself as `dead_letter`.
 - Every `interval` ≥ 1s.
 - Exactly one `state.driver` configured.
 - `sinks[].name` values are unique.
+- `feeds[].http.headers` does not contain `If-Modified-Since` or
+  `If-None-Match`.
 - `validate-config` runs the same validator plus a `Ping`/dial against the
   state store and each sink.
 
