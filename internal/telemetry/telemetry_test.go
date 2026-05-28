@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+
 	"github.com/iambod/rss2msg/internal/config"
 )
 
@@ -44,6 +46,35 @@ func TestSetupConsoleFormat(t *testing.T) {
 	out := buf.String()
 	if strings.HasPrefix(strings.TrimSpace(out), "{") {
 		t.Fatalf("expected human-readable console output, got %q", out)
+	}
+}
+
+func TestLoggerCarriesTraceIDFromContext(t *testing.T) {
+	t.Parallel()
+	cfg := config.Defaults()
+	cfg.Log.Format = "json"
+	buf := &bytes.Buffer{}
+	tel, err := Setup(context.Background(), cfg, buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tel.Shutdown(context.Background()) }()
+
+	// Force a real (non-noop) tracer provider so SpanContext is valid.
+	tp := sdktrace.NewTracerProvider()
+	defer func() { _ = tp.Shutdown(context.Background()) }()
+	tracer := tp.Tracer("test")
+
+	ctx, span := tracer.Start(context.Background(), "test.span")
+	defer span.End()
+
+	tel.Logger.Info().Ctx(ctx).Msg("hello")
+	out := buf.String()
+	if !strings.Contains(out, `"trace_id"`) || !strings.Contains(out, `"span_id"`) {
+		t.Fatalf("expected trace_id and span_id in log line, got %q", out)
+	}
+	if !strings.Contains(out, span.SpanContext().TraceID().String()) {
+		t.Fatalf("expected trace_id %s in log line, got %q", span.SpanContext().TraceID().String(), out)
 	}
 }
 

@@ -3,7 +3,7 @@ package retry
 import (
 	"context"
 	"errors"
-	"math/rand"
+	"math/rand/v2"
 	"time"
 )
 
@@ -58,13 +58,17 @@ func Do(ctx context.Context, cfg Config, fn func(ctx context.Context) error) Res
 	return Result{Attempts: cfg.MaxAttempts, Err: lastErr}
 }
 
-// delayFor returns base * 2^(attempt-1) capped at MaxDelay, plus jitter in
-// [0, delay).
+// delayFor returns a "full jitter" backoff: a uniform random duration in
+// [0, base*2^(attempt-1)), with the exponential ceiling capped at MaxDelay.
+// This matches AWS's recommended full-jitter strategy and spreads retries
+// across the window rather than synchronizing them at the upper bound.
 func delayFor(cfg Config, attempt int) time.Duration {
 	d := cfg.BaseDelay << (attempt - 1)
 	if d <= 0 || d > cfg.MaxDelay {
 		d = cfg.MaxDelay
 	}
-	jitter := time.Duration(rand.Int63n(int64(d)))
-	return d + jitter
+	if d <= 0 {
+		return 0
+	}
+	return time.Duration(rand.Int64N(int64(d)))
 }
