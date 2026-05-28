@@ -3,6 +3,9 @@ module github.com/iambod/rss2msg
 go 1.25.0
 
 require (
+	github.com/aws/aws-sdk-go-v2 v1.41.8
+	github.com/aws/aws-sdk-go-v2/config v1.32.19
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.28
 	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/mmcdole/gofeed v1.3.0
@@ -10,6 +13,7 @@ require (
 	github.com/rs/zerolog v1.35.1
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
+	github.com/testcontainers/testcontainers-go v0.42.0
 	github.com/testcontainers/testcontainers-go/modules/kafka v0.42.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.42.0
 	github.com/twmb/franz-go v1.21.2
@@ -30,6 +34,18 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/PuerkitoBio/goquery v1.8.0 // indirect
 	github.com/andybalholm/cascadia v1.3.1 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.18 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.24 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.24 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.24 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.25 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.9 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.24 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.1.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.30.18 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.36.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.42.2 // indirect
+	github.com/aws/smithy-go v1.25.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
@@ -93,7 +109,6 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/testcontainers/testcontainers-go v0.42.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.13.1 // indirect
