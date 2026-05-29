@@ -1,0 +1,48 @@
+version: '3'
+
+vars:
+  GO: '{{.GO | default "go"}}'
+  BIN: rss2msg
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+    silent: true
+
+  build:
+    desc: Build the rss2msg binary
+    cmds:
+      - '{{.GO}} build -o {{.BIN}} ./cmd/rss2msg'
+    sources:
+      - '**/*.go'
+      - go.mod
+      - go.sum
+    generates:
+      - '{{.BIN}}'
+
+  test:
+    desc: Run unit tests (fast, no containers)
+    cmds:
+      - '{{.GO}} test -race ./...'
+
+  test-integration:
+    desc: Run integration tests (spins Postgres / Kafka / Redis / LocalStack via testcontainers; requires Docker)
+    cmds:
+      - '{{.GO}} test -race -tags=integration ./...'
+
+  vet:
+    desc: Run go vet across all packages
+    cmds:
+      - '{{.GO}} vet ./...'
+
+  tidy:
+    desc: Run go mod tidy
+    cmds:
+      - '{{.GO}} mod tidy'
+
+  clean:
+    desc: Remove the built binary
+    cmds:
+      - rm -f {{.BIN}}
