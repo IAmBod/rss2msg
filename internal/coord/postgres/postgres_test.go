@@ -36,12 +36,12 @@ func TestTwoCoordinatorsRaceForSameFeed(t *testing.T) {
 	dsn := newDSN(t)
 	ctx := context.Background()
 
-	a, err := coordpg.New(ctx, dsn, 4)
+	a, err := coordpg.New(ctx, coordpg.Options{DSN: dsn, MinConns: 4})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer a.Close()
-	b, err := coordpg.New(ctx, dsn, 4)
+	b, err := coordpg.New(ctx, coordpg.Options{DSN: dsn, MinConns: 4})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestCoordinatorReleaseAllowsAcquireAgain(t *testing.T) {
 	dsn := newDSN(t)
 	ctx := context.Background()
 
-	a, err := coordpg.New(ctx, dsn, 4)
+	a, err := coordpg.New(ctx, coordpg.Options{DSN: dsn, MinConns: 4})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,12 +92,12 @@ func TestReleaseWithCanceledContextStillFreesLock(t *testing.T) {
 	dsn := newDSN(t)
 	ctx := context.Background()
 
-	a, err := coordpg.New(ctx, dsn, 4)
+	a, err := coordpg.New(ctx, coordpg.Options{DSN: dsn, MinConns: 4})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer a.Close()
-	b, err := coordpg.New(ctx, dsn, 4)
+	b, err := coordpg.New(ctx, coordpg.Options{DSN: dsn, MinConns: 4})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestCoordinatorClosingReleasesLocks(t *testing.T) {
 	dsn := newDSN(t)
 	ctx := context.Background()
 
-	a, err := coordpg.New(ctx, dsn, 4)
+	a, err := coordpg.New(ctx, coordpg.Options{DSN: dsn, MinConns: 4})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestCoordinatorClosingReleasesLocks(t *testing.T) {
 	// Allow Postgres a brief moment to notice the closed sessions.
 	time.Sleep(200 * time.Millisecond)
 
-	b, err := coordpg.New(ctx, dsn, 4)
+	b, err := coordpg.New(ctx, coordpg.Options{DSN: dsn, MinConns: 4})
 	if err != nil {
 		t.Fatal(err)
 	}

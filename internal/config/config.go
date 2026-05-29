@@ -59,7 +59,16 @@ type CoordinationConfig struct {
 }
 
 type CoordinationPGConfig struct {
-	DSN string `mapstructure:"dsn"`
+	DSN string                  `mapstructure:"dsn"`
+	TLS CoordinationPGTLSConfig `mapstructure:"tls"`
+}
+
+type CoordinationPGTLSConfig struct {
+	CAFile             string `mapstructure:"ca_file"`
+	CertFile           string `mapstructure:"cert_file"`
+	KeyFile            string `mapstructure:"key_file"`
+	ServerName         string `mapstructure:"server_name"`
+	InsecureSkipVerify bool   `mapstructure:"insecure_skip_verify"`
 }
 
 type CoordinationRedisConfig struct {
