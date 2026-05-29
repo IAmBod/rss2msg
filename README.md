@@ -554,6 +554,34 @@ Implementation notes:
 - One AMQP connection + one channel per Publisher. Publishes are mutex-serialised because AMQP channels are not safe for concurrent use.
 - No auto-reconnect in this version. A broker disconnect surfaces as a publish error and is handled by the sink retry+DLQ layer.
 
+#### `driver: stdout`
+
+Writes one Change per line to stdout (or stderr). Intended for local
+development, debugging, and ad-hoc pipelines:
+
+```bash
+./rss2msg run-once --config debug.yaml | jq 'select(.kind == "new") | .title'
+```
+
+```yaml
+- name: out
+  driver: stdout
+  stdout:
+    target: stdout   # stdout (default) | stderr
+    format: json     # json (default, NDJSON) | pretty (indented; not line-parseable)
+```
+
+| field    | required | default  | notes |
+| -------- | -------- | -------- | ----- |
+| `target` | no       | `stdout` | `stdout` \| `stderr`. |
+| `format` | no       | `json`   | `json` writes one Change envelope per line (NDJSON). `pretty` indents with 2 spaces — human-readable in a terminal, but no longer one-record-per-line. |
+
+Concurrent publishes from different feeds are mutex-serialised so records
+never interleave bytes mid-line. Note that on a daemon whose `log.format`
+is also `json`, the stdout sink output and the zerolog records share the
+same pipe; downstream consumers can filter (e.g. by presence of
+`schema_version` for Changes vs. `level` for log records).
+
 ### `feeds`
 
 A non-empty list of feeds to poll.
