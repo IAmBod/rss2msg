@@ -8,6 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sns v1.39.18
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.28
 	github.com/go-viper/mapstructure/v2 v2.4.0
+	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/mmcdole/gofeed v1.3.0
 	github.com/prometheus/client_golang v1.23.2
@@ -66,7 +67,6 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
