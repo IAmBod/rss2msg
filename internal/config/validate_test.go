@@ -588,6 +588,85 @@ func TestValidateRejectsStateSQLiteMissingPath(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsHTTPSinkWithDefaults(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "hook", Driver: "http",
+		HTTP: HTTPSinkConfig{URL: "https://example.com/hook"},
+	})
+	if err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateAcceptsHTTPSinkWithFullConfig(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "hook", Driver: "http",
+		HTTP: HTTPSinkConfig{
+			URL:          "https://example.com/hook",
+			Method:       "PUT",
+			Headers:      map[string]string{"Authorization": "Bearer x"},
+			Timeout:      10 * time.Second,
+			SuccessCodes: []int{200, 202, 418},
+		},
+	})
+	if err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsHTTPSinkMissingURL(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{Name: "hook", Driver: "http"})
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "http.url") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsHTTPSinkBadURLScheme(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "hook", Driver: "http",
+		HTTP: HTTPSinkConfig{URL: "ftp://example/h"},
+	})
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "valid http(s) URL") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsHTTPSinkBadMethod(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "hook", Driver: "http",
+		HTTP: HTTPSinkConfig{URL: "https://example/h", Method: "DELETE"},
+	})
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "method") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsHTTPSinkBadSuccessCode(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "hook", Driver: "http",
+		HTTP: HTTPSinkConfig{URL: "https://example/h", SuccessCodes: []int{600}},
+	})
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "success_code") {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestValidateAcceptsStdoutSinkWithDefaults(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()

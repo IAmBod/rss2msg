@@ -33,6 +33,13 @@ var knownSinkDrivers = map[string]struct{}{
 	"sqs":      {},
 	"sns":      {},
 	"stdout":   {},
+	"http":     {},
+}
+
+var knownHTTPSinkMethods = map[string]struct{}{
+	"":     {}, // empty -> POST default
+	"POST": {},
+	"PUT":  {},
 }
 
 var knownStdoutTargets = map[string]struct{}{
@@ -213,6 +220,23 @@ func Validate(c Config) error {
 			}
 			if _, ok := knownStdoutFormats[s.Stdout.Format]; !ok {
 				return fmt.Errorf("sinks[%d] (stdout %q): unknown format %q (want json or pretty)", i, s.Name, s.Stdout.Format)
+			}
+		case "http":
+			raw := strings.TrimSpace(s.HTTP.URL)
+			if raw == "" {
+				return fmt.Errorf("sinks[%d] (http %q): http.url is required", i, s.Name)
+			}
+			u, err := url.Parse(raw)
+			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+				return fmt.Errorf("sinks[%d] (http %q): http.url %q is not a valid http(s) URL", i, s.Name, raw)
+			}
+			if _, ok := knownHTTPSinkMethods[s.HTTP.Method]; !ok {
+				return fmt.Errorf("sinks[%d] (http %q): unknown method %q (want POST or PUT)", i, s.Name, s.HTTP.Method)
+			}
+			for _, c := range s.HTTP.SuccessCodes {
+				if c < 100 || c > 599 {
+					return fmt.Errorf("sinks[%d] (http %q): success_code %d is out of range 100-599", i, s.Name, c)
+				}
 			}
 		case "rabbitmq":
 			if strings.TrimSpace(s.RabbitMQ.URL) == "" {
