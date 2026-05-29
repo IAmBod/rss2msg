@@ -25,7 +25,7 @@ runtime:
   run_once_concurrency: 8
 
 coordination:
-  driver: postgres   # noop | postgres | redis ; default noop
+  driver: postgres   # memory | postgres | redis ; default memory
   postgres:
     dsn: ${POSTGRES_DSN}  # optional; falls back to state.postgres.dsn
   # redis:
