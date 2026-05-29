@@ -34,6 +34,13 @@ var knownSinkDrivers = map[string]struct{}{
 	"sns":      {},
 }
 
+var knownRabbitMQExchangeTypes = map[string]struct{}{
+	"direct":  {},
+	"topic":   {},
+	"fanout":  {},
+	"headers": {},
+}
+
 var knownCoordinationDrivers = map[string]struct{}{
 	"":         {},
 	"memory":   {},
@@ -168,6 +175,18 @@ func Validate(c Config) error {
 			}
 			if strings.HasSuffix(s.SNS.TopicARN, ".fifo") {
 				return fmt.Errorf("sinks[%d] (sns %q): FIFO topics are not supported in this version", i, s.Name)
+			}
+		case "rabbitmq":
+			if strings.TrimSpace(s.RabbitMQ.URL) == "" {
+				return fmt.Errorf("sinks[%d] (rabbitmq %q): rabbitmq.url is required", i, s.Name)
+			}
+			if et := s.RabbitMQ.ExchangeType; et != "" {
+				if _, ok := knownRabbitMQExchangeTypes[et]; !ok {
+					return fmt.Errorf("sinks[%d] (rabbitmq %q): unknown exchange_type %q (want one of direct, topic, fanout, headers)", i, s.Name, et)
+				}
+			}
+			if s.RabbitMQ.Declare && strings.TrimSpace(s.RabbitMQ.Exchange) == "" {
+				return fmt.Errorf("sinks[%d] (rabbitmq %q): declare=true requires a non-empty exchange (the default exchange cannot be declared)", i, s.Name)
 			}
 		}
 	}

@@ -495,3 +495,83 @@ func TestValidateRejectsStateSQLiteMissingPath(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestValidateAcceptsRabbitMQSink(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name:   "rmq-x",
+		Driver: "rabbitmq",
+		RabbitMQ: RabbitMQSinkConfig{
+			URL:          "amqp://guest:guest@localhost:5672/",
+			Exchange:     "feed.changes",
+			ExchangeType: "topic",
+			RoutingKey:   "feed.changes",
+			Declare:      true,
+			Durable:      true,
+		},
+	})
+	if err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsRabbitMQWithoutURL(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{Name: "rmq-x", Driver: "rabbitmq"})
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "rabbitmq.url") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsRabbitMQUnknownExchangeType(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name:   "rmq-x",
+		Driver: "rabbitmq",
+		RabbitMQ: RabbitMQSinkConfig{
+			URL:          "amqp://localhost",
+			ExchangeType: "broadcast",
+		},
+	})
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "exchange_type") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsRabbitMQDeclareWithoutExchange(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name:   "rmq-x",
+		Driver: "rabbitmq",
+		RabbitMQ: RabbitMQSinkConfig{
+			URL:     "amqp://localhost",
+			Declare: true,
+		},
+	})
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "declare=true") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateAcceptsRabbitMQWithoutOptionalFields(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name:   "rmq-x",
+		Driver: "rabbitmq",
+		RabbitMQ: RabbitMQSinkConfig{
+			URL:        "amqp://localhost",
+			RoutingKey: "rss2msg",
+		},
+	})
+	if err := Validate(c); err != nil {
+		t.Fatalf("expected nil with only url+routing_key, got %v", err)
+	}
+}
