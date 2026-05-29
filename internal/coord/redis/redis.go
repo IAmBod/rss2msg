@@ -10,7 +10,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -83,6 +82,7 @@ type Coordinator struct {
 	mu      sync.Mutex
 	held    map[*lease]struct{} // nil after Close
 	closing bool
+	closed  bool // true once client.Close() has been called
 }
 
 // New parses opts.URL, dials Redis, and returns a ready Coordinator.
@@ -128,6 +128,9 @@ func (c *Coordinator) Close() error {
 		<-l.done
 		c.casDelete(l)
 	}
+	c.mu.Lock()
+	c.closed = true
+	c.mu.Unlock()
 	return c.client.Close()
 }
 
@@ -203,9 +206,6 @@ func (c *Coordinator) renewLoop(ctx context.Context, l *lease, feedURL string) {
 				[]string{l.key}, l.token, c.opts.LockTTL.Milliseconds()).Result()
 			cancel()
 			if err != nil {
-				if errors.Is(err, context.Canceled) {
-					return
-				}
 				log.Warn().
 					Str("coord_driver", "redis").
 					Str("feed_url", feedURL).
@@ -231,6 +231,13 @@ func (c *Coordinator) renewLoop(ctx context.Context, l *lease, feedURL string) {
 // return of 0 (TTL already expired, or another instance now holds the key,
 // or the renewal goroutine already noted the loss) is not an error.
 func (c *Coordinator) casDelete(l *lease) {
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return
+	}
+	c.mu.Unlock()
+
 	delCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := releaseScript.Run(delCtx, c.client, []string{l.key}, l.token).Err(); err != nil {
