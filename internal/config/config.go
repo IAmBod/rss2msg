@@ -120,7 +120,16 @@ type SinkConfig struct {
 	SQS        SQSSinkConfig          `mapstructure:"sqs"`
 	SNS        SNSSinkConfig          `mapstructure:"sns"`
 	Stdout     StdoutSinkConfig       `mapstructure:"stdout"`
+	HTTP       HTTPSinkConfig         `mapstructure:"http"`
 	Extra      map[string]interface{} `mapstructure:",remain"`
+}
+
+type HTTPSinkConfig struct {
+	URL          string            `mapstructure:"url"`
+	Method       string            `mapstructure:"method"`        // POST (default) | PUT
+	Headers      map[string]string `mapstructure:"headers"`       // static request headers
+	Timeout      time.Duration     `mapstructure:"timeout"`       // 0 -> 30s
+	SuccessCodes []int             `mapstructure:"success_codes"` // empty -> {200,201,202,204}
 }
 
 type StdoutSinkConfig struct {

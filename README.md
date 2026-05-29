@@ -383,7 +383,7 @@ Common fields on every sink:
 | field         | required | notes |
 | ------------- | -------- | ----- |
 | `name`        | yes      | Unique per config. Referenced by `feeds[].sinks` and `dead_letter`. |
-| `driver`      | yes      | One of `postgres`, `kafka`, `rabbitmq`, `sqs`, `sns`. |
+| `driver`      | yes      | One of `postgres`, `kafka`, `rabbitmq`, `sqs`, `sns`, `stdout`, `http`. |
 | `dead_letter` | no       | Name of another declared sink. On retry exhaustion the change is delivered there once, with `dlq_from_sink`, `dlq_error`, and `dlq_attempts` annotations. A sink cannot be its own DLQ. |
 
 #### `driver: postgres`
@@ -581,6 +581,39 @@ never interleave bytes mid-line. Note that on a daemon whose `log.format`
 is also `json`, the stdout sink output and the zerolog records share the
 same pipe; downstream consumers can filter (e.g. by presence of
 `schema_version` for Changes vs. `level` for log records).
+
+#### `driver: http`
+
+POSTs (or PUTs) each Change as a JSON request body to a configured URL.
+Suitable for webhook integrations — Slack incoming-webhook, Discord,
+custom HTTP receivers, etc.
+
+```yaml
+- name: hook
+  driver: http
+  http:
+    url: https://example.com/hook                # required; http:// or https://
+    method: POST                                  # POST (default) | PUT
+    headers:                                      # optional static headers
+      Authorization: "Bearer ${HOOK_TOKEN}"
+      X-Source: rss2msg
+    timeout: 10s                                  # default 30s
+    success_codes: [200, 201, 202, 204]           # default; status codes treated as success
+```
+
+| field           | required | default                | notes |
+| --------------- | -------- | ---------------------- | ----- |
+| `url`           | yes      | —                      | Must be `http://` or `https://`. `${ENV}` substitution works. |
+| `method`        | no       | `POST`                 | `POST` \| `PUT`. |
+| `headers`       | no       | (none)                 | Static request headers. Useful for auth tokens, custom routing keys, etc. Per-record canonical headers (see below) cannot be overridden. |
+| `timeout`       | no       | `30s`                  | Per-request timeout (Go `time.Duration`). |
+| `success_codes` | no       | `[200, 201, 202, 204]` | HTTP status codes treated as success; everything else surfaces as a publish error. |
+
+Request layout:
+- Body: JSON `Change` envelope.
+- `Content-Type: application/json`.
+- Canonical per-record headers: `X-Feed-Url`, `X-Item-Id`, `X-Kind`, `X-Schema-Version`, optional `X-Dlq-From-Sink` / `X-Dlq-Error` / `X-Dlq-Attempts`. Set after the static `headers` block so operator typos can't clobber per-record metadata.
+- W3C trace context (`traceparent`, `tracestate`) injected automatically when a span is active.
 
 ### `feeds`
 

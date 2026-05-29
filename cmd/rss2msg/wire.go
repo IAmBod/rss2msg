@@ -12,6 +12,7 @@ import (
 	"github.com/iambod/rss2msg/internal/feed"
 	"github.com/iambod/rss2msg/internal/retry"
 	"github.com/iambod/rss2msg/internal/sink"
+	sinkhttp "github.com/iambod/rss2msg/internal/sink/http"
 	sinkkafka "github.com/iambod/rss2msg/internal/sink/kafka"
 	sinkpg "github.com/iambod/rss2msg/internal/sink/postgres"
 	sinkrabbitmq "github.com/iambod/rss2msg/internal/sink/rabbitmq"
@@ -239,6 +240,15 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig) (sink.Publisher, 
 			Name:   sc.Name,
 			Target: sc.Stdout.Target,
 			Format: sc.Stdout.Format,
+		})
+	case "http":
+		return sinkhttp.New(sinkhttp.Options{
+			Name:         sc.Name,
+			URL:          sc.HTTP.URL,
+			Method:       sc.HTTP.Method,
+			Headers:      sc.HTTP.Headers,
+			Timeout:      sc.HTTP.Timeout,
+			SuccessCodes: sc.HTTP.SuccessCodes,
 		})
 	case "rabbitmq":
 		return sinkrabbitmq.New(sinkrabbitmq.Options{
