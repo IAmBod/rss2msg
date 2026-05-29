@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"net/textproto"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -28,6 +30,7 @@ var knownCoordinationDrivers = map[string]struct{}{
 	"":         {},
 	"noop":     {},
 	"postgres": {},
+	"redis":    {},
 }
 
 // Validate enforces the startup rules from the spec.
@@ -52,6 +55,27 @@ func Validate(c Config) error {
 		}
 		if dsn == "" {
 			return fmt.Errorf("coordination.postgres.dsn (or state.postgres.dsn fallback) is required when coordination.driver=postgres")
+		}
+	}
+	if c.Coordination.Driver == "redis" {
+		url := strings.TrimSpace(c.Coordination.Redis.URL)
+		if url == "" {
+			return fmt.Errorf("coordination.redis.url is required when coordination.driver=redis")
+		}
+		if _, err := redisparseURL(url); err != nil {
+			return fmt.Errorf("coordination.redis.url %q is not parseable: %w", url, err)
+		}
+		if ttl := c.Coordination.Redis.LockTTL; ttl != 0 && ttl < time.Second {
+			return fmt.Errorf("coordination.redis.lock_ttl %v is below the 1s minimum", ttl)
+		}
+		if ri := c.Coordination.Redis.RenewalInterval; ri != 0 {
+			ttl := c.Coordination.Redis.LockTTL
+			if ttl == 0 {
+				ttl = 30 * time.Second
+			}
+			if ri >= ttl {
+				return fmt.Errorf("coordination.redis.renewal_interval %v must be less than lock_ttl %v", ri, ttl)
+			}
 		}
 	}
 
@@ -140,4 +164,28 @@ func ResolveFeedSinks(f FeedConfig) []string {
 		return f.Sinks
 	}
 	return []string{"default"}
+}
+
+// redisparseURL is a lightweight syntactic check that mirrors the subset of
+// redis.ParseURL we care about at config-validate time: scheme must be
+// redis or rediss, host must be non-empty, optional /<db> path must be a
+// non-negative integer. The actual TLS / auth handling is done by
+// redis.ParseURL inside the coord/redis package at startup.
+func redisparseURL(raw string) (*url.URL, error) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return nil, err
+	}
+	if u.Scheme != "redis" && u.Scheme != "rediss" {
+		return nil, fmt.Errorf("scheme must be redis or rediss, got %q", u.Scheme)
+	}
+	if u.Host == "" {
+		return nil, fmt.Errorf("host is required")
+	}
+	if p := strings.TrimPrefix(u.Path, "/"); p != "" {
+		if _, err := strconv.Atoi(p); err != nil {
+			return nil, fmt.Errorf("db index %q must be an integer", p)
+		}
+	}
+	return u, nil
 }

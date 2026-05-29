@@ -210,3 +210,60 @@ func TestValidateRejectsFIFOSNSTopicARN(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestValidateAcceptsCoordinationRedis(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination.Driver = "redis"
+	c.Coordination.Redis.URL = "redis://localhost:6379/0"
+	if err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsRedisWithoutURL(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination.Driver = "redis"
+	c.Coordination.Redis.URL = ""
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "coordination.redis.url") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsRedisWithUnparseableURL(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination.Driver = "redis"
+	c.Coordination.Redis.URL = "not a url"
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "coordination.redis.url") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsRedisLockTTLBelowOneSecond(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination.Driver = "redis"
+	c.Coordination.Redis.URL = "redis://localhost:6379/0"
+	c.Coordination.Redis.LockTTL = 500 * time.Millisecond
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "lock_ttl") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsRedisRenewalAtOrAboveTTL(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination.Driver = "redis"
+	c.Coordination.Redis.URL = "redis://localhost:6379/0"
+	c.Coordination.Redis.LockTTL = 5 * time.Second
+	c.Coordination.Redis.RenewalInterval = 5 * time.Second
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "renewal_interval") {
+		t.Fatalf("got %v", err)
+	}
+}
