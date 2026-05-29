@@ -19,6 +19,7 @@ import (
 	sinksqs "github.com/iambod/rss2msg/internal/sink/sqs"
 	"github.com/iambod/rss2msg/internal/state"
 	statepg "github.com/iambod/rss2msg/internal/state/postgres"
+	statesqlite "github.com/iambod/rss2msg/internal/state/sqlite"
 	"github.com/iambod/rss2msg/internal/telemetry"
 )
 
@@ -159,6 +160,8 @@ func openStateStore(ctx context.Context, c config.StateConfig) (state.Store, err
 	switch c.Driver {
 	case "postgres":
 		return statepg.New(ctx, c.Postgres.DSN)
+	case "sqlite":
+		return statesqlite.New(ctx, c.SQLite.Path)
 	default:
 		return nil, fmt.Errorf("unsupported state driver %q", c.Driver)
 	}
