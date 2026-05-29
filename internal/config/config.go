@@ -94,7 +94,16 @@ type StateConfig struct {
 }
 
 type PostgresStateConfig struct {
-	DSN string `mapstructure:"dsn"`
+	DSN string           `mapstructure:"dsn"`
+	TLS StatePGTLSConfig `mapstructure:"tls"`
+}
+
+type StatePGTLSConfig struct {
+	CAFile             string `mapstructure:"ca_file"`
+	CertFile           string `mapstructure:"cert_file"`
+	KeyFile            string `mapstructure:"key_file"`
+	ServerName         string `mapstructure:"server_name"`
+	InsecureSkipVerify bool   `mapstructure:"insecure_skip_verify"`
 }
 
 type SQLiteStateConfig struct {
