@@ -1,4 +1,6 @@
 /rss2msg
+/rss2msg.db
+/rss2msg.db-*
 /bin/
 *.test
 *.out
