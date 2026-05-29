@@ -163,12 +163,58 @@ func TestValidateRejectsSQSWithoutQueueURL(t *testing.T) {
 	}
 }
 
-func TestValidateRejectsFIFOSQSURL(t *testing.T) {
+func TestValidateAcceptsFIFOSQSURL(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "sqs-x", Driver: "sqs",
+		SQS: SQSSinkConfig{
+			QueueURL:     "https://sqs.us-east-1.amazonaws.com/123/q.fifo",
+			MessageGroup: "feed_url",
+		},
+	})
+	if err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateAcceptsFIFOSQSURLWithoutExplicitMessageGroup(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()
 	c.Sinks = append(c.Sinks, SinkConfig{
 		Name: "sqs-x", Driver: "sqs",
 		SQS: SQSSinkConfig{QueueURL: "https://sqs.us-east-1.amazonaws.com/123/q.fifo"},
+	})
+	if err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsSQSUnknownMessageGroup(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "sqs-x", Driver: "sqs",
+		SQS: SQSSinkConfig{
+			QueueURL:     "https://sqs.us-east-1.amazonaws.com/123/q.fifo",
+			MessageGroup: "broadcast",
+		},
+	})
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "message_group") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsSQSMessageGroupOnStandardQueue(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "sqs-x", Driver: "sqs",
+		SQS: SQSSinkConfig{
+			QueueURL:     "https://sqs.us-east-1.amazonaws.com/123/q",
+			MessageGroup: "feed_url",
+		},
 	})
 	err := Validate(c)
 	if err == nil || !strings.Contains(err.Error(), "FIFO") {

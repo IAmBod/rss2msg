@@ -246,10 +246,11 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig) (sink.Publisher, 
 		})
 	case "sqs":
 		return sinksqs.New(ctx, sinksqs.Options{
-			Name:        sc.Name,
-			QueueURL:    sc.SQS.QueueURL,
-			Region:      sc.SQS.Region,
-			EndpointURL: sc.SQS.EndpointURL,
+			Name:         sc.Name,
+			QueueURL:     sc.SQS.QueueURL,
+			Region:       sc.SQS.Region,
+			EndpointURL:  sc.SQS.EndpointURL,
+			MessageGroup: sc.SQS.MessageGroup,
 		})
 	case "sns":
 		return sinksns.New(ctx, sinksns.Options{
