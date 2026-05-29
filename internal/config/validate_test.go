@@ -279,6 +279,58 @@ func TestValidateRejectsRedisRenewalAtOrAboveTTL(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsStatePGWithTLSBlock(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.State = StateConfig{
+		Driver: "postgres",
+		Postgres: PostgresStateConfig{
+			DSN: "postgres://pg.internal:5432/db?sslmode=require",
+			TLS: StatePGTLSConfig{
+				CAFile:     "/etc/ssl/pg-ca.pem",
+				CertFile:   "/etc/ssl/pg-client.pem",
+				KeyFile:    "/etc/ssl/pg-client.key",
+				ServerName: "pg.internal",
+			},
+		},
+	}
+	if err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsStatePGTLSWithSSLModeDisable(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.State = StateConfig{
+		Driver: "postgres",
+		Postgres: PostgresStateConfig{
+			DSN: "postgres://pg.internal:5432/db?sslmode=disable",
+			TLS: StatePGTLSConfig{CAFile: "/etc/ssl/pg-ca.pem"},
+		},
+	}
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "state.postgres.tls") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsStatePGTLSCertWithoutKey(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.State = StateConfig{
+		Driver: "postgres",
+		Postgres: PostgresStateConfig{
+			DSN: "postgres://pg.internal:5432/db?sslmode=require",
+			TLS: StatePGTLSConfig{CertFile: "/etc/ssl/pg-client.pem"},
+		},
+	}
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "state.postgres.tls.cert_file and key_file") {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestValidateAcceptsCoordinationPGWithTLSBlock(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()

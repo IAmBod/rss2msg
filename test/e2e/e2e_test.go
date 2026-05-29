@@ -89,7 +89,7 @@ func TestEndToEndPublishesNewAndUpdated(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	// Build the pieces.
-	store, err := statepg.New(ctx, dsn)
+	store, err := statepg.New(ctx, statepg.Options{DSN: dsn})
 	if err != nil {
 		t.Fatal(err)
 	}

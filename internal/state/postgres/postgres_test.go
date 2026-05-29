@@ -32,7 +32,7 @@ func setupStore(t *testing.T) *statepg.Store {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := statepg.New(ctx, dsn)
+	store, err := statepg.New(ctx, statepg.Options{DSN: dsn})
 	if err != nil {
 		t.Fatal(err)
 	}

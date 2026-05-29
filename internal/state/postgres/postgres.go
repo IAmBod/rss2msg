@@ -2,15 +2,47 @@ package postgres
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
 
 	"github.com/iambod/rss2msg/internal/state"
 )
+
+// Options configures the Postgres-backed state Store.
+type Options struct {
+	DSN string // required; pgx-style URL or keyword DSN
+
+	// TLS, if non-nil, overrides whatever TLS config the DSN's sslmode
+	// produced. Forces TLS by clearing pgx fallbacks (so plaintext is
+	// never silently attempted).
+	TLS *TLSOptions
+}
+
+// TLSOptions configures custom TLS for the state pool. Field shape mirrors
+// the coord/postgres and coord/redis packages so operators have a consistent
+// surface.
+type TLSOptions struct {
+	// CAFile is a PEM-encoded CA bundle to trust instead of the system roots.
+	CAFile string
+	// CertFile and KeyFile together enable client-certificate (mTLS) auth.
+	// Either both or neither must be set.
+	CertFile string
+	KeyFile  string
+	// ServerName overrides the SNI / certificate verification hostname.
+	// Defaults to the DSN host.
+	ServerName string
+	// InsecureSkipVerify disables server certificate verification. For
+	// local/test only — logged at warn.
+	InsecureSkipVerify bool
+}
 
 const schemaSQL = `
 CREATE TABLE IF NOT EXISTS seen_items (
@@ -33,11 +65,32 @@ type Store struct {
 	pool *pgxpool.Pool
 }
 
-// New opens a connection pool and ensures schema is present.
-func New(ctx context.Context, dsn string) (*Store, error) {
-	pool, err := pgxpool.New(ctx, dsn)
+// New opens a connection pool against opts.DSN and ensures the schema is
+// present.
+func New(ctx context.Context, opts Options) (*Store, error) {
+	cfg, err := pgxpool.ParseConfig(opts.DSN)
 	if err != nil {
-		return nil, fmt.Errorf("pgxpool: %w", err)
+		return nil, fmt.Errorf("state/postgres: parse dsn: %w", err)
+	}
+	if opts.TLS != nil {
+		tc, err := buildTLSConfig(*opts.TLS, cfg.ConnConfig.Host)
+		if err != nil {
+			return nil, fmt.Errorf("state/postgres: build TLS config: %w", err)
+		}
+		cfg.ConnConfig.TLSConfig = tc
+		// Drop plaintext fallbacks pgx may have set up from the DSN's
+		// sslmode — the operator opted into TLS knobs, so plaintext must
+		// never be attempted.
+		cfg.ConnConfig.Fallbacks = nil
+		if opts.TLS.InsecureSkipVerify {
+			log.Warn().
+				Str("component", "state/postgres").
+				Msg("state/postgres: TLS verification disabled (insecure_skip_verify=true)")
+		}
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("state/postgres: pgxpool: %w", err)
 	}
 	s := &Store{pool: pool}
 	if err := s.migrate(ctx); err != nil {
@@ -45,6 +98,45 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+// buildTLSConfig translates TLSOptions into a *tls.Config. defaultServerName
+// is the host parsed out of the DSN; used as SNI when the caller did not
+// override it.
+//
+// Logic identical to internal/coord/postgres.buildTLSConfig — kept as a
+// local copy until a fourth pgx pool wants the same surface, at which
+// point it's worth extracting to a shared internal/pgtls package.
+func buildTLSConfig(opts TLSOptions, defaultServerName string) (*tls.Config, error) {
+	tc := &tls.Config{
+		ServerName:         defaultServerName,
+		InsecureSkipVerify: opts.InsecureSkipVerify,
+	}
+	if opts.ServerName != "" {
+		tc.ServerName = opts.ServerName
+	}
+	if opts.CAFile != "" {
+		pem, err := os.ReadFile(opts.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("ca_file: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, fmt.Errorf("ca_file %q: no PEM certificates parsed", opts.CAFile)
+		}
+		tc.RootCAs = pool
+	}
+	if opts.CertFile != "" || opts.KeyFile != "" {
+		if opts.CertFile == "" || opts.KeyFile == "" {
+			return nil, fmt.Errorf("cert_file and key_file must both be set or both empty")
+		}
+		cert, err := tls.LoadX509KeyPair(opts.CertFile, opts.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("client cert: %w", err)
+		}
+		tc.Certificates = []tls.Certificate{cert}
+	}
+	return tc, nil
 }
 
 func (s *Store) migrate(ctx context.Context) error {
