@@ -96,6 +96,16 @@ sinks:
       topic_arn: arn:aws:sns:us-east-1:123456789012:feed-changes
       region: us-east-1
     dead_letter: dlq-main
+  - name: rmq-main
+    driver: rabbitmq
+    rabbitmq:
+      url: amqp://guest:guest@rabbit-1:5672/      # or amqps:// for TLS
+      exchange: feed.changes
+      exchange_type: topic                        # direct (default) | topic | fanout | headers
+      routing_key: feed.changes
+      declare: true                               # declare the exchange at startup
+      durable: true                               # only meaningful when declare=true
+    dead_letter: dlq-main
 
 feeds:
   - url: https://example.com/blog/rss.xml
