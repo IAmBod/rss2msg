@@ -3,6 +3,7 @@ package redis
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLockKeyIsDeterministicAndHumanReadable(t *testing.T) {
@@ -57,7 +58,7 @@ func TestResolveDefaults(t *testing.T) {
 
 func TestResolveExplicitRenewalIntervalRespected(t *testing.T) {
 	t.Parallel()
-	o := Options{URL: "redis://x", LockTTL: 60 * 1_000_000_000, RenewalInterval: 5 * 1_000_000_000}
+	o := Options{URL: "redis://x", LockTTL: 60 * time.Second, RenewalInterval: 5 * time.Second}
 	r := o.resolved()
 	if r.RenewalInterval.String() != "5s" {
 		t.Fatalf("expected explicit 5s, got %v", r.RenewalInterval)
