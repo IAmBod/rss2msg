@@ -53,12 +53,19 @@ type RuntimeConfig struct {
 }
 
 type CoordinationConfig struct {
-	Driver   string               `mapstructure:"driver"`
-	Postgres CoordinationPGConfig `mapstructure:"postgres"`
+	Driver   string                  `mapstructure:"driver"`
+	Postgres CoordinationPGConfig    `mapstructure:"postgres"`
+	Redis    CoordinationRedisConfig `mapstructure:"redis"`
 }
 
 type CoordinationPGConfig struct {
 	DSN string `mapstructure:"dsn"`
+}
+
+type CoordinationRedisConfig struct {
+	URL             string        `mapstructure:"url"`
+	LockTTL         time.Duration `mapstructure:"lock_ttl"`
+	RenewalInterval time.Duration `mapstructure:"renewal_interval"`
 }
 
 type StateConfig struct {

@@ -25,9 +25,13 @@ runtime:
   run_once_concurrency: 8
 
 coordination:
-  driver: postgres   # postgres | noop ; default noop
+  driver: postgres   # noop | postgres | redis ; default noop
   postgres:
     dsn: ${POSTGRES_DSN}  # optional; falls back to state.postgres.dsn
+  # redis:
+  #   url: ${REDIS_URL}      # e.g. redis://localhost:6379/0 or rediss://...
+  #   lock_ttl: 30s          # optional, default 30s
+  #   renewal_interval: 10s  # optional, default = lock_ttl / 3
 
 state:
   driver: postgres

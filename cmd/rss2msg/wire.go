@@ -8,6 +8,7 @@ import (
 	"github.com/iambod/rss2msg/internal/coord"
 	coordnoop "github.com/iambod/rss2msg/internal/coord/noop"
 	coordpg "github.com/iambod/rss2msg/internal/coord/postgres"
+	coordredis "github.com/iambod/rss2msg/internal/coord/redis"
 	"github.com/iambod/rss2msg/internal/feed"
 	"github.com/iambod/rss2msg/internal/retry"
 	"github.com/iambod/rss2msg/internal/sink"
@@ -143,6 +144,12 @@ func openCoordinator(ctx context.Context, cc config.CoordinationConfig, sc confi
 			return nil, fmt.Errorf("coordination postgres: no dsn (and no state.postgres.dsn fallback)")
 		}
 		return coordpg.New(ctx, dsn, feedCount)
+	case "redis":
+		return coordredis.New(ctx, coordredis.Options{
+			URL:             cc.Redis.URL,
+			LockTTL:         cc.Redis.LockTTL,
+			RenewalInterval: cc.Redis.RenewalInterval,
+		})
 	default:
 		return nil, fmt.Errorf("unsupported coordination driver %q", driver)
 	}
