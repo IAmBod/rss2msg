@@ -96,6 +96,7 @@ sinks:
     sns:
       topic_arn: arn:aws:sns:us-east-1:123456789012:feed-changes
       region: us-east-1
+      # message_group: feed_url                       # FIFO only: feed_url (default) | item_id | sink
     dead_letter: dlq-main
   - name: rmq-main
     driver: rabbitmq
