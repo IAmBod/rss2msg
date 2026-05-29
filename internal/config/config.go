@@ -119,7 +119,13 @@ type SinkConfig struct {
 	RabbitMQ   RabbitMQSinkConfig     `mapstructure:"rabbitmq"`
 	SQS        SQSSinkConfig          `mapstructure:"sqs"`
 	SNS        SNSSinkConfig          `mapstructure:"sns"`
+	Stdout     StdoutSinkConfig       `mapstructure:"stdout"`
 	Extra      map[string]interface{} `mapstructure:",remain"`
+}
+
+type StdoutSinkConfig struct {
+	Target string `mapstructure:"target"` // stdout (default) | stderr
+	Format string `mapstructure:"format"` // json (default) | pretty
 }
 
 type RabbitMQSinkConfig struct {

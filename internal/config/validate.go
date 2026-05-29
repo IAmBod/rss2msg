@@ -32,6 +32,19 @@ var knownSinkDrivers = map[string]struct{}{
 	"rabbitmq": {},
 	"sqs":      {},
 	"sns":      {},
+	"stdout":   {},
+}
+
+var knownStdoutTargets = map[string]struct{}{
+	"":       {},
+	"stdout": {},
+	"stderr": {},
+}
+
+var knownStdoutFormats = map[string]struct{}{
+	"":       {},
+	"json":   {},
+	"pretty": {},
 }
 
 var knownSQSMessageGroups = map[string]struct{}{
@@ -193,6 +206,13 @@ func Validate(c Config) error {
 				if !fifo {
 					return fmt.Errorf("sinks[%d] (sns %q): message_group is only valid for FIFO topics (topic_arn must end with .fifo)", i, s.Name)
 				}
+			}
+		case "stdout":
+			if _, ok := knownStdoutTargets[s.Stdout.Target]; !ok {
+				return fmt.Errorf("sinks[%d] (stdout %q): unknown target %q (want stdout or stderr)", i, s.Name, s.Stdout.Target)
+			}
+			if _, ok := knownStdoutFormats[s.Stdout.Format]; !ok {
+				return fmt.Errorf("sinks[%d] (stdout %q): unknown format %q (want json or pretty)", i, s.Name, s.Stdout.Format)
 			}
 		case "rabbitmq":
 			if strings.TrimSpace(s.RabbitMQ.URL) == "" {

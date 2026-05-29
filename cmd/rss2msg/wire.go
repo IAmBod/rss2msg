@@ -17,6 +17,7 @@ import (
 	sinkrabbitmq "github.com/iambod/rss2msg/internal/sink/rabbitmq"
 	sinksns "github.com/iambod/rss2msg/internal/sink/sns"
 	sinksqs "github.com/iambod/rss2msg/internal/sink/sqs"
+	sinkstdout "github.com/iambod/rss2msg/internal/sink/stdout"
 	"github.com/iambod/rss2msg/internal/state"
 	statepg "github.com/iambod/rss2msg/internal/state/postgres"
 	statesqlite "github.com/iambod/rss2msg/internal/state/sqlite"
@@ -232,6 +233,12 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig) (sink.Publisher, 
 		return sinkkafka.New(sinkkafka.Options{
 			Name: sc.Name, Brokers: sc.Kafka.Brokers, Topic: sc.Kafka.Topic,
 			Acks: sc.Kafka.Acks, Compression: sc.Kafka.Compression,
+		})
+	case "stdout":
+		return sinkstdout.New(sinkstdout.Options{
+			Name:   sc.Name,
+			Target: sc.Stdout.Target,
+			Format: sc.Stdout.Format,
 		})
 	case "rabbitmq":
 		return sinkrabbitmq.New(sinkrabbitmq.Options{
