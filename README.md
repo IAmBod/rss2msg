@@ -242,17 +242,28 @@ subsequent polls send conditional requests.
 
 ```yaml
 state:
-  driver: postgres
+  driver: postgres        # postgres | sqlite
   postgres:
     dsn: ${POSTGRES_DSN}
+  # sqlite:
+  #   path: ./rss2msg.db
 ```
 
-| field            | required          | notes |
-| ---------------- | ----------------- | ----- |
-| `driver`         | yes               | Only `postgres` is supported today. |
-| `postgres.dsn`   | yes (driver=pg)   | Standard `postgres://` DSN. The store applies its migrations idempotently on `New`. |
+| field              | required             | notes |
+| ------------------ | -------------------- | ----- |
+| `driver`           | yes                  | `postgres` or `sqlite`. |
+| `postgres.dsn`     | yes (driver=postgres)| Standard `postgres://` DSN. The store applies its migrations idempotently on `New`. |
+| `sqlite.path`      | yes (driver=sqlite)  | Filesystem path passed verbatim to the `modernc.org/sqlite` driver. `:memory:` and `?_pragma=…` query strings are accepted. |
 
-Schema created on first start (idempotent `CREATE TABLE IF NOT EXISTS`):
+| driver     | concurrency / scope                                              | when to use |
+| ---------- | ---------------------------------------------------------------- | ----------- |
+| `postgres` | Shared across instances; writers serialised by the DB.           | Production, multi-instance, or when state already lives in Postgres. |
+| `sqlite`   | Single file on local disk. WAL + busy-timeout enabled by default; the store uses one connection so writes are serialised in-process. Not shared between processes/nodes. | Single-instance deployments, local dev, edge / embedded contexts. |
+
+Schema created on first start (idempotent `CREATE TABLE IF NOT EXISTS`). The
+Postgres DDL is shown; the SQLite store uses the same logical schema with
+`TEXT` columns for timestamps (RFC3339Nano UTC), and `ON CONFLICT … DO
+UPDATE SET col = excluded.col` upserts.
 
 ```sql
 CREATE TABLE seen_items (
