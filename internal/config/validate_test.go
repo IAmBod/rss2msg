@@ -278,3 +278,22 @@ func TestValidateRejectsRedisRenewalAtOrAboveTTL(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestValidateAcceptsStateSQLite(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.State = StateConfig{Driver: "sqlite", SQLite: SQLiteStateConfig{Path: "./rss2msg.db"}}
+	if err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsStateSQLiteMissingPath(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.State = StateConfig{Driver: "sqlite"}
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "state.sqlite.path") {
+		t.Fatalf("got %v", err)
+	}
+}
