@@ -87,6 +87,18 @@ func Validate(c Config) error {
 				return fmt.Errorf("coordination.redis.renewal_interval %v must be less than lock_ttl %v", ri, ttl)
 			}
 		}
+		tls := c.Coordination.Redis.TLS
+		tlsConfigured := tls.CAFile != "" || tls.CertFile != "" || tls.KeyFile != "" ||
+			tls.ServerName != "" || tls.InsecureSkipVerify
+		if tlsConfigured {
+			u, _ := url.Parse(strings.TrimSpace(c.Coordination.Redis.URL))
+			if u == nil || u.Scheme != "rediss" {
+				return fmt.Errorf("coordination.redis.tls is only valid when coordination.redis.url uses the rediss:// scheme")
+			}
+		}
+		if (tls.CertFile == "") != (tls.KeyFile == "") {
+			return fmt.Errorf("coordination.redis.tls.cert_file and key_file must both be set or both empty")
+		}
 	}
 
 	if len(c.Sinks) == 0 {

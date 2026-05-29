@@ -297,7 +297,30 @@ coordination:
     url: ${REDIS_URL}        # e.g. redis://localhost:6379/0 or rediss://...
     lock_ttl: 30s            # optional, default 30s
     renewal_interval: 10s    # optional, default = lock_ttl / 3
+    tls:                     # only valid when url is rediss://
+      ca_file: /etc/ssl/redis-ca.pem
+      cert_file: /etc/ssl/redis-client.pem
+      key_file: /etc/ssl/redis-client.key
+      server_name: redis.internal
+      insecure_skip_verify: false
 ```
+
+#### Redis TLS
+
+A `rediss://` URL alone gives default TLS: the system trust store for
+verification, and SNI taken from the URL host. The `coordination.redis.tls`
+block lets operators override that:
+
+| field                  | default                  | notes |
+| ---------------------- | ------------------------ | ----- |
+| `ca_file`              | system roots             | PEM CA bundle to trust instead of system roots. |
+| `cert_file`, `key_file`| (none)                   | PEM client cert + key for mTLS. Both or neither — validation rejects setting only one. |
+| `server_name`          | URL host                 | Overrides the SNI / certificate verification hostname. |
+| `insecure_skip_verify` | `false`                  | Disables server cert verification. Test only — logged at warn on startup. |
+
+The TLS block is only valid when the URL uses the `rediss://` scheme;
+validation rejects it for plain `redis://` so operators don't silently get
+unencrypted connections.
 
 | driver     | mechanism | crash recovery | notes |
 | ---------- | --------- | -------------- | ----- |

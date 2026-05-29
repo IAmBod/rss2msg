@@ -150,9 +150,27 @@ func openCoordinator(ctx context.Context, cc config.CoordinationConfig, sc confi
 			URL:             cc.Redis.URL,
 			LockTTL:         cc.Redis.LockTTL,
 			RenewalInterval: cc.Redis.RenewalInterval,
+			TLS:             redisTLSFromConfig(cc.Redis.TLS),
 		})
 	default:
 		return nil, fmt.Errorf("unsupported coordination driver %q", driver)
+	}
+}
+
+// redisTLSFromConfig returns nil when no TLS field is set so the redis
+// coordinator falls back to the default TLS that redis.ParseURL produces
+// for rediss:// (system roots, SNI from URL host).
+func redisTLSFromConfig(t config.CoordinationRedisTLSConfig) *coordredis.TLSOptions {
+	if t.CAFile == "" && t.CertFile == "" && t.KeyFile == "" &&
+		t.ServerName == "" && !t.InsecureSkipVerify {
+		return nil
+	}
+	return &coordredis.TLSOptions{
+		CAFile:             t.CAFile,
+		CertFile:           t.CertFile,
+		KeyFile:            t.KeyFile,
+		ServerName:         t.ServerName,
+		InsecureSkipVerify: t.InsecureSkipVerify,
 	}
 }
 

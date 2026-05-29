@@ -9,8 +9,11 @@ package redis
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -27,6 +30,29 @@ type Options struct {
 	URL             string        // required
 	LockTTL         time.Duration // 0 -> 30s
 	RenewalInterval time.Duration // 0 -> LockTTL / 3
+
+	// TLS, if non-nil, overrides the default TLS config that redis.ParseURL
+	// produces for rediss:// URLs (system roots, SNI = URL host). Must be
+	// nil for plain redis:// URLs.
+	TLS *TLSOptions
+}
+
+// TLSOptions configures custom TLS for rediss:// connections. Zero-valued
+// fields fall back to safe defaults; an entirely zero-valued TLSOptions is
+// equivalent to leaving Options.TLS nil (default rediss:// TLS).
+type TLSOptions struct {
+	// CAFile is a PEM-encoded CA bundle to trust instead of the system roots.
+	CAFile string
+	// CertFile and KeyFile together enable client-certificate (mTLS) auth.
+	// Either both or neither must be set.
+	CertFile string
+	KeyFile  string
+	// ServerName overrides the SNI / certificate verification hostname.
+	// Defaults to the URL host.
+	ServerName string
+	// InsecureSkipVerify disables server certificate verification. For
+	// local/test only — logged at warn.
+	InsecureSkipVerify bool
 }
 
 type resolvedOptions struct {
@@ -94,6 +120,21 @@ func New(ctx context.Context, opts Options) (*Coordinator, error) {
 	cfg, err := redis.ParseURL(ro.URL)
 	if err != nil {
 		return nil, fmt.Errorf("coord/redis: parse url: %w", err)
+	}
+	if opts.TLS != nil {
+		if cfg.TLSConfig == nil {
+			return nil, fmt.Errorf("coord/redis: TLS options provided but URL scheme is not rediss://")
+		}
+		tc, err := buildTLSConfig(*opts.TLS, cfg.TLSConfig.ServerName)
+		if err != nil {
+			return nil, fmt.Errorf("coord/redis: build TLS config: %w", err)
+		}
+		cfg.TLSConfig = tc
+		if opts.TLS.InsecureSkipVerify {
+			log.Warn().
+				Str("coord_driver", "redis").
+				Msg("coord/redis: TLS verification disabled (insecure_skip_verify=true)")
+		}
 	}
 	client := redis.NewClient(cfg)
 	if err := client.Ping(ctx).Err(); err != nil {
@@ -258,4 +299,41 @@ func lockKey(feedURL string) string {
 // newToken returns a fresh per-acquisition owner token.
 func newToken() string {
 	return uuid.NewString()
+}
+
+// buildTLSConfig translates TLSOptions into a *tls.Config. defaultServerName
+// is the SNI host that redis.ParseURL inferred from the URL; it's used when
+// the caller didn't override it.
+func buildTLSConfig(opts TLSOptions, defaultServerName string) (*tls.Config, error) {
+	tc := &tls.Config{
+		ServerName:         defaultServerName,
+		InsecureSkipVerify: opts.InsecureSkipVerify,
+	}
+	if opts.ServerName != "" {
+		tc.ServerName = opts.ServerName
+	}
+	if opts.CAFile != "" {
+		pem, err := os.ReadFile(opts.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("ca_file: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, fmt.Errorf("ca_file %q: no PEM certificates parsed", opts.CAFile)
+		}
+		tc.RootCAs = pool
+	}
+	if opts.CertFile != "" || opts.KeyFile != "" {
+		// Validation upstream guarantees both-or-neither, but defend against
+		// programmatic callers that bypass it.
+		if opts.CertFile == "" || opts.KeyFile == "" {
+			return nil, fmt.Errorf("cert_file and key_file must both be set or both empty")
+		}
+		cert, err := tls.LoadX509KeyPair(opts.CertFile, opts.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("client cert: %w", err)
+		}
+		tc.Certificates = []tls.Certificate{cert}
+	}
+	return tc, nil
 }
