@@ -60,64 +60,60 @@ state:
 
 sinks:
   - name: default
-    driver: kafka
-    kafka:
-      brokers: ["kafka-1:9092"]
-      topic: feed.changes
-    dead_letter: dlq-main
-  - name: pg-main
-    driver: postgres
-    postgres:
-      dsn: ${POSTGRES_DSN}
-      table: feed_changes
-  - name: kafka-main
-    driver: kafka
-    kafka:
-      brokers: ["kafka-1:9092", "kafka-2:9092"]
-      topic: feed.changes
-      acks: all
-      compression: snappy
-    dead_letter: dlq-main
-  - name: dlq-main
-    driver: postgres
-    postgres:
-      dsn: ${POSTGRES_DSN}
-      table: feed_changes_dlq
-  - name: sqs-main
-    driver: sqs
-    sqs:
-      queue_url: https://sqs.us-east-1.amazonaws.com/123456789012/feed-changes
-      region: us-east-1
-      # endpoint_url: http://localhost:4566           # for LocalStack
-      # message_group: feed_url                       # FIFO only: feed_url (default) | item_id | sink
-    dead_letter: dlq-main
-  - name: sns-main
-    driver: sns
-    sns:
-      topic_arn: arn:aws:sns:us-east-1:123456789012:feed-changes
-      region: us-east-1
-      # message_group: feed_url                       # FIFO only: feed_url (default) | item_id | sink
-    dead_letter: dlq-main
-  - name: rmq-main
-    driver: rabbitmq
-    rabbitmq:
-      url: amqp://guest:guest@rabbit-1:5672/      # or amqps:// for TLS
-      exchange: feed.changes
-      exchange_type: topic                        # direct (default) | topic | fanout | headers
-      routing_key: feed.changes
-      declare: true                               # declare the exchange at startup
-      durable: true                               # only meaningful when declare=true
-    dead_letter: dlq-main
-  - name: stdout-debug
     driver: stdout
     stdout:
       target: stdout                              # stdout (default) | stderr
       format: json                                # json (default, NDJSON) | pretty (indented)
+  # The blocks below are reference examples for the other sink drivers.
+  # Uncomment + supply credentials, and add the sink name to a feed's
+  # sinks: [...] list to route to it.
+  # - name: pg-main
+  #   driver: postgres
+  #   postgres:
+  #     dsn: ${POSTGRES_DSN}
+  #     table: feed_changes
+  # - name: kafka-main
+  #   driver: kafka
+  #   kafka:
+  #     brokers: ["kafka-1:9092", "kafka-2:9092"]
+  #     topic: feed.changes
+  #     acks: all
+  #     compression: snappy
+  #   dead_letter: dlq-main
+  # - name: dlq-main
+  #   driver: postgres
+  #   postgres:
+  #     dsn: ${POSTGRES_DSN}
+  #     table: feed_changes_dlq
+  # - name: sqs-main
+  #   driver: sqs
+  #   sqs:
+  #     queue_url: https://sqs.us-east-1.amazonaws.com/123456789012/feed-changes
+  #     region: us-east-1
+  #     # endpoint_url: http://localhost:4566           # for LocalStack
+  #     # message_group: feed_url                       # FIFO only: feed_url (default) | item_id | sink
+  #   dead_letter: dlq-main
+  # - name: sns-main
+  #   driver: sns
+  #   sns:
+  #     topic_arn: arn:aws:sns:us-east-1:123456789012:feed-changes
+  #     region: us-east-1
+  #     # message_group: feed_url                       # FIFO only: feed_url (default) | item_id | sink
+  #   dead_letter: dlq-main
+  # - name: rmq-main
+  #   driver: rabbitmq
+  #   rabbitmq:
+  #     url: amqp://guest:guest@rabbit-1:5672/      # or amqps:// for TLS
+  #     exchange: feed.changes
+  #     exchange_type: topic                        # direct (default) | topic | fanout | headers
+  #     routing_key: feed.changes
+  #     declare: true                               # declare the exchange at startup
+  #     durable: true                               # only meaningful when declare=true
+  #   dead_letter: dlq-main
 
 feeds:
   - url: https://example.com/blog/rss.xml
-    interval: 5m
-    sinks: [pg-main, kafka-main]
+    interval: 5m                                  # routes to "default" (stdout) since no sinks list
   - url: https://other.example/atom.xml
     interval: 15m
     http:
