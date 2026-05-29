@@ -16,6 +16,7 @@ var reservedHeaders = map[string]struct{}{
 
 var knownStateDrivers = map[string]struct{}{
 	"postgres": {},
+	"sqlite":   {},
 }
 
 var knownSinkDrivers = map[string]struct{}{
@@ -42,6 +43,10 @@ func Validate(c Config) error {
 	case "postgres":
 		if strings.TrimSpace(c.State.Postgres.DSN) == "" {
 			return fmt.Errorf("state.postgres.dsn is required when state.driver=postgres")
+		}
+	case "sqlite":
+		if strings.TrimSpace(c.State.SQLite.Path) == "" {
+			return fmt.Errorf("state.sqlite.path is required when state.driver=sqlite")
 		}
 	}
 

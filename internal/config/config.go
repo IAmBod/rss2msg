@@ -71,11 +71,16 @@ type CoordinationRedisConfig struct {
 type StateConfig struct {
 	Driver   string                 `mapstructure:"driver"`
 	Postgres PostgresStateConfig    `mapstructure:"postgres"`
+	SQLite   SQLiteStateConfig      `mapstructure:"sqlite"`
 	Extra    map[string]interface{} `mapstructure:",remain"`
 }
 
 type PostgresStateConfig struct {
 	DSN string `mapstructure:"dsn"`
+}
+
+type SQLiteStateConfig struct {
+	Path string `mapstructure:"path"`
 }
 
 type SinkConfig struct {
