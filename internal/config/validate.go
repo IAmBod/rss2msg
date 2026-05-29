@@ -4,10 +4,17 @@ import (
 	"fmt"
 	"net/textproto"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// pgKeywordSSLModeRE matches `sslmode=<value>` in pgx keyword-form DSNs,
+// tolerating whitespace around the `=` (which pgx itself accepts) and only
+// matching at word boundaries so substrings like `mysslmode=` don't false-
+// positive.
+var pgKeywordSSLModeRE = regexp.MustCompile(`(?i)\bsslmode\s*=\s*(\S+)`)
 
 var reservedHeaders = map[string]struct{}{
 	textproto.CanonicalMIMEHeaderKey("If-Modified-Since"): {},
@@ -60,6 +67,17 @@ func Validate(c Config) error {
 		}
 		if dsn == "" {
 			return fmt.Errorf("coordination.postgres.dsn (or state.postgres.dsn fallback) is required when coordination.driver=postgres")
+		}
+		tls := c.Coordination.Postgres.TLS
+		tlsConfigured := tls.CAFile != "" || tls.CertFile != "" || tls.KeyFile != "" ||
+			tls.ServerName != "" || tls.InsecureSkipVerify
+		if tlsConfigured {
+			if pgSSLModeIsDisable(dsn) {
+				return fmt.Errorf("coordination.postgres.tls is set but the DSN has sslmode=disable; remove sslmode=disable or drop the tls block")
+			}
+		}
+		if (tls.CertFile == "") != (tls.KeyFile == "") {
+			return fmt.Errorf("coordination.postgres.tls.cert_file and key_file must both be set or both empty")
 		}
 	}
 	if c.Coordination.Driver == "redis" {
@@ -211,4 +229,23 @@ func redisparseURL(raw string) (*url.URL, error) {
 		}
 	}
 	return u, nil
+}
+
+// pgSSLModeIsDisable returns true when dsn explicitly sets sslmode=disable in
+// either the URL query (`postgres://...?sslmode=disable`) or the keyword form
+// (`host=... sslmode=disable`). Conservative — anything we can't unambiguously
+// classify as disable returns false (so we don't reject valid configs).
+func pgSSLModeIsDisable(dsn string) bool {
+	// URL form
+	if u, err := url.Parse(dsn); err == nil && (u.Scheme == "postgres" || u.Scheme == "postgresql") {
+		if v := u.Query().Get("sslmode"); v != "" {
+			return strings.EqualFold(v, "disable")
+		}
+	}
+	// Keyword form: tolerate optional whitespace around `=` (pgx itself does).
+	if m := pgKeywordSSLModeRE.FindStringSubmatch(dsn); m != nil {
+		val := strings.Trim(strings.ToLower(m[1]), `"'`)
+		return val == "disable"
+	}
+	return false
 }

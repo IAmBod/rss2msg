@@ -7,15 +7,48 @@ package postgres
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/binary"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
 
 	"github.com/iambod/rss2msg/internal/coord"
 )
+
+// Options configures the Postgres-backed Coordinator.
+type Options struct {
+	DSN      string // required; pgx-style URL or keyword DSN
+	MinConns int    // raises pgxpool.MaxConns to fit fan-out; 0 leaves pgxpool defaults
+
+	// TLS, if non-nil, overrides whatever TLS config the DSN's sslmode
+	// produced. Forces TLS by also clearing pgx fallbacks (so plaintext is
+	// never attempted).
+	TLS *TLSOptions
+}
+
+// TLSOptions configures custom TLS for the coordinator's Postgres pool. Same
+// shape as the redis coordinator's options so operators have a consistent
+// surface.
+type TLSOptions struct {
+	// CAFile is a PEM-encoded CA bundle to trust instead of the system roots.
+	CAFile string
+	// CertFile and KeyFile together enable client-certificate (mTLS) auth.
+	// Either both or neither must be set.
+	CertFile string
+	KeyFile  string
+	// ServerName overrides the SNI / certificate verification hostname.
+	// Defaults to the DSN host.
+	ServerName string
+	// InsecureSkipVerify disables server certificate verification. For
+	// local/test only — logged at warn.
+	InsecureSkipVerify bool
+}
 
 type Coordinator struct {
 	pool *pgxpool.Pool
@@ -24,18 +57,32 @@ type Coordinator struct {
 	held map[*pgxpool.Conn]struct{}
 }
 
-// New opens a pool against dsn. minConns lets the caller ensure the pool can
-// service a fan-out poll cycle (e.g. minConns = len(feeds)). If minConns is
-// zero, pgxpool defaults apply.
-func New(ctx context.Context, dsn string, minConns int) (*Coordinator, error) {
-	cfg, err := pgxpool.ParseConfig(dsn)
+// New opens a pool against opts.DSN.
+func New(ctx context.Context, opts Options) (*Coordinator, error) {
+	cfg, err := pgxpool.ParseConfig(opts.DSN)
 	if err != nil {
 		return nil, fmt.Errorf("coord/postgres: parse dsn: %w", err)
 	}
-	if minConns > 0 {
+	if opts.MinConns > 0 {
 		// MaxConns is what callers actually pull from; raise it to fit fan-out.
-		if int32(minConns) > cfg.MaxConns {
-			cfg.MaxConns = int32(minConns)
+		if int32(opts.MinConns) > cfg.MaxConns {
+			cfg.MaxConns = int32(opts.MinConns)
+		}
+	}
+	if opts.TLS != nil {
+		tc, err := buildTLSConfig(*opts.TLS, cfg.ConnConfig.Host)
+		if err != nil {
+			return nil, fmt.Errorf("coord/postgres: build TLS config: %w", err)
+		}
+		cfg.ConnConfig.TLSConfig = tc
+		// Drop any plaintext fallbacks pgx may have set up from the DSN's
+		// sslmode — the operator opted into TLS knobs, so plaintext must
+		// never be attempted.
+		cfg.ConnConfig.Fallbacks = nil
+		if opts.TLS.InsecureSkipVerify {
+			log.Warn().
+				Str("coord_driver", "postgres").
+				Msg("coord/postgres: TLS verification disabled (insecure_skip_verify=true)")
 		}
 	}
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
@@ -46,6 +93,41 @@ func New(ctx context.Context, dsn string, minConns int) (*Coordinator, error) {
 		pool: pool,
 		held: make(map[*pgxpool.Conn]struct{}),
 	}, nil
+}
+
+// buildTLSConfig translates TLSOptions into a *tls.Config. defaultServerName
+// is the host parsed out of the DSN; used as SNI when the caller did not
+// override it.
+func buildTLSConfig(opts TLSOptions, defaultServerName string) (*tls.Config, error) {
+	tc := &tls.Config{
+		ServerName:         defaultServerName,
+		InsecureSkipVerify: opts.InsecureSkipVerify,
+	}
+	if opts.ServerName != "" {
+		tc.ServerName = opts.ServerName
+	}
+	if opts.CAFile != "" {
+		pem, err := os.ReadFile(opts.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("ca_file: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, fmt.Errorf("ca_file %q: no PEM certificates parsed", opts.CAFile)
+		}
+		tc.RootCAs = pool
+	}
+	if opts.CertFile != "" || opts.KeyFile != "" {
+		if opts.CertFile == "" || opts.KeyFile == "" {
+			return nil, fmt.Errorf("cert_file and key_file must both be set or both empty")
+		}
+		cert, err := tls.LoadX509KeyPair(opts.CertFile, opts.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("client cert: %w", err)
+		}
+		tc.Certificates = []tls.Certificate{cert}
+	}
+	return tc, nil
 }
 
 // Close terminates the pool. Any still-held leases are hijacked off the pool
