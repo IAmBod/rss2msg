@@ -48,8 +48,18 @@ func Validate(c Config) error {
 	}
 	switch c.State.Driver {
 	case "postgres":
-		if strings.TrimSpace(c.State.Postgres.DSN) == "" {
+		dsn := strings.TrimSpace(c.State.Postgres.DSN)
+		if dsn == "" {
 			return fmt.Errorf("state.postgres.dsn is required when state.driver=postgres")
+		}
+		stls := c.State.Postgres.TLS
+		tlsConfigured := stls.CAFile != "" || stls.CertFile != "" || stls.KeyFile != "" ||
+			stls.ServerName != "" || stls.InsecureSkipVerify
+		if tlsConfigured && pgSSLModeIsDisable(dsn) {
+			return fmt.Errorf("state.postgres.tls is set but the DSN has sslmode=disable; remove sslmode=disable or drop the tls block")
+		}
+		if (stls.CertFile == "") != (stls.KeyFile == "") {
+			return fmt.Errorf("state.postgres.tls.cert_file and key_file must both be set or both empty")
 		}
 	case "sqlite":
 		if strings.TrimSpace(c.State.SQLite.Path) == "" {

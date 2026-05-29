@@ -245,6 +245,12 @@ state:
   driver: postgres        # postgres | sqlite
   postgres:
     dsn: ${POSTGRES_DSN}
+    tls:                  # rejected if DSN has sslmode=disable
+      ca_file: /etc/ssl/pg-ca.pem
+      cert_file: /etc/ssl/pg-client.pem
+      key_file: /etc/ssl/pg-client.key
+      server_name: pg.internal
+      insecure_skip_verify: false
   # sqlite:
   #   path: ./rss2msg.db
 ```
@@ -253,6 +259,7 @@ state:
 | ------------------ | -------------------- | ----- |
 | `driver`           | yes                  | `postgres` or `sqlite`. |
 | `postgres.dsn`     | yes (driver=postgres)| Standard `postgres://` DSN. The store applies its migrations idempotently on `New`. |
+| `postgres.tls.*`   | no                   | Optional structured TLS config. Same field surface as `coordination.postgres.tls` — see [the Postgres TLS subsection under coordination](#postgres-tls) for the full table. Rejected when the DSN sets `sslmode=disable`. |
 | `sqlite.path`      | yes (driver=sqlite)  | Filesystem path passed verbatim to the `modernc.org/sqlite` driver. `:memory:` and `?_pragma=…` query strings are accepted. |
 
 | driver     | concurrency / scope                                              | when to use |

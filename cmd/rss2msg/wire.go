@@ -161,6 +161,22 @@ func openCoordinator(ctx context.Context, cc config.CoordinationConfig, sc confi
 	}
 }
 
+// statePGTLSFromConfig returns nil when no TLS field is set so the postgres
+// state store leaves pgx's DSN-derived TLS config in place.
+func statePGTLSFromConfig(t config.StatePGTLSConfig) *statepg.TLSOptions {
+	if t.CAFile == "" && t.CertFile == "" && t.KeyFile == "" &&
+		t.ServerName == "" && !t.InsecureSkipVerify {
+		return nil
+	}
+	return &statepg.TLSOptions{
+		CAFile:             t.CAFile,
+		CertFile:           t.CertFile,
+		KeyFile:            t.KeyFile,
+		ServerName:         t.ServerName,
+		InsecureSkipVerify: t.InsecureSkipVerify,
+	}
+}
+
 // coordPGTLSFromConfig returns nil when no TLS field is set so the postgres
 // coordinator leaves pgx's DSN-derived TLS config in place.
 func coordPGTLSFromConfig(t config.CoordinationPGTLSConfig) *coordpg.TLSOptions {
@@ -197,7 +213,10 @@ func redisTLSFromConfig(t config.CoordinationRedisTLSConfig) *coordredis.TLSOpti
 func openStateStore(ctx context.Context, c config.StateConfig) (state.Store, error) {
 	switch c.Driver {
 	case "postgres":
-		return statepg.New(ctx, c.Postgres.DSN)
+		return statepg.New(ctx, statepg.Options{
+			DSN: c.Postgres.DSN,
+			TLS: statePGTLSFromConfig(c.Postgres.TLS),
+		})
 	case "sqlite":
 		return statesqlite.New(ctx, c.SQLite.Path)
 	default:
