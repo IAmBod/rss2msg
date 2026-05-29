@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awssqs "github.com/aws/aws-sdk-go-v2/service/sqs"
+	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -163,11 +164,77 @@ func TestSQSPublishIncludesDLQAttributesWhenDecorated(t *testing.T) {
 	}
 }
 
-func TestSQSRejectsFIFOQueueURL(t *testing.T) {
-	_, err := sqs.New(context.Background(), sqs.Options{
-		Name: "test", QueueURL: "https://example/queue.fifo",
-	})
-	if err == nil {
-		t.Fatal("expected FIFO rejection error")
+func TestSQSFIFOSetsGroupAndDedup(t *testing.T) {
+	endpoint, _ := setup(t)
+
+	ctx := context.Background()
+	cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
+	if err != nil {
+		t.Fatal(err)
 	}
+	admin := awssqs.NewFromConfig(cfg, func(o *awssqs.Options) {
+		o.BaseEndpoint = aws.String(endpoint)
+	})
+	q, err := admin.CreateQueue(ctx, &awssqs.CreateQueueInput{
+		QueueName:  aws.String("rss2msg-test.fifo"),
+		Attributes: map[string]string{"FifoQueue": "true", "ContentBasedDeduplication": "false"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	queueURL := aws.ToString(q.QueueUrl)
+
+	pub, err := sqs.New(ctx, sqs.Options{
+		Name: "test", QueueURL: queueURL, Region: region, EndpointURL: endpoint,
+		MessageGroup: "feed_url",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pub.Close()
+
+	when := time.Now().UTC().Truncate(time.Millisecond)
+	c := model.Change{
+		SchemaVersion: 1, FeedURL: "https://e/feed", ItemID: "i-fifo",
+		Kind: model.ChangeNew, ContentHash: "abc123", DetectedAt: when,
+	}
+	if err := pub.Publish(ctx, c); err != nil {
+		t.Fatal(err)
+	}
+
+	// Receive and inspect both message attributes and system attributes
+	// (MessageGroupId / MessageDeduplicationId live in the latter).
+	reader := awssqs.NewFromConfig(cfg, func(o *awssqs.Options) {
+		o.BaseEndpoint = aws.String(endpoint)
+	})
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		out, err := reader.ReceiveMessage(ctx, &awssqs.ReceiveMessageInput{
+			QueueUrl:                    aws.String(queueURL),
+			MaxNumberOfMessages:         1,
+			WaitTimeSeconds:             2,
+			MessageAttributeNames:       []string{"All"},
+			MessageSystemAttributeNames: []sqstypes.MessageSystemAttributeName{sqstypes.MessageSystemAttributeNameAll},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(out.Messages) == 0 {
+			continue
+		}
+		msg := out.Messages[0]
+		groupID := msg.Attributes[string(sqstypes.MessageSystemAttributeNameMessageGroupId)]
+		dedupID := msg.Attributes[string(sqstypes.MessageSystemAttributeNameMessageDeduplicationId)]
+		if groupID != "https://e/feed" {
+			t.Errorf("MessageGroupId: want feed URL, got %q", groupID)
+		}
+		if dedupID == "" {
+			t.Errorf("MessageDeduplicationId is empty")
+		}
+		if len(dedupID) != 64 {
+			t.Errorf("MessageDeduplicationId: want 64-char hex sha256, got %d chars (%q)", len(dedupID), dedupID)
+		}
+		return
+	}
+	t.Fatal("no message received within 10s")
 }
