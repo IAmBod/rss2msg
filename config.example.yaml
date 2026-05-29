@@ -64,6 +64,10 @@ sinks:
     stdout:
       target: stdout                              # stdout (default) | stderr
       format: json                                # json (default, NDJSON) | pretty (indented)
+  - name: pretty
+    driver: stdout
+    stdout:
+      format: pretty
   # The blocks below are reference examples for the other sink drivers.
   # Uncomment + supply credentials, and add the sink name to a feed's
   # sinks: [...] list to route to it.
@@ -113,9 +117,10 @@ sinks:
 
 feeds:
   - url: https://example.com/blog/rss.xml
-    interval: 5m                                  # routes to "default" (stdout) since no sinks list
+    interval: 5m
+    sinks: [pretty]                               # explicit: publish to the "pretty" sink only
   - url: https://other.example/atom.xml
-    interval: 15m
+    interval: 15m                                 # implicit: no sinks list → falls back to "default"
     http:
       timeout: 10s
       headers:
