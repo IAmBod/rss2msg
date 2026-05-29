@@ -152,9 +152,10 @@ type SQSSinkConfig struct {
 }
 
 type SNSSinkConfig struct {
-	TopicARN    string `mapstructure:"topic_arn"`
-	Region      string `mapstructure:"region"`
-	EndpointURL string `mapstructure:"endpoint_url"`
+	TopicARN     string `mapstructure:"topic_arn"`
+	Region       string `mapstructure:"region"`
+	EndpointURL  string `mapstructure:"endpoint_url"`
+	MessageGroup string `mapstructure:"message_group"` // FIFO only: feed_url (default) | item_id | sink
 }
 
 type FeedConfig struct {
