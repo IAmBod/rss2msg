@@ -7,3 +7,4 @@ coverage.txt
 .env
 .idea/
 .vscode/
+.task/
