@@ -493,15 +493,31 @@ ContentBasedDeduplication setting.
   sns:
     topic_arn: arn:aws:sns:us-east-1:123456789012:feed-changes
     region: us-east-1
+    # message_group: feed_url               # FIFO only — see below
 ```
 
-| field          | required | notes |
-| -------------- | -------- | ----- |
-| `topic_arn`    | yes      | Full SNS topic ARN. FIFO topics (`*.fifo`) are rejected by validation. |
-| `region`       | no       | AWS SDK fallback chain. |
-| `endpoint_url` | no       | LocalStack override. |
+| field           | required | notes |
+| --------------- | -------- | ----- |
+| `topic_arn`     | yes      | Full SNS topic ARN. A `.fifo` suffix selects FIFO mode (see below). |
+| `region`        | no       | AWS SDK fallback chain. |
+| `endpoint_url`  | no       | LocalStack override. |
+| `message_group` | no       | FIFO only: `feed_url` (default) \| `item_id` \| `sink`. Rejected when set on a standard (non-FIFO) topic. |
 
 Message attributes mirror the SQS sink. Credentials follow the same chain.
+
+##### FIFO topics
+
+When `topic_arn` ends with `.fifo`, the sink sets the two FIFO-required
+fields on every `Publish` call. The semantics mirror the SQS FIFO support:
+
+- **`MessageGroupId`** — derived from `message_group` (`feed_url` default, `item_id`, or `sink`).
+- **`MessageDeduplicationId`** — `sha256(feed_url || item_id || content_hash)` hex-encoded. Re-publishes of an unchanged Change within SNS's 5-minute dedup window are coalesced; updates produce a fresh id and are delivered.
+
+If you fan a FIFO topic out to a FIFO SQS queue subscription, set
+`RawMessageDelivery=true` on the subscription so the `MessageGroupId` /
+`MessageDeduplicationId` SNS produced are propagated through to the queue
+(otherwise the SQS consumer sees the SNS-envelope JSON, not the raw
+message).
 
 #### `driver: rabbitmq`
 
@@ -667,9 +683,9 @@ records emitted inside a span carry `trace_id` and `span_id` fields.
   instances release after `lock_ttl`.
 - **AWS credentials.** SQS and SNS use the AWS SDK credential chain. The
   config carries only region, queue URL / topic ARN, and an optional
-  `endpoint_url` for LocalStack-style overrides. SQS FIFO queues are
-  supported (see the `message_group` field under `driver: sqs`); SNS FIFO
-  topics are not yet supported.
+  `endpoint_url` for LocalStack-style overrides. SQS FIFO queues and SNS
+  FIFO topics are both supported — see the `message_group` field under
+  the respective sink driver.
 - **LocalStack for SQS/SNS.**
   ```bash
   docker run -d --name ls -p 4566:4566 localstack/localstack:3.6

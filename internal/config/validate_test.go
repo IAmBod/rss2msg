@@ -244,12 +244,58 @@ func TestValidateRejectsSNSWithoutTopicARN(t *testing.T) {
 	}
 }
 
-func TestValidateRejectsFIFOSNSTopicARN(t *testing.T) {
+func TestValidateAcceptsFIFOSNSTopicARN(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "sns-x", Driver: "sns",
+		SNS: SNSSinkConfig{
+			TopicARN:     "arn:aws:sns:us-east-1:123:t.fifo",
+			MessageGroup: "feed_url",
+		},
+	})
+	if err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateAcceptsFIFOSNSTopicARNWithoutExplicitMessageGroup(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()
 	c.Sinks = append(c.Sinks, SinkConfig{
 		Name: "sns-x", Driver: "sns",
 		SNS: SNSSinkConfig{TopicARN: "arn:aws:sns:us-east-1:123:t.fifo"},
+	})
+	if err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsSNSUnknownMessageGroup(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "sns-x", Driver: "sns",
+		SNS: SNSSinkConfig{
+			TopicARN:     "arn:aws:sns:us-east-1:123:t.fifo",
+			MessageGroup: "broadcast",
+		},
+	})
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "message_group") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsSNSMessageGroupOnStandardTopic(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "sns-x", Driver: "sns",
+		SNS: SNSSinkConfig{
+			TopicARN:     "arn:aws:sns:us-east-1:123:t",
+			MessageGroup: "feed_url",
+		},
 	})
 	err := Validate(c)
 	if err == nil || !strings.Contains(err.Error(), "FIFO") {
