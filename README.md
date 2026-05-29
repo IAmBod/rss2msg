@@ -55,7 +55,7 @@ locks or Redis lease) without leader election.
 
 ```bash
 # 1. Build
-make build
+task build
 
 # 2. Run Postgres + Kafka locally (skip what you don't need)
 docker run -d --name pg    -e POSTGRES_PASSWORD=test -p 5432:5432 postgres:16-alpine
@@ -89,14 +89,15 @@ For multi-instance coordination, see [`coordination`](#coordination) below.
 ## Build and run
 
 ```bash
-make build               # produces ./rss2msg
-make test                # unit tests (fast, no containers)
-make test-integration    # adds testcontainers (Postgres, Kafka, Redis, LocalStack)
-make vet                 # go vet ./...
-make tidy                # go mod tidy
+task build               # produces ./rss2msg
+task test                # unit tests (fast, no containers)
+task test-integration    # adds testcontainers (Postgres, Kafka, Redis, LocalStack)
+task vet                 # go vet ./...
+task tidy                # go mod tidy
+task                     # list all tasks
 ```
 
-Requires Go 1.22+. Integration tests require a working Docker daemon.
+Requires Go 1.22+ and [`task`](https://taskfile.dev) (`go install github.com/go-task/task/v3/cmd/task@latest`, or `brew install go-task`). Integration tests require a working Docker daemon.
 
 ---
 
@@ -636,8 +637,8 @@ records emitted inside a span carry `trace_id` and `span_id` fields.
 ## Testing
 
 ```bash
-make test                # unit tests
-make test-integration    # adds -tags=integration; spins:
+task test                # unit tests
+task test-integration    # adds -tags=integration; spins:
                          #  - Postgres for state + coord/postgres + sink/postgres
                          #  - Kafka for sink/kafka
                          #  - Redis for coord/redis
