@@ -116,9 +116,20 @@ type SinkConfig struct {
 	DeadLetter string                 `mapstructure:"dead_letter"`
 	Postgres   PostgresSinkConfig     `mapstructure:"postgres"`
 	Kafka      KafkaSinkConfig        `mapstructure:"kafka"`
+	RabbitMQ   RabbitMQSinkConfig     `mapstructure:"rabbitmq"`
 	SQS        SQSSinkConfig          `mapstructure:"sqs"`
 	SNS        SNSSinkConfig          `mapstructure:"sns"`
 	Extra      map[string]interface{} `mapstructure:",remain"`
+}
+
+type RabbitMQSinkConfig struct {
+	URL          string `mapstructure:"url"`
+	Exchange     string `mapstructure:"exchange"`
+	ExchangeType string `mapstructure:"exchange_type"` // direct (default) | topic | fanout | headers
+	RoutingKey   string `mapstructure:"routing_key"`
+	Declare      bool   `mapstructure:"declare"`
+	Durable      bool   `mapstructure:"durable"`
+	Mandatory    bool   `mapstructure:"mandatory"`
 }
 
 type PostgresSinkConfig struct {

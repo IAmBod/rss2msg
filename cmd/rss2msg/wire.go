@@ -234,7 +234,16 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig) (sink.Publisher, 
 			Acks: sc.Kafka.Acks, Compression: sc.Kafka.Compression,
 		})
 	case "rabbitmq":
-		return sinkrabbitmq.New(sc.Name), nil
+		return sinkrabbitmq.New(sinkrabbitmq.Options{
+			Name:         sc.Name,
+			URL:          sc.RabbitMQ.URL,
+			Exchange:     sc.RabbitMQ.Exchange,
+			ExchangeType: sc.RabbitMQ.ExchangeType,
+			RoutingKey:   sc.RabbitMQ.RoutingKey,
+			Declare:      sc.RabbitMQ.Declare,
+			Durable:      sc.RabbitMQ.Durable,
+			Mandatory:    sc.RabbitMQ.Mandatory,
+		})
 	case "sqs":
 		return sinksqs.New(ctx, sinksqs.Options{
 			Name:        sc.Name,
