@@ -588,6 +588,53 @@ func TestValidateRejectsStateSQLiteMissingPath(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsStdoutSinkWithDefaults(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{Name: "out", Driver: "stdout"})
+	if err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateAcceptsStdoutSinkWithExplicitTargetAndFormat(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "err", Driver: "stdout",
+		Stdout: StdoutSinkConfig{Target: "stderr", Format: "pretty"},
+	})
+	if err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsStdoutSinkUnknownTarget(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "x", Driver: "stdout",
+		Stdout: StdoutSinkConfig{Target: "syslog"},
+	})
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "target") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsStdoutSinkUnknownFormat(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "x", Driver: "stdout",
+		Stdout: StdoutSinkConfig{Format: "yaml"},
+	})
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "format") {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestValidateAcceptsRabbitMQSink(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()
