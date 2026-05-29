@@ -28,6 +28,12 @@ coordination:
   driver: postgres   # memory | postgres | redis ; default memory
   postgres:
     dsn: ${POSTGRES_DSN}  # optional; falls back to state.postgres.dsn
+    # tls:                # only takes effect when DSN does not set sslmode=disable
+    #   ca_file: /etc/ssl/pg-ca.pem
+    #   cert_file: /etc/ssl/pg-client.pem   # mTLS: both cert_file and key_file or neither
+    #   key_file:  /etc/ssl/pg-client.key
+    #   server_name: pg.internal             # SNI / cert-verify hostname override
+    #   insecure_skip_verify: false          # true = disable cert verification (test only)
   # redis:
   #   url: ${REDIS_URL}      # e.g. redis://localhost:6379/0 or rediss://...
   #   lock_ttl: 30s          # optional, default 30s

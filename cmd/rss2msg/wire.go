@@ -144,7 +144,11 @@ func openCoordinator(ctx context.Context, cc config.CoordinationConfig, sc confi
 		if dsn == "" {
 			return nil, fmt.Errorf("coordination postgres: no dsn (and no state.postgres.dsn fallback)")
 		}
-		return coordpg.New(ctx, dsn, feedCount)
+		return coordpg.New(ctx, coordpg.Options{
+			DSN:      dsn,
+			MinConns: feedCount,
+			TLS:      coordPGTLSFromConfig(cc.Postgres.TLS),
+		})
 	case "redis":
 		return coordredis.New(ctx, coordredis.Options{
 			URL:             cc.Redis.URL,
@@ -154,6 +158,22 @@ func openCoordinator(ctx context.Context, cc config.CoordinationConfig, sc confi
 		})
 	default:
 		return nil, fmt.Errorf("unsupported coordination driver %q", driver)
+	}
+}
+
+// coordPGTLSFromConfig returns nil when no TLS field is set so the postgres
+// coordinator leaves pgx's DSN-derived TLS config in place.
+func coordPGTLSFromConfig(t config.CoordinationPGTLSConfig) *coordpg.TLSOptions {
+	if t.CAFile == "" && t.CertFile == "" && t.KeyFile == "" &&
+		t.ServerName == "" && !t.InsecureSkipVerify {
+		return nil
+	}
+	return &coordpg.TLSOptions{
+		CAFile:             t.CAFile,
+		CertFile:           t.CertFile,
+		KeyFile:            t.KeyFile,
+		ServerName:         t.ServerName,
+		InsecureSkipVerify: t.InsecureSkipVerify,
 	}
 }
 

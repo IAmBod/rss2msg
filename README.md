@@ -293,6 +293,12 @@ coordination:
   driver: memory   # memory | postgres | redis ; default memory
   postgres:
     dsn: ${POSTGRES_DSN}     # falls back to state.postgres.dsn
+    tls:                     # rejected if DSN has sslmode=disable
+      ca_file: /etc/ssl/pg-ca.pem
+      cert_file: /etc/ssl/pg-client.pem
+      key_file: /etc/ssl/pg-client.key
+      server_name: pg.internal
+      insecure_skip_verify: false
   redis:
     url: ${REDIS_URL}        # e.g. redis://localhost:6379/0 or rediss://...
     lock_ttl: 30s            # optional, default 30s
@@ -304,6 +310,26 @@ coordination:
       server_name: redis.internal
       insecure_skip_verify: false
 ```
+
+#### Postgres TLS
+
+pgx accepts TLS parameters directly in the DSN (`sslmode`, `sslrootcert`,
+`sslcert`, `sslkey`). The `coordination.postgres.tls` block is a structured
+alternative that keeps secrets out of the DSN string and gives the same
+field surface as the Redis backend:
+
+| field                  | default          | notes |
+| ---------------------- | ---------------- | ----- |
+| `ca_file`              | system roots     | PEM CA bundle to trust instead of system roots. |
+| `cert_file`, `key_file`| (none)           | PEM client cert + key for mTLS. Both or neither — validation rejects setting only one. |
+| `server_name`          | DSN host         | Overrides the SNI / certificate verification hostname. |
+| `insecure_skip_verify` | `false`          | Disables server cert verification. Test only — logged at warn on startup. |
+
+When a `tls` block is set, the coordinator clears pgx's plaintext
+connection fallbacks so a TLS-required connection cannot silently
+downgrade. Validation rejects the combination of `tls.*` with a DSN that
+explicitly says `sslmode=disable` so operators don't accidentally configure
+TLS knobs that would never take effect.
 
 #### Redis TLS
 
