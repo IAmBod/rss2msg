@@ -122,7 +122,7 @@ func TestValidateCoordinationPostgresFallsBackToStateDSN(t *testing.T) {
 func TestValidateRejectsUnknownCoordinationDriver(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()
-	c.Coordination = CoordinationConfig{Driver: "redis"}
+	c.Coordination = CoordinationConfig{Driver: "memcached"}
 	err := Validate(c)
 	if err == nil || !strings.Contains(err.Error(), "coordination.driver") {
 		t.Fatalf("got %v", err)
@@ -239,6 +239,17 @@ func TestValidateRejectsRedisWithUnparseableURL(t *testing.T) {
 	c.Coordination.Redis.URL = "not a url"
 	err := Validate(c)
 	if err == nil || !strings.Contains(err.Error(), "coordination.redis.url") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsRedisURLWithNegativeDBIndex(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination.Driver = "redis"
+	c.Coordination.Redis.URL = "redis://localhost:6379/-1"
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "db index") {
 		t.Fatalf("got %v", err)
 	}
 }

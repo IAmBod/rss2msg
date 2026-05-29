@@ -58,12 +58,17 @@ func Validate(c Config) error {
 		}
 	}
 	if c.Coordination.Driver == "redis" {
-		url := strings.TrimSpace(c.Coordination.Redis.URL)
-		if url == "" {
+		raw := strings.TrimSpace(c.Coordination.Redis.URL)
+		if raw == "" {
 			return fmt.Errorf("coordination.redis.url is required when coordination.driver=redis")
 		}
-		if _, err := redisparseURL(url); err != nil {
-			return fmt.Errorf("coordination.redis.url %q is not parseable: %w", url, err)
+		if _, err := redisparseURL(raw); err != nil {
+			// Best-effort redact credentials before embedding the URL in the error.
+			safe := raw
+			if u, perr := url.Parse(raw); perr == nil {
+				safe = u.Redacted()
+			}
+			return fmt.Errorf("coordination.redis.url %q is not parseable: %w", safe, err)
 		}
 		if ttl := c.Coordination.Redis.LockTTL; ttl != 0 && ttl < time.Second {
 			return fmt.Errorf("coordination.redis.lock_ttl %v is below the 1s minimum", ttl)
@@ -183,8 +188,9 @@ func redisparseURL(raw string) (*url.URL, error) {
 		return nil, fmt.Errorf("host is required")
 	}
 	if p := strings.TrimPrefix(u.Path, "/"); p != "" {
-		if _, err := strconv.Atoi(p); err != nil {
-			return nil, fmt.Errorf("db index %q must be an integer", p)
+		n, err := strconv.Atoi(p)
+		if err != nil || n < 0 {
+			return nil, fmt.Errorf("db index %q must be a non-negative integer", p)
 		}
 	}
 	return u, nil
