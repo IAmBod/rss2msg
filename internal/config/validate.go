@@ -28,7 +28,7 @@ var knownSinkDrivers = map[string]struct{}{
 
 var knownCoordinationDrivers = map[string]struct{}{
 	"":         {},
-	"noop":     {},
+	"memory":   {},
 	"postgres": {},
 	"redis":    {},
 }

@@ -139,6 +139,6 @@ func Defaults() Config {
 		HTTP:         HTTPConfig{UserAgent: "rss2msg/0.1", Timeout: 30 * time.Second},
 		Retry:        RetryConfig{MaxAttempts: 3, BaseDelay: 500 * time.Millisecond, MaxDelay: 10 * time.Second},
 		Runtime:      RuntimeConfig{ShutdownDrainTimeout: 30 * time.Second, RunOnceConcurrency: 0},
-		Coordination: CoordinationConfig{Driver: "noop"},
+		Coordination: CoordinationConfig{Driver: "memory"},
 	}
 }

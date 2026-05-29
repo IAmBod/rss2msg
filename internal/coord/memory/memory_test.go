@@ -1,11 +1,11 @@
-package noop
+package memory
 
 import (
 	"context"
 	"testing"
 )
 
-func TestNoopAlwaysAcquires(t *testing.T) {
+func TestMemoryAlwaysAcquires(t *testing.T) {
 	t.Parallel()
 	c := New()
 	release, acquired, err := c.TryAcquire(context.Background(), "https://e/feed-1")
