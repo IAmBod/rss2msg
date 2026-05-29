@@ -1,7 +1,7 @@
-// Package noop provides a Coordinator that always grants the lease. Used
-// for single-instance deployments and as the default when no coordinator
-// is configured.
-package noop
+// Package memory provides an in-process Coordinator that always grants the
+// lease. Used for single-instance deployments and as the default when no
+// coordinator is configured.
+package memory
 
 import (
 	"context"

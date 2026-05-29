@@ -6,7 +6,7 @@ import (
 
 	"github.com/iambod/rss2msg/internal/config"
 	"github.com/iambod/rss2msg/internal/coord"
-	coordnoop "github.com/iambod/rss2msg/internal/coord/noop"
+	coordmem "github.com/iambod/rss2msg/internal/coord/memory"
 	coordpg "github.com/iambod/rss2msg/internal/coord/postgres"
 	coordredis "github.com/iambod/rss2msg/internal/coord/redis"
 	"github.com/iambod/rss2msg/internal/feed"
@@ -130,11 +130,11 @@ func findSink(list []config.SinkConfig, name string) config.SinkConfig {
 func openCoordinator(ctx context.Context, cc config.CoordinationConfig, sc config.StateConfig, feedCount int) (coord.Coordinator, error) {
 	driver := cc.Driver
 	if driver == "" {
-		driver = "noop"
+		driver = "memory"
 	}
 	switch driver {
-	case "noop":
-		return coordnoop.New(), nil
+	case "memory":
+		return coordmem.New(), nil
 	case "postgres":
 		dsn := cc.Postgres.DSN
 		if dsn == "" {
