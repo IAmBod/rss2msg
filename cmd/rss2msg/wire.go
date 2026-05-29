@@ -254,10 +254,11 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig) (sink.Publisher, 
 		})
 	case "sns":
 		return sinksns.New(ctx, sinksns.Options{
-			Name:        sc.Name,
-			TopicARN:    sc.SNS.TopicARN,
-			Region:      sc.SNS.Region,
-			EndpointURL: sc.SNS.EndpointURL,
+			Name:         sc.Name,
+			TopicARN:     sc.SNS.TopicARN,
+			Region:       sc.SNS.Region,
+			EndpointURL:  sc.SNS.EndpointURL,
+			MessageGroup: sc.SNS.MessageGroup,
 		})
 	default:
 		return nil, fmt.Errorf("unsupported sink driver %q", sc.Driver)

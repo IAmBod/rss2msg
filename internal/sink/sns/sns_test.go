@@ -183,11 +183,96 @@ func TestSNSPublishIncludesDLQAttributesWhenDecorated(t *testing.T) {
 	}
 }
 
-func TestSNSRejectsFIFOTopicARN(t *testing.T) {
-	_, err := sinksns.New(context.Background(), sinksns.Options{
-		Name: "test", TopicARN: "arn:aws:sns:us-east-1:123:t.fifo",
-	})
-	if err == nil {
-		t.Fatal("expected FIFO rejection")
+func TestSNSFIFOSetsGroupAndDedup(t *testing.T) {
+	endpoint, _, _ := setup(t)
+
+	ctx := context.Background()
+	cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
+	if err != nil {
+		t.Fatal(err)
 	}
+	snsClient := sns.NewFromConfig(cfg, func(o *sns.Options) { o.BaseEndpoint = aws.String(endpoint) })
+	sqsClient := awssqs.NewFromConfig(cfg, func(o *awssqs.Options) { o.BaseEndpoint = aws.String(endpoint) })
+
+	// Create a FIFO topic + FIFO queue + subscription. Both must end in .fifo
+	// and both need FifoQueue/FifoTopic = true. RawMessageDelivery on the
+	// subscription is important so the MessageGroupId / MessageDeduplicationId
+	// SNS produced are propagated to the SQS receive (otherwise SQS sees the
+	// SNS-envelope JSON, not the raw message, and we lose the system
+	// attributes).
+	topic, err := snsClient.CreateTopic(ctx, &sns.CreateTopicInput{
+		Name:       aws.String("rss2msg-fifo-test.fifo"),
+		Attributes: map[string]string{"FifoTopic": "true", "ContentBasedDeduplication": "false"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	q, err := sqsClient.CreateQueue(ctx, &awssqs.CreateQueueInput{
+		QueueName:  aws.String("rss2msg-fifo-test-q.fifo"),
+		Attributes: map[string]string{"FifoQueue": "true", "ContentBasedDeduplication": "false"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	qAttrs, err := sqsClient.GetQueueAttributes(ctx, &awssqs.GetQueueAttributesInput{
+		QueueUrl:       q.QueueUrl,
+		AttributeNames: []sqstypes.QueueAttributeName{sqstypes.QueueAttributeNameQueueArn},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := snsClient.Subscribe(ctx, &sns.SubscribeInput{
+		TopicArn:   topic.TopicArn,
+		Protocol:   aws.String("sqs"),
+		Endpoint:   aws.String(qAttrs.Attributes["QueueArn"]),
+		Attributes: map[string]string{"RawMessageDelivery": "true"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	pub, err := sinksns.New(ctx, sinksns.Options{
+		Name: "test", TopicARN: aws.ToString(topic.TopicArn),
+		Region: region, EndpointURL: endpoint,
+		MessageGroup: "feed_url",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pub.Close()
+
+	c := model.Change{
+		SchemaVersion: 1, FeedURL: "https://e/feed", ItemID: "i-fifo",
+		Kind: model.ChangeNew, ContentHash: "abc123", DetectedAt: time.Now().UTC(),
+	}
+	if err := pub.Publish(ctx, c); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		out, err := sqsClient.ReceiveMessage(ctx, &awssqs.ReceiveMessageInput{
+			QueueUrl:                    q.QueueUrl,
+			MaxNumberOfMessages:         1,
+			WaitTimeSeconds:             2,
+			MessageAttributeNames:       []string{"All"},
+			MessageSystemAttributeNames: []sqstypes.MessageSystemAttributeName{sqstypes.MessageSystemAttributeNameAll},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(out.Messages) == 0 {
+			continue
+		}
+		msg := out.Messages[0]
+		groupID := msg.Attributes[string(sqstypes.MessageSystemAttributeNameMessageGroupId)]
+		dedupID := msg.Attributes[string(sqstypes.MessageSystemAttributeNameMessageDeduplicationId)]
+		if groupID != "https://e/feed" {
+			t.Errorf("MessageGroupId: want feed URL, got %q", groupID)
+		}
+		if len(dedupID) != 64 {
+			t.Errorf("MessageDeduplicationId: want 64-char hex sha256, got %d chars (%q)", len(dedupID), dedupID)
+		}
+		return
+	}
+	t.Fatal("no message received within 15s")
 }

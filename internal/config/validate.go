@@ -185,8 +185,14 @@ func Validate(c Config) error {
 			if strings.TrimSpace(s.SNS.TopicARN) == "" {
 				return fmt.Errorf("sinks[%d] (sns %q): sns.topic_arn is required", i, s.Name)
 			}
-			if strings.HasSuffix(s.SNS.TopicARN, ".fifo") {
-				return fmt.Errorf("sinks[%d] (sns %q): FIFO topics are not supported in this version", i, s.Name)
+			fifo := strings.HasSuffix(s.SNS.TopicARN, ".fifo")
+			if mg := s.SNS.MessageGroup; mg != "" {
+				if _, ok := knownSQSMessageGroups[mg]; !ok {
+					return fmt.Errorf("sinks[%d] (sns %q): unknown message_group %q (want one of feed_url, item_id, sink)", i, s.Name, mg)
+				}
+				if !fifo {
+					return fmt.Errorf("sinks[%d] (sns %q): message_group is only valid for FIFO topics (topic_arn must end with .fifo)", i, s.Name)
+				}
 			}
 		case "rabbitmq":
 			if strings.TrimSpace(s.RabbitMQ.URL) == "" {
