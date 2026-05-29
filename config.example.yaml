@@ -108,6 +108,11 @@ sinks:
       declare: true                               # declare the exchange at startup
       durable: true                               # only meaningful when declare=true
     dead_letter: dlq-main
+  - name: stdout-debug
+    driver: stdout
+    stdout:
+      target: stdout                              # stdout (default) | stderr
+      format: json                                # json (default, NDJSON) | pretty (indented)
 
 feeds:
   - url: https://example.com/blog/rss.xml
