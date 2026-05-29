@@ -114,6 +114,15 @@ sinks:
   #     declare: true                               # declare the exchange at startup
   #     durable: true                               # only meaningful when declare=true
   #   dead_letter: dlq-main
+  # - name: webhook
+  #   driver: http
+  #   http:
+  #     url: https://example.com/hook               # http:// or https://
+  #     method: POST                                # POST (default) | PUT
+  #     headers:
+  #       Authorization: "Bearer ${HOOK_TOKEN}"
+  #     timeout: 10s
+  #     success_codes: [200, 201, 202, 204]
 
 feeds:
   - url: https://example.com/blog/rss.xml
