@@ -48,6 +48,10 @@ psql "$POSTGRES_DSN" -c 'SELECT feed_url, item_id, kind, detected_at FROM feed_c
   polling — losers skip that poll cycle silently. No leader election; any
   instance may pick up any feed. Crashed instances release their locks
   automatically because Postgres advisory locks die with the session.
+  Alternatively, set `coordination.driver=redis` and `coordination.redis.url`
+  to share a Redis instance across deployments; the redis backend uses a
+  lease with a background renewal goroutine (see `config.example.yaml` for
+  TTL and renewal-interval knobs).
 - **AWS credentials.** SQS and SNS use the standard AWS SDK credential chain
   (`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, shared `~/.aws/credentials`,
   instance metadata, etc.). The config carries only `region`, `queue_url` /
