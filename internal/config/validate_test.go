@@ -279,6 +279,58 @@ func TestValidateRejectsRedisRenewalAtOrAboveTTL(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsRedisTLSWithRediss(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination.Driver = "redis"
+	c.Coordination.Redis.URL = "rediss://localhost:6379/0"
+	c.Coordination.Redis.TLS = CoordinationRedisTLSConfig{
+		CAFile:     "/etc/ssl/ca.pem",
+		CertFile:   "/etc/ssl/client.pem",
+		KeyFile:    "/etc/ssl/client.key",
+		ServerName: "redis.internal",
+	}
+	if err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsRedisTLSWithPlainScheme(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination.Driver = "redis"
+	c.Coordination.Redis.URL = "redis://localhost:6379/0"
+	c.Coordination.Redis.TLS = CoordinationRedisTLSConfig{CAFile: "/etc/ssl/ca.pem"}
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "rediss://") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsRedisTLSCertWithoutKey(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination.Driver = "redis"
+	c.Coordination.Redis.URL = "rediss://localhost:6379/0"
+	c.Coordination.Redis.TLS = CoordinationRedisTLSConfig{CertFile: "/etc/ssl/client.pem"}
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "cert_file and key_file") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsRedisTLSKeyWithoutCert(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination.Driver = "redis"
+	c.Coordination.Redis.URL = "rediss://localhost:6379/0"
+	c.Coordination.Redis.TLS = CoordinationRedisTLSConfig{KeyFile: "/etc/ssl/client.key"}
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "cert_file and key_file") {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestValidateAcceptsStateSQLite(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()

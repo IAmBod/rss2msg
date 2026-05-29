@@ -32,6 +32,12 @@ coordination:
   #   url: ${REDIS_URL}      # e.g. redis://localhost:6379/0 or rediss://...
   #   lock_ttl: 30s          # optional, default 30s
   #   renewal_interval: 10s  # optional, default = lock_ttl / 3
+  #   tls:                   # only with rediss://; defaults to system roots + SNI from URL
+  #     ca_file: /etc/ssl/redis-ca.pem
+  #     cert_file: /etc/ssl/redis-client.pem   # mTLS: both cert_file and key_file or neither
+  #     key_file:  /etc/ssl/redis-client.key
+  #     server_name: redis.internal             # SNI / cert-verify hostname override
+  #     insecure_skip_verify: false             # true = disable cert verification (test only)
 
 state:
   driver: postgres   # postgres | sqlite

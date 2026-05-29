@@ -63,9 +63,18 @@ type CoordinationPGConfig struct {
 }
 
 type CoordinationRedisConfig struct {
-	URL             string        `mapstructure:"url"`
-	LockTTL         time.Duration `mapstructure:"lock_ttl"`
-	RenewalInterval time.Duration `mapstructure:"renewal_interval"`
+	URL             string                        `mapstructure:"url"`
+	LockTTL         time.Duration                 `mapstructure:"lock_ttl"`
+	RenewalInterval time.Duration                 `mapstructure:"renewal_interval"`
+	TLS             CoordinationRedisTLSConfig    `mapstructure:"tls"`
+}
+
+type CoordinationRedisTLSConfig struct {
+	CAFile             string `mapstructure:"ca_file"`
+	CertFile           string `mapstructure:"cert_file"`
+	KeyFile            string `mapstructure:"key_file"`
+	ServerName         string `mapstructure:"server_name"`
+	InsecureSkipVerify bool   `mapstructure:"insecure_skip_verify"`
 }
 
 type StateConfig struct {
