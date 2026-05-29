@@ -49,6 +49,12 @@ state:
   driver: postgres   # postgres | sqlite
   postgres:
     dsn: ${POSTGRES_DSN}
+    # tls:                  # only takes effect when DSN does not set sslmode=disable
+    #   ca_file: /etc/ssl/pg-ca.pem
+    #   cert_file: /etc/ssl/pg-client.pem   # mTLS: both cert_file and key_file or neither
+    #   key_file:  /etc/ssl/pg-client.key
+    #   server_name: pg.internal             # SNI / cert-verify hostname override
+    #   insecure_skip_verify: false          # true = disable cert verification (test only)
   # sqlite:
   #   path: ./rss2msg.db    # filesystem path; ":memory:" and "?_pragma=..." are accepted
 
