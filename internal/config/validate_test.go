@@ -279,6 +279,100 @@ func TestValidateRejectsRedisRenewalAtOrAboveTTL(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsCoordinationPGWithTLSBlock(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination = CoordinationConfig{
+		Driver: "postgres",
+		Postgres: CoordinationPGConfig{
+			DSN: "postgres://pg.internal:5432/db?sslmode=require",
+			TLS: CoordinationPGTLSConfig{
+				CAFile:     "/etc/ssl/pg-ca.pem",
+				CertFile:   "/etc/ssl/pg-client.pem",
+				KeyFile:    "/etc/ssl/pg-client.key",
+				ServerName: "pg.internal",
+			},
+		},
+	}
+	if err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsCoordinationPGTLSWithSSLModeDisable(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination = CoordinationConfig{
+		Driver: "postgres",
+		Postgres: CoordinationPGConfig{
+			DSN: "postgres://pg.internal:5432/db?sslmode=disable",
+			TLS: CoordinationPGTLSConfig{CAFile: "/etc/ssl/pg-ca.pem"},
+		},
+	}
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "sslmode=disable") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsCoordinationPGTLSWithKeywordSSLModeDisable(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination = CoordinationConfig{
+		Driver: "postgres",
+		Postgres: CoordinationPGConfig{
+			DSN: "host=pg.internal port=5432 dbname=db sslmode=disable",
+			TLS: CoordinationPGTLSConfig{InsecureSkipVerify: true},
+		},
+	}
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "sslmode=disable") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsCoordinationPGTLSCertWithoutKey(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination = CoordinationConfig{
+		Driver: "postgres",
+		Postgres: CoordinationPGConfig{
+			DSN: "postgres://pg.internal:5432/db?sslmode=require",
+			TLS: CoordinationPGTLSConfig{CertFile: "/etc/ssl/pg-client.pem"},
+		},
+	}
+	err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "cert_file and key_file") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestPgSSLModeIsDisable(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		dsn  string
+		want bool
+	}{
+		{"postgres://pg/db?sslmode=disable", true},
+		{"postgres://pg/db?sslmode=DISABLE", true},
+		{"postgres://pg/db?sslmode=require", false},
+		{"postgres://pg/db", false},
+		{"host=pg dbname=d sslmode=disable", true},
+		{`host=pg dbname=d sslmode="disable"`, true},
+		{"host=pg dbname=d sslmode = disable", true},     // pgx tolerates whitespace around `=`
+		{"host=pg dbname=d  sslmode=disable", true},      // double-space separator
+		{"host=pg dbname=d sslmode=verify-full", false},
+		{"host=pg password=mysslmodepw dbname=d", false}, // word boundary prevents substring match
+		{"host=pg dbname=d", false},
+		{"", false},
+	}
+	for _, tc := range cases {
+		if got := pgSSLModeIsDisable(tc.dsn); got != tc.want {
+			t.Errorf("pgSSLModeIsDisable(%q) = %v, want %v", tc.dsn, got, tc.want)
+		}
+	}
+}
+
 func TestValidateAcceptsRedisTLSWithRediss(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()
