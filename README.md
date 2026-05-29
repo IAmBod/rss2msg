@@ -453,13 +453,15 @@ Record layout:
     queue_url: https://sqs.us-east-1.amazonaws.com/123456789012/feed-changes
     region: us-east-1
     # endpoint_url: http://localhost:4566   # LocalStack
+    # message_group: feed_url               # FIFO only — see below
 ```
 
-| field          | required | notes |
-| -------------- | -------- | ----- |
-| `queue_url`    | yes      | Full SQS URL. FIFO queues (`*.fifo`) are rejected by validation; not supported yet. |
-| `region`       | no       | AWS SDK falls back to env/profile. |
-| `endpoint_url` | no       | Override for LocalStack-style endpoints. |
+| field           | required | notes |
+| --------------- | -------- | ----- |
+| `queue_url`     | yes      | Full SQS URL. A `.fifo` suffix selects FIFO mode (see below). |
+| `region`        | no       | AWS SDK falls back to env/profile. |
+| `endpoint_url`  | no       | Override for LocalStack-style endpoints. |
+| `message_group` | no       | FIFO only: `feed_url` (default) \| `item_id` \| `sink`. Rejected when set on a standard (non-FIFO) queue. |
 
 Credentials come from the standard AWS SDK credential chain
 (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`, shared `~/.aws/credentials`,
@@ -468,6 +470,20 @@ instance metadata, etc.).
 Message body = JSON `Change` envelope. Message attributes: `feed_url`,
 `kind`, `schema_version`, optional `traceparent` / `tracestate`, optional
 DLQ annotations.
+
+##### FIFO queues
+
+When `queue_url` ends with `.fifo`, the sink sets the two FIFO-required
+fields on every `SendMessage` call:
+
+- **`MessageGroupId`** — derived from `message_group`:
+  - `feed_url` (default) — one group per feed: in-order per feed, parallel across feeds.
+  - `item_id` — one group per item: maximum parallelism; only useful when the consumer doesn't need cross-item ordering.
+  - `sink` — single group across the entire sink: strict global ordering, no parallelism.
+- **`MessageDeduplicationId`** — `sha256(feed_url || item_id || content_hash)` rendered as hex. Re-publishes of an unchanged Change within SQS's 5-minute dedup window are coalesced; updates (content hash changes) produce a fresh dedup id and are delivered.
+
+The dedup id we send is honoured regardless of the queue's
+ContentBasedDeduplication setting.
 
 #### `driver: sns`
 
@@ -651,8 +667,9 @@ records emitted inside a span carry `trace_id` and `span_id` fields.
   instances release after `lock_ttl`.
 - **AWS credentials.** SQS and SNS use the AWS SDK credential chain. The
   config carries only region, queue URL / topic ARN, and an optional
-  `endpoint_url` for LocalStack-style overrides. FIFO queues/topics are not
-  yet supported.
+  `endpoint_url` for LocalStack-style overrides. SQS FIFO queues are
+  supported (see the `message_group` field under `driver: sqs`); SNS FIFO
+  topics are not yet supported.
 - **LocalStack for SQS/SNS.**
   ```bash
   docker run -d --name ls -p 4566:4566 localstack/localstack:3.6

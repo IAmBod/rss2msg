@@ -145,9 +145,10 @@ type KafkaSinkConfig struct {
 }
 
 type SQSSinkConfig struct {
-	QueueURL    string `mapstructure:"queue_url"`
-	Region      string `mapstructure:"region"`
-	EndpointURL string `mapstructure:"endpoint_url"`
+	QueueURL     string `mapstructure:"queue_url"`
+	Region       string `mapstructure:"region"`
+	EndpointURL  string `mapstructure:"endpoint_url"`
+	MessageGroup string `mapstructure:"message_group"` // FIFO only: feed_url (default) | item_id | sink
 }
 
 type SNSSinkConfig struct {
