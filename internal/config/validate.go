@@ -34,6 +34,12 @@ var knownSinkDrivers = map[string]struct{}{
 	"sns":      {},
 }
 
+var knownSQSMessageGroups = map[string]struct{}{
+	"feed_url": {},
+	"item_id":  {},
+	"sink":     {},
+}
+
 var knownRabbitMQExchangeTypes = map[string]struct{}{
 	"direct":  {},
 	"topic":   {},
@@ -166,8 +172,14 @@ func Validate(c Config) error {
 			if strings.TrimSpace(s.SQS.QueueURL) == "" {
 				return fmt.Errorf("sinks[%d] (sqs %q): sqs.queue_url is required", i, s.Name)
 			}
-			if strings.HasSuffix(s.SQS.QueueURL, ".fifo") {
-				return fmt.Errorf("sinks[%d] (sqs %q): FIFO queues are not supported in this version", i, s.Name)
+			fifo := strings.HasSuffix(s.SQS.QueueURL, ".fifo")
+			if mg := s.SQS.MessageGroup; mg != "" {
+				if _, ok := knownSQSMessageGroups[mg]; !ok {
+					return fmt.Errorf("sinks[%d] (sqs %q): unknown message_group %q (want one of feed_url, item_id, sink)", i, s.Name, mg)
+				}
+				if !fifo {
+					return fmt.Errorf("sinks[%d] (sqs %q): message_group is only valid for FIFO queues (queue_url must end with .fifo)", i, s.Name)
+				}
 			}
 		case "sns":
 			if strings.TrimSpace(s.SNS.TopicARN) == "" {
