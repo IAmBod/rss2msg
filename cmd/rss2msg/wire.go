@@ -11,6 +11,7 @@ import (
 	coordredis "github.com/iambod/rss2msg/internal/coord/redis"
 	"github.com/iambod/rss2msg/internal/feed"
 	"github.com/iambod/rss2msg/internal/retry"
+	"github.com/iambod/rss2msg/internal/scheduler"
 	"github.com/iambod/rss2msg/internal/sink"
 	sinkhttp "github.com/iambod/rss2msg/internal/sink/http"
 	sinkkafka "github.com/iambod/rss2msg/internal/sink/kafka"
@@ -30,6 +31,7 @@ type wired struct {
 	registry  *sink.Registry
 	coord     coord.Coordinator
 	pipelines []*pipeline
+	factory   scheduler.PipelineFactory
 }
 
 func (w *wired) Close() {
@@ -41,6 +43,44 @@ func (w *wired) Close() {
 	}
 	if w.store != nil {
 		_ = w.store.Close()
+	}
+}
+
+// newPipelineFactory returns a factory that builds a *pipeline for any feed,
+// sharing the wired fetcher/detector/store/coord/instruments. Used both at boot
+// and by ServeDynamic to construct pipelines for feeds added at runtime.
+func (w *wired) newPipelineFactory(cfg config.Config, tel *telemetry.Telemetry, fetcher *feed.Fetcher, det *feed.Detector, instr telemetry.Instruments) scheduler.PipelineFactory {
+	return func(fc config.FeedConfig) (scheduler.FeedPipeline, error) {
+		names := config.ResolveFeedSinks(fc)
+		branches := make([]sinkBranch, 0, len(names))
+		for _, name := range names {
+			primary, ok := w.registry.Get(name)
+			if !ok {
+				return nil, fmt.Errorf("feed %s: unknown sink %q", fc.URL, name)
+			}
+			scCfg := findSink(cfg.Sinks, name)
+			var dlq sink.Publisher
+			if scCfg.DeadLetter != "" {
+				dlq, _ = w.registry.Get(scCfg.DeadLetter)
+			}
+			wrapped := sink.WithRetry(primary, dlq, retry.Config{
+				MaxAttempts: cfg.Retry.MaxAttempts,
+				BaseDelay:   cfg.Retry.BaseDelay,
+				MaxDelay:    cfg.Retry.MaxDelay,
+			})
+			branches = append(branches, sinkBranch{name: name, wrapped: wrapped})
+		}
+		return &pipeline{
+			cfg:     fc,
+			sinks:   branches,
+			fetcher: fetcher,
+			detect:  det,
+			store:   w.store,
+			log:     tel.Logger,
+			tracer:  tel.Tracer,
+			instr:   instr,
+			coord:   w.coord,
+		}, nil
 	}
 }
 
@@ -85,39 +125,16 @@ func wireAll(ctx context.Context, cfg config.Config, tel *telemetry.Telemetry) (
 	}
 
 	w := &wired{store: st, registry: reg, coord: cd}
+	factory := w.newPipelineFactory(cfg, tel, fetcher, det, instr)
 	for _, fc := range cfg.Feeds {
-		names := config.ResolveFeedSinks(fc)
-		branches := make([]sinkBranch, 0, len(names))
-		for _, name := range names {
-			primary, ok := reg.Get(name)
-			if !ok {
-				w.Close()
-				return nil, fmt.Errorf("feed %s: unknown sink %q", fc.URL, name)
-			}
-			scCfg := findSink(cfg.Sinks, name)
-			var dlq sink.Publisher
-			if scCfg.DeadLetter != "" {
-				dlq, _ = reg.Get(scCfg.DeadLetter)
-			}
-			wrapped := sink.WithRetry(primary, dlq, retry.Config{
-				MaxAttempts: cfg.Retry.MaxAttempts,
-				BaseDelay:   cfg.Retry.BaseDelay,
-				MaxDelay:    cfg.Retry.MaxDelay,
-			})
-			branches = append(branches, sinkBranch{name: name, wrapped: wrapped})
+		p, err := factory(fc)
+		if err != nil {
+			w.Close()
+			return nil, err
 		}
-		w.pipelines = append(w.pipelines, &pipeline{
-			cfg:     fc,
-			sinks:   branches,
-			fetcher: fetcher,
-			detect:  det,
-			store:   st,
-			log:     tel.Logger,
-			tracer:  tel.Tracer,
-			instr:   instr,
-			coord:   cd,
-		})
+		w.pipelines = append(w.pipelines, p.(*pipeline))
 	}
+	w.factory = factory
 	return w, nil
 }
 
