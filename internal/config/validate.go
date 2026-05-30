@@ -258,7 +258,7 @@ func Validate(c Config) error {
 		hasDefault = true
 	}
 
-	if len(c.Feeds) == 0 {
+	if len(c.Feeds) == 0 && len(c.FeedSources) == 0 {
 		return fmt.Errorf("at least one feed must be declared")
 	}
 	for i, f := range c.Feeds {
