@@ -10,3 +10,7 @@ coverage.txt
 .idea/
 .vscode/
 .task/
+
+# Obsidian per-user UI state (churny, machine-specific)
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
