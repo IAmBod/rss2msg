@@ -16,7 +16,10 @@ _(added in Task 5)_
 
 ## How-to guides
 
-_(added in Tasks 3–4)_
+- [Configure Feeds](how-to/configure-feeds.md)
+- [Choose a Sink](how-to/choose-a-sink.md)
+- [Run Multiple Instances](how-to/run-multiple-instances.md)
+- [Secure Connections (TLS)](how-to/secure-connections-tls.md)
 
 ## Reference
 
