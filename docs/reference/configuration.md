@@ -74,7 +74,7 @@ telemetry:
 ```
 
 | field | default | notes |
-| --- | --- | --- |
+| --------------------- | --------- | ----- |
 | `service_name`        | `rss2msg` | Set on every OTEL signal as `service.name`. |
 | `traces.enabled`      | `true`    | Builds an OTLP/gRPC tracer provider when an OTLP endpoint env var is set; otherwise no-op. |
 | `metrics.enabled`     | `true`    | Builds a periodic OTLP exporter when an endpoint is set. |
@@ -148,7 +148,7 @@ state:
 | field              | required             | notes |
 | ------------------ | -------------------- | ----- |
 | `driver`           | yes                  | `postgres` or `sqlite`. |
-| `postgres.dsn`     | yes (driver=postgres)| Standard `postgres://` DSN. The store applies its migrations idempotently on `New`. |
+| `postgres.dsn`     | yes (driver=postgres) | Standard `postgres://` DSN. The store applies its migrations idempotently on `New`. |
 | `postgres.tls.*`   | no                   | Optional structured TLS config. Same field surface as `coordination.postgres.tls` — see [Secure Connections (TLS)](../how-to/secure-connections-tls.md) for the full table. Rejected when the DSN sets `sslmode=disable`. |
 | `sqlite.path`      | yes (driver=sqlite)  | Filesystem path passed verbatim to the `modernc.org/sqlite` driver. `:memory:` and `?_pragma=…` query strings are accepted. |
 

@@ -22,7 +22,7 @@ Flags
 ```
 
 `serve` exits cleanly on SIGINT/SIGTERM and waits up to
-[`runtime.shutdown_drain_timeout`](configuration.md) for in-flight publishes to finish.
+[`runtime.shutdown_drain_timeout`](configuration.md#runtime) for in-flight publishes to finish.
 
 ## Related
 
