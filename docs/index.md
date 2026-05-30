@@ -20,7 +20,11 @@ _(added in Tasks 3–4)_
 
 ## Reference
 
+- [Configuration Reference](reference/configuration.md)
 - [Change Envelope](reference/change-envelope.md)
+- [Sink Wire Formats](reference/wire-formats.md)
+- [Telemetry](reference/telemetry.md)
+- [CLI](reference/cli.md)
 
 ## Explanation
 
