@@ -132,8 +132,8 @@ func TestValidateRejectsUnknownCoordinationDriver(t *testing.T) {
 func TestValidateRejectsCoordinationPostgresMissingDSN(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()
-	c.State.Postgres.DSN = ""            // strip state DSN too
-	c.State.Driver = "postgres"          // keep driver
+	c.State.Postgres.DSN = ""   // strip state DSN too
+	c.State.Driver = "postgres" // keep driver
 	c.Coordination = CoordinationConfig{Driver: "postgres"}
 	err := Validate(c)
 	if err == nil {
@@ -503,8 +503,8 @@ func TestPgSSLModeIsDisable(t *testing.T) {
 		{"postgres://pg/db", false},
 		{"host=pg dbname=d sslmode=disable", true},
 		{`host=pg dbname=d sslmode="disable"`, true},
-		{"host=pg dbname=d sslmode = disable", true},     // pgx tolerates whitespace around `=`
-		{"host=pg dbname=d  sslmode=disable", true},      // double-space separator
+		{"host=pg dbname=d sslmode = disable", true}, // pgx tolerates whitespace around `=`
+		{"host=pg dbname=d  sslmode=disable", true},  // double-space separator
 		{"host=pg dbname=d sslmode=verify-full", false},
 		{"host=pg password=mysslmodepw dbname=d", false}, // word boundary prevents substring match
 		{"host=pg dbname=d", false},
@@ -791,5 +791,40 @@ func TestValidateAcceptsRabbitMQWithoutOptionalFields(t *testing.T) {
 	})
 	if err := Validate(c); err != nil {
 		t.Fatalf("expected nil with only url+routing_key, got %v", err)
+	}
+}
+
+func TestValidateAllowsEmptyFeedsWithSources(t *testing.T) {
+	t.Parallel()
+	cfg := Defaults()
+	cfg.State = StateConfig{Driver: "sqlite", SQLite: SQLiteStateConfig{Path: "x.db"}}
+	cfg.Sinks = []SinkConfig{{Name: "default", Driver: "stdout"}}
+	cfg.Feeds = nil
+	cfg.FeedSources = []FeedSourceConfig{{Type: "file", Path: "/tmp/feeds.json"}}
+	if err := Validate(cfg); err != nil {
+		t.Fatalf("expected valid, got %v", err)
+	}
+}
+
+func TestValidateRejectsFileSourceWithoutPath(t *testing.T) {
+	t.Parallel()
+	cfg := Defaults()
+	cfg.State = StateConfig{Driver: "sqlite", SQLite: SQLiteStateConfig{Path: "x.db"}}
+	cfg.Sinks = []SinkConfig{{Name: "default", Driver: "stdout"}}
+	cfg.FeedSources = []FeedSourceConfig{{Type: "file"}}
+	if err := Validate(cfg); err == nil {
+		t.Fatal("expected error for file source without path")
+	}
+}
+
+func TestValidateRejectsNoFeedsAndNoSources(t *testing.T) {
+	t.Parallel()
+	cfg := Defaults()
+	cfg.State = StateConfig{Driver: "sqlite", SQLite: SQLiteStateConfig{Path: "x.db"}}
+	cfg.Sinks = []SinkConfig{{Name: "default", Driver: "stdout"}}
+	cfg.Feeds = nil
+	cfg.FeedSources = nil
+	if err := Validate(cfg); err == nil {
+		t.Fatal("expected error when neither feeds nor feed_sources is set")
 	}
 }
