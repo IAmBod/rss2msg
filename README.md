@@ -682,8 +682,10 @@ If `feed_sources:` is omitted entirely, the `feeds:` block is the sole source
   path: /etc/rss2msg/feeds.json
 ```
 
-The file must contain a JSON array of feed spec objects. Only `url` is
-required; `interval`, `sinks`, and `http` are optional:
+The file must contain a JSON array of feed spec objects. Both `url` and
+`interval` are required for `serve` to schedule the feed — a feed without
+a valid interval causes that entire reload to be rejected atomically, leaving
+the previously-running feed set unchanged. `sinks` and `http` are optional:
 
 ```json
 [

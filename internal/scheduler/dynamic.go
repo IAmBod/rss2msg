@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -65,6 +66,12 @@ func ServeDynamic(ctx context.Context, cfg DynamicConfig) error {
 		for url, fc := range byURL {
 			if rf, ok := running[url]; ok && reflect.DeepEqual(rf.cfg, fc) {
 				continue // unchanged: leave running, no rebuild
+			}
+			if fc.Interval <= 0 {
+				if cfg.OnError != nil {
+					cfg.OnError(fmt.Errorf("feed %s: interval is required (minimum 1s)", fc.URL))
+				}
+				return // abort: nothing applied
 			}
 			p, err := cfg.Factory(fc)
 			if err != nil {
