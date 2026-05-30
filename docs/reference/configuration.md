@@ -113,7 +113,7 @@ full jitter; runs for each publish attempt.
 | `max_delay`    | `10s`   | Cap on the exponential delay (jitter can add up to the delay itself). |
 
 When all retries are exhausted, the change is handed to the sink's
-[Choose a Sink](../how-to/choose-a-sink.md) once (if declared), then dropped from the current
+[dead-letter sink](../how-to/choose-a-sink.md) once (if declared), then dropped from the current
 poll and re-detected on the next.
 
 ## `runtime`
