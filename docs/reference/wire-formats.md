@@ -18,6 +18,10 @@ updated: 2026-05-30
 Postgres `payload` is the full envelope — everything else is extractable
 from it; the columns are for indexing and basic SQL filtering.
 
+The [rabbitmq](../how-to/sinks/rabbitmq.md), [stdout](../how-to/sinks/stdout.md),
+and [http](../how-to/sinks/http.md) sinks document their publish layout on their
+own pages.
+
 ## Related
 
 - [Change Envelope](change-envelope.md) — the payload these formats carry.
