@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -27,6 +28,7 @@ type File struct {
 	watcher *fsnotify.Watcher
 	out     chan struct{}
 	done    chan struct{}
+	once    sync.Once
 }
 
 const fileDebounce = 150 * time.Millisecond
@@ -82,7 +84,7 @@ func (f *File) Feeds(context.Context) ([]config.FeedConfig, error) {
 }
 
 func (f *File) Close() error {
-	close(f.done)
+	f.once.Do(func() { close(f.done) })
 	return f.watcher.Close()
 }
 

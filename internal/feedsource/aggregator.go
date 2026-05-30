@@ -20,7 +20,10 @@ type Aggregator struct {
 }
 
 // NewAggregator builds an Aggregator over sources in precedence order and starts
-// forwarding each source's Changes onto the aggregator's own channel.
+// forwarding each source's Changes onto the aggregator's own channel. The
+// per-source forward goroutines run for the lifetime of the process (they exit
+// when a source closes its Changes channel); this is intentional for a
+// long-lived daemon.
 func NewAggregator(sources ...Source) *Aggregator {
 	a := &Aggregator{
 		sources:  sources,
@@ -53,6 +56,8 @@ func (a *Aggregator) Trigger() {
 func (a *Aggregator) Changes() <-chan struct{} { return a.out }
 
 // Desired reads every source in order and returns the merged, deduped feed list.
+// The mutex is intentionally held across all source Feeds calls to serialise
+// reconciles; this is safe because the daemon runs a single reconcile loop.
 func (a *Aggregator) Desired(ctx context.Context) ([]config.FeedConfig, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
