@@ -119,6 +119,34 @@ feeds:
 	}
 }
 
+func TestLoadParsesFeedSources(t *testing.T) {
+	t.Parallel()
+	path := writeTempConfig(t, `
+feed_sources:
+  - type: file
+    name: control-plane
+    path: /etc/rss2msg/feeds.json
+    interval: 30s
+  - type: static
+`)
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(cfg.FeedSources) != 2 {
+		t.Fatalf("want 2 feed sources, got %d", len(cfg.FeedSources))
+	}
+	if cfg.FeedSources[0].Type != "file" || cfg.FeedSources[0].Name != "control-plane" {
+		t.Fatalf("source[0] = %+v", cfg.FeedSources[0])
+	}
+	if cfg.FeedSources[0].Interval != 30*time.Second {
+		t.Fatalf("interval = %v", cfg.FeedSources[0].Interval)
+	}
+	if cfg.FeedSources[1].Type != "static" {
+		t.Fatalf("source[1].type = %q", cfg.FeedSources[1].Type)
+	}
+}
+
 func TestLoadEnvOverridesViaPrefix(t *testing.T) {
 	t.Setenv("RSS2MSG_LOG__LEVEL", "warn")
 	p := writeTempConfig(t, `
