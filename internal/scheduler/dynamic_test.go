@@ -160,6 +160,37 @@ func TestServeDynamicFactoryErrorAbortsWholeReconcile(t *testing.T) {
 	cancel()
 }
 
+func TestServeDynamicRejectsNonPositiveInterval(t *testing.T) {
+	var calls int32
+	factory := func(fc config.FeedConfig) (FeedPipeline, error) {
+		return dynCountingPipeline{url: fc.URL, calls: &calls}, nil
+	}
+	var gotErr atomic.Bool
+	prov := newManualProvider()
+	prov.cur = []config.FeedConfig{{URL: "https://e/1"}} // Interval defaults to 0
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	done := make(chan struct{})
+	go func() {
+		_ = ServeDynamic(ctx, DynamicConfig{
+			Provider:     prov,
+			Factory:      factory,
+			DrainTimeout: 100 * time.Millisecond,
+			OnError:      func(error) { gotErr.Store(true) },
+		})
+		close(done)
+	}()
+	time.Sleep(60 * time.Millisecond)
+	if atomic.LoadInt32(&calls) != 0 {
+		t.Fatal("feed with non-positive interval must not start")
+	}
+	if !gotErr.Load() {
+		t.Fatal("expected OnError for a non-positive interval")
+	}
+	cancel()
+	<-done
+}
+
 type errProvider struct{ ch chan struct{} }
 
 func (e errProvider) Desired(context.Context) ([]config.FeedConfig, error) {
