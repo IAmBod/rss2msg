@@ -2,6 +2,7 @@ package feed
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"time"
 
@@ -22,8 +23,19 @@ func (d *Detector) Detect(ctx context.Context, feedURL string, f *gofeed.Feed, s
 	if f == nil {
 		return nil, nil
 	}
-	out := make([]model.Change, 0, len(f.Items))
-	for _, it := range f.Items {
+	// Process items oldest-first by publication date. Feeds typically deliver
+	// items newest-first; emitting in published-ascending order means changes
+	// reach sinks in the order events actually happened. Sort a copy so the
+	// caller's feed is left untouched; items without a parsed published date
+	// keep their relative order and sort ahead of dated ones.
+	items := make([]*gofeed.Item, len(f.Items))
+	copy(items, f.Items)
+	sort.SliceStable(items, func(i, j int) bool {
+		return publishedTime(items[i]).Before(publishedTime(items[j]))
+	})
+
+	out := make([]model.Change, 0, len(items))
+	for _, it := range items {
 		change, ok, err := classify(ctx, feedURL, f.Title, it, st, detectedAt)
 		if err != nil {
 			return nil, err
@@ -87,6 +99,15 @@ func classify(ctx context.Context, feedURL, feedTitle string, it *gofeed.Item, s
 		DetectedAt:    detectedAt,
 	}
 	return change, true, nil
+}
+
+// publishedTime returns the item's parsed published date, or the zero time
+// when the feed did not supply one.
+func publishedTime(it *gofeed.Item) time.Time {
+	if it.PublishedParsed != nil {
+		return *it.PublishedParsed
+	}
+	return time.Time{}
 }
 
 func collectAuthors(it *gofeed.Item) []string {

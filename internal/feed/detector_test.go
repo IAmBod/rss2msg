@@ -95,6 +95,35 @@ func TestDetectChangedYieldsUpdated(t *testing.T) {
 	}
 }
 
+func TestDetectOrdersByPublishedAscending(t *testing.T) {
+	t.Parallel()
+	det := NewDetector()
+	st := newMemStore()
+	when := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+
+	t1 := time.Date(2026, 5, 1, 8, 0, 0, 0, time.UTC)
+	t2 := time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC)
+	t3 := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	// Feed delivers newest-first, as real feeds (e.g. vg.hu) do.
+	feed := sampleFeed(
+		&gofeed.Item{GUID: "c", Title: "Newest", PublishedParsed: &t3},
+		&gofeed.Item{GUID: "a", Title: "Oldest", PublishedParsed: &t1},
+		&gofeed.Item{GUID: "b", Title: "Middle", PublishedParsed: &t2},
+	)
+
+	changes, err := det.Detect(context.Background(), "https://e/feed", feed, st, when)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotIDs := []string{changes[0].ItemID, changes[1].ItemID, changes[2].ItemID}
+	wantIDs := []string{"a", "b", "c"}
+	for i := range wantIDs {
+		if gotIDs[i] != wantIDs[i] {
+			t.Fatalf("expected published-ascending order %v, got %v", wantIDs, gotIDs)
+		}
+	}
+}
+
 func TestDetectSyntheticIdentityKey(t *testing.T) {
 	t.Parallel()
 	det := NewDetector()
