@@ -12,7 +12,7 @@ Start here. Pages are grouped the way you use them.
 
 ## Tutorial
 
-_(added in Task 5)_
+- [Getting Started](getting-started.md)
 
 ## How-to guides
 
@@ -31,4 +31,5 @@ _(added in Task 5)_
 
 ## Explanation
 
-_(added in Task 5)_
+- [How It Works](explanation/how-it-works.md)
+- [Operational Notes](explanation/operations.md)
