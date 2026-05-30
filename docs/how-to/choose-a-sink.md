@@ -34,5 +34,5 @@ Common fields on every sink:
 
 ## Related
 
-- [Sink Wire Formats](../reference/wire-formats.md) — the on-the-wire layout per driver.
+- [Sink Wire Formats](../reference/wire-formats.md) — the on-the-wire layout.
 - [Operational Notes](../explanation/operations.md) — at-least-once delivery and DLQ behavior.
