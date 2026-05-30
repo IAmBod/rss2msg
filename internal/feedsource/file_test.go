@@ -73,6 +73,18 @@ func TestFileSourceRelativePathSignals(t *testing.T) {
 	}
 }
 
+func TestFileSourceDoubleCloseSafe(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "feeds.json")
+	writeFeeds(t, path, `[]`)
+	s, err := NewFile("file", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = s.Close()
+	_ = s.Close() // must not panic
+}
+
 func TestFileSourceMissingFileIsEmptyNotError(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "absent.json")
