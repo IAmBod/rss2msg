@@ -22,9 +22,9 @@ Common fields on every sink:
 
 ## Drivers
 
-| driver | use it for | page |
-| --- | --- | --- |
-| postgres | durable SQL store, queryable history | [postgres](sinks/postgres.md) |
+| driver   | use it for                                       | page                            |
+| -------- | ------------------------------------------------ | ------------------------------- |
+| postgres | durable SQL store, queryable history             | [postgres](sinks/postgres.md)   |
 | kafka | high-throughput streaming, co-partition by item | [kafka](sinks/kafka.md) |
 | sqs | AWS queue, optional FIFO ordering | [sqs](sinks/sqs.md) |
 | sns | AWS pub/sub fan-out, optional FIFO | [sns](sinks/sns.md) |
