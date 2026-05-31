@@ -56,6 +56,33 @@ func TestLinkComposites_FansOut(t *testing.T) {
 	}
 }
 
+func TestLinkComposites_Nested(t *testing.T) {
+	// outer -> inner -> leaf. Linking must resolve the nested composite child
+	// (inner) via wrapSink's pass-through branch, and publishing on outer must
+	// reach the leaf without error.
+	reg := sink.NewRegistry()
+	leaf, _ := sinkstdout.New(sinkstdout.Options{Name: "leaf", Target: "stderr"})
+	inner, _ := compositesink.New(compositesink.Options{Name: "inner"})
+	outer, _ := compositesink.New(compositesink.Options{Name: "outer"})
+	_ = reg.Add(leaf)
+	_ = reg.Add(inner)
+	_ = reg.Add(outer)
+	cfg := config.Config{
+		Retry: config.RetryConfig{MaxAttempts: 1},
+		Sinks: []config.SinkConfig{
+			{Name: "leaf", Driver: "stdout", Stdout: config.StdoutSinkConfig{Target: "stderr"}},
+			{Name: "inner", Driver: "composite", Composite: config.CompositeSinkConfig{Children: []string{"leaf"}}},
+			{Name: "outer", Driver: "composite", Composite: config.CompositeSinkConfig{Children: []string{"inner"}}},
+		},
+	}
+	if err := linkComposites(reg, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := outer.Publish(context.Background(), model.Change{ItemID: "x"}); err != nil {
+		t.Fatalf("nested composite publish: %v", err)
+	}
+}
+
 func TestWrapSink_UnknownName(t *testing.T) {
 	reg := sink.NewRegistry()
 	_, err := wrapSink(reg, config.Config{}, "nope")
