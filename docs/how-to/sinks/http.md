@@ -44,3 +44,4 @@ Request layout:
 - [Choose a Sink](../choose-a-sink.md) — all drivers and the decision table.
 - [Sink Wire Formats](../../reference/wire-formats.md) — on-the-wire layout.
 - [Change Envelope](../../reference/change-envelope.md) — the payload body.
+- [Connect Zapier and n8n](../connect-zapier-and-n8n.md) — drive automation platforms with this sink.
