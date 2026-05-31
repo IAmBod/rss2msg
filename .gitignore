@@ -1,28 +1,36 @@
+# Build artifacts
 /rss2msg
+/bin/
+
+# State store (SQLite)
 /rss2msg.db
 /rss2msg.db-*
-/bin/
+
+# Test / coverage output
 *.test
 *.out
 coverage.txt
+
+# Environment / secrets
 .envrc
 .env
-.idea/
-.vscode/
-.task/
-
-# Obsidian per-user UI state (churny, machine-specific)
-.obsidian/workspace.json
-.obsidian/workspace-mobile.json
-
-# Claude+Obsidian tooling state — generated per-machine (absolute paths), not source
-.vault-meta/
 
 # Local working config (copy from config.example.yaml or config.example.full.yaml)
 /config.yaml
 
+# Editors / build tooling state
+.idea/
+.vscode/
+.task/
+
 # Obsidian vault config + plugins (repo doubles as a vault; local-only)
 .obsidian/
 
-# Claude Code tooling state (settings, worktrees) — local-only
+# Claude+Obsidian tooling state — generated per-machine (absolute paths), not source
+.vault-meta/
+
+# Claude Code tooling state (settings) — local-only
 .claude/
+
+# Git worktrees (per AGENTS.md, worktrees live under .worktrees/)
+.worktrees/
