@@ -6,11 +6,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/iambod/rss2msg/internal/config"
+	"github.com/iambod/rss2msg/internal/feedsource"
 	"github.com/iambod/rss2msg/internal/scheduler"
 	"github.com/iambod/rss2msg/internal/telemetry"
 )
@@ -47,16 +47,44 @@ func newServeCmd(opts *rootOpts) *cobra.Command {
 				w.Close()
 			}()
 
-			intervals := map[string]time.Duration{}
-			pipes := make([]scheduler.FeedPipeline, 0, len(w.pipelines))
-			for _, p := range w.pipelines {
-				intervals[p.FeedURL()] = p.cfg.Interval
-				pipes = append(pipes, p)
+			sources, closeSources, err := buildSources(cfg)
+			if err != nil {
+				return err
 			}
-			return scheduler.Serve(ctx, scheduler.ServeConfig{
-				Pipelines:    pipes,
-				Intervals:    intervals,
+			defer closeSources()
+
+			agg := feedsource.NewAggregator(sources...)
+
+			// SIGHUP forces a re-read of all sources.
+			hup := make(chan os.Signal, 1)
+			signal.Notify(hup, syscall.SIGHUP)
+			defer signal.Stop(hup)
+			go func() {
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case <-hup:
+						tel.Logger.Info().Msg("SIGHUP: reloading feed sources")
+						agg.Trigger()
+					}
+				}
+			}()
+
+			return scheduler.ServeDynamic(ctx, scheduler.DynamicConfig{
+				Provider:     agg,
+				Factory:      w.factory,
 				DrainTimeout: cfg.Runtime.ShutdownDrainTimeout,
+				OnReconcile: func(added, removed, changed int) {
+					if added+removed+changed > 0 {
+						tel.Logger.Info().
+							Int("added", added).Int("removed", removed).Int("changed", changed).
+							Msg("feeds reconciled")
+					}
+				},
+				OnError: func(err error) {
+					tel.Logger.Error().Err(err).Msg("feed reconcile aborted")
+				},
 			})
 		},
 	}

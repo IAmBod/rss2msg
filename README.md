@@ -19,7 +19,7 @@ Full documentation lives in [`docs/`](./docs/index.md). Start there, or jump in:
 - [Getting Started](./docs/getting-started.md) — build and run your first poll.
 
 **How-to**
-- [Configure Feeds](./docs/how-to/configure-feeds.md)
+- [Configure Feeds](./docs/how-to/configure-feeds.md) · [Dynamic Feed Sources](./docs/how-to/dynamic-feed-sources.md)
 - [Choose a Sink](./docs/how-to/choose-a-sink.md) · drivers: [postgres](./docs/how-to/sinks/postgres.md) · [kafka](./docs/how-to/sinks/kafka.md) · [sqs](./docs/how-to/sinks/sqs.md) · [sns](./docs/how-to/sinks/sns.md) · [rabbitmq](./docs/how-to/sinks/rabbitmq.md) · [stdout](./docs/how-to/sinks/stdout.md) · [http](./docs/how-to/sinks/http.md)
 - [Run Multiple Instances](./docs/how-to/run-multiple-instances.md)
 - [Secure Connections (TLS)](./docs/how-to/secure-connections-tls.md)
