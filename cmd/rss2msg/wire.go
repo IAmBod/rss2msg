@@ -13,6 +13,7 @@ import (
 	"github.com/iambod/rss2msg/internal/retry"
 	"github.com/iambod/rss2msg/internal/scheduler"
 	"github.com/iambod/rss2msg/internal/sink"
+	feedsink "github.com/iambod/rss2msg/internal/sink/feed"
 	sinkhttp "github.com/iambod/rss2msg/internal/sink/http"
 	sinkkafka "github.com/iambod/rss2msg/internal/sink/kafka"
 	sinkpg "github.com/iambod/rss2msg/internal/sink/postgres"
@@ -91,7 +92,7 @@ func wireAll(ctx context.Context, cfg config.Config, tel *telemetry.Telemetry) (
 	}
 	reg := sink.NewRegistry()
 	for _, sc := range cfg.Sinks {
-		p, err := buildPublisher(ctx, sc)
+		p, err := buildPublisher(ctx, sc, tel)
 		if err != nil {
 			_ = reg.Close()
 			_ = st.Close()
@@ -243,7 +244,7 @@ func openStateStore(ctx context.Context, c config.StateConfig) (state.Store, err
 	}
 }
 
-func buildPublisher(ctx context.Context, sc config.SinkConfig) (sink.Publisher, error) {
+func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Telemetry) (sink.Publisher, error) {
 	switch sc.Driver {
 	case "postgres":
 		return sinkpg.New(ctx, sinkpg.Options{Name: sc.Name, DSN: sc.Postgres.DSN, Table: sc.Postgres.Table})
@@ -293,6 +294,45 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig) (sink.Publisher, 
 			Region:       sc.SNS.Region,
 			EndpointURL:  sc.SNS.EndpointURL,
 			MessageGroup: sc.SNS.MessageGroup,
+		})
+	case "feed":
+		f := sc.Feed
+		var pgTLS *feedsink.PGTLSOptions
+		t := f.Store.Postgres.TLS
+		if t.CAFile != "" || t.CertFile != "" || t.KeyFile != "" || t.ServerName != "" || t.InsecureSkipVerify {
+			pgTLS = &feedsink.PGTLSOptions{
+				CAFile: t.CAFile, CertFile: t.CertFile, KeyFile: t.KeyFile,
+				ServerName: t.ServerName, InsecureSkipVerify: t.InsecureSkipVerify,
+			}
+		}
+		var auth *feedsink.AuthConfig
+		if f.Auth.Basic.Username != "" || f.Auth.BearerToken != "" {
+			auth = &feedsink.AuthConfig{
+				BasicUser: f.Auth.Basic.Username, BasicPass: f.Auth.Basic.Password,
+				BearerToken: f.Auth.BearerToken,
+			}
+		}
+		title := f.Title
+		if title == "" {
+			title = sc.Name
+		}
+		max := f.MaxItems
+		if max == 0 {
+			max = 50
+		}
+		return feedsink.New(ctx, feedsink.Options{
+			Name: sc.Name, Listen: f.Listen, PublicURL: f.PublicURL,
+			Meta:     feedsink.FeedMeta{Title: title, Link: f.Link, Description: f.Description},
+			MaxItems: max, RSSPath: f.RSSPath, AtomPath: f.AtomPath,
+			RenderCacheTTL: f.RenderCacheTTL, CacheControlTTL: f.CacheControlTTL,
+			Timeouts: feedsink.Timeouts{
+				ReadHeader: f.Timeouts.ReadHeader, Read: f.Timeouts.Read,
+				Write: f.Timeouts.Write, Idle: f.Timeouts.Idle, Shutdown: f.Timeouts.Shutdown,
+			},
+			TLSCertFile: f.TLS.CertFile, TLSKeyFile: f.TLS.KeyFile, Auth: auth,
+			StoreDriver: f.Store.Driver, SQLitePath: f.Store.SQLite.Path,
+			PostgresDSN: f.Store.Postgres.DSN, Table: f.Store.Postgres.Table, PostgresTLS: pgTLS,
+			Meter: tel.Meter, Logger: tel.Logger,
 		})
 	default:
 		return nil, fmt.Errorf("unsupported sink driver %q", sc.Driver)
