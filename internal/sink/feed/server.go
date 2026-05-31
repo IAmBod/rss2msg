@@ -28,6 +28,7 @@ type handler struct {
 	cfg   handlerConfig
 	mu    sync.Mutex
 	cache map[string]cachedDoc // keyed by path
+	instr *instruments
 }
 
 type cachedDoc struct {
@@ -60,6 +61,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.writeUnauthorized(w)
 		return
 	}
+	if h.instr != nil {
+		h.instr.requests.Add(r.Context(), 1)
+	}
 	doc, err := h.document(r.Context(), path)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -70,6 +74,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("ETag", doc.etag)
 	w.Header().Set("Last-Modified", doc.modified.UTC().Format(http.TimeFormat))
 	if matchNotModified(r, doc) {
+		if h.instr != nil {
+			h.instr.notMod.Add(r.Context(), 1)
+		}
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
