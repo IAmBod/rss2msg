@@ -34,6 +34,13 @@ var knownSinkDrivers = map[string]struct{}{
 	"sns":      {},
 	"stdout":   {},
 	"http":     {},
+	"feed":     {},
+}
+
+var knownFeedStoreDrivers = map[string]struct{}{
+	"memory":   {},
+	"sqlite":   {},
+	"postgres": {},
 }
 
 var knownHTTPSinkMethods = map[string]struct{}{
@@ -186,6 +193,11 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			return *warnings, fmt.Errorf("sinks[%d].driver %q is not supported", i, s.Driver)
 		}
 	}
+	// Build a map from sink name to driver for dead-letter driver checks.
+	sinkDrivers := make(map[string]string, len(c.Sinks))
+	for _, s := range c.Sinks {
+		sinkDrivers[s.Name] = s.Driver
+	}
 	for i, s := range c.Sinks {
 		if s.DeadLetter != "" {
 			if s.DeadLetter == s.Name {
@@ -193,6 +205,9 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			}
 			if _, ok := names[s.DeadLetter]; !ok {
 				return *warnings, fmt.Errorf("sinks[%d].dead_letter %q does not refer to a declared sink", i, s.DeadLetter)
+			}
+			if sinkDrivers[s.DeadLetter] == "feed" {
+				return *warnings, fmt.Errorf("sinks[%d].dead_letter %q: a feed sink cannot be used as a dead-letter target", i, s.DeadLetter)
 			}
 		}
 		switch s.Driver {
@@ -257,6 +272,71 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			}
 			if s.RabbitMQ.Declare && strings.TrimSpace(s.RabbitMQ.Exchange) == "" {
 				return *warnings, fmt.Errorf("sinks[%d] (rabbitmq %q): declare=true requires a non-empty exchange (the default exchange cannot be declared)", i, s.Name)
+			}
+		case "feed":
+			f := s.Feed
+			if strings.TrimSpace(f.Listen) == "" {
+				return *warnings, fmt.Errorf("sinks[%d] (feed %q): feed.listen is required", i, s.Name)
+			}
+			if f.MaxItems < 1 {
+				return *warnings, fmt.Errorf("sinks[%d] (feed %q): feed.max_items must be >= 1", i, s.Name)
+			}
+			rss := f.RSSPath
+			if rss == "" {
+				rss = "/rss"
+			}
+			atom := f.AtomPath
+			if atom == "" {
+				atom = "/atom"
+			}
+			if rss[0] != '/' || atom[0] != '/' || rss == atom {
+				return *warnings, fmt.Errorf("sinks[%d] (feed %q): rss_path/atom_path must start with / and differ", i, s.Name)
+			}
+			for _, raw := range []string{f.Link, f.PublicURL} {
+				if raw == "" {
+					continue
+				}
+				if u, err := url.Parse(raw); err != nil || u.Scheme == "" || u.Host == "" {
+					return *warnings, fmt.Errorf("sinks[%d] (feed %q): %q is not an absolute URL", i, s.Name, raw)
+				}
+			}
+			if (f.TLS.CertFile == "") != (f.TLS.KeyFile == "") {
+				return *warnings, fmt.Errorf("sinks[%d] (feed %q): tls.cert_file and key_file must both be set or both empty", i, s.Name)
+			}
+			hasBasic := f.Auth.Basic.Username != "" || f.Auth.Basic.Password != ""
+			if hasBasic && f.Auth.BearerToken != "" {
+				return *warnings, fmt.Errorf("sinks[%d] (feed %q): auth accepts only one of basic or bearer_token", i, s.Name)
+			}
+			if hasBasic && (f.Auth.Basic.Username == "" || f.Auth.Basic.Password == "") {
+				return *warnings, fmt.Errorf("sinks[%d] (feed %q): auth.basic needs both username and password", i, s.Name)
+			}
+			sd := storeDriverOrDefault(f.Store.Driver)
+			if _, ok := knownFeedStoreDrivers[sd]; !ok {
+				return *warnings, fmt.Errorf("sinks[%d] (feed %q): unknown store.driver %q", i, s.Name, f.Store.Driver)
+			}
+			switch sd {
+			case "sqlite":
+				if strings.TrimSpace(f.Store.SQLite.Path) == "" {
+					return *warnings, fmt.Errorf("sinks[%d] (feed %q): store.sqlite.path is required", i, s.Name)
+				}
+			case "postgres":
+				if strings.TrimSpace(f.Store.Postgres.DSN) == "" {
+					return *warnings, fmt.Errorf("sinks[%d] (feed %q): store.postgres.dsn is required", i, s.Name)
+				}
+				if t := f.Store.Postgres.Table; t != "" && !isValidPGIdentifier(t) {
+					return *warnings, fmt.Errorf("sinks[%d] (feed %q): invalid store.postgres.table %q", i, s.Name, t)
+				}
+				ptls := f.Store.Postgres.TLS
+				tlsSet := ptls.CAFile != "" || ptls.CertFile != "" || ptls.KeyFile != "" || ptls.ServerName != "" || ptls.InsecureSkipVerify
+				if tlsSet && pgSSLModeIsDisable(f.Store.Postgres.DSN) {
+					return *warnings, fmt.Errorf("sinks[%d] (feed %q): store.postgres.tls set but DSN has sslmode=disable", i, s.Name)
+				}
+				if (ptls.CertFile == "") != (ptls.KeyFile == "") {
+					return *warnings, fmt.Errorf("sinks[%d] (feed %q): store.postgres.tls.cert_file and key_file must both be set or both empty", i, s.Name)
+				}
+			}
+			if sd != "postgres" && c.Coordination.Driver != "" && c.Coordination.Driver != "memory" {
+				*warnings = append(*warnings, fmt.Sprintf("sink %q: coordination=%q looks multi-instance but feed window is %q; readers may get partial feeds (use store.driver: postgres)", s.Name, c.Coordination.Driver, sd))
 			}
 		}
 	}
@@ -345,6 +425,34 @@ func redisparseURL(raw string) (*url.URL, error) {
 		}
 	}
 	return u, nil
+}
+
+// storeDriverOrDefault returns the store driver name, defaulting to "memory" when empty.
+func storeDriverOrDefault(d string) string {
+	if d == "" {
+		return "memory"
+	}
+	return d
+}
+
+// isValidPGIdentifier returns true when s is a valid PostgreSQL identifier:
+// non-empty, at most 63 bytes, starts with letter or underscore, and contains
+// only letters, digits, and underscores.
+func isValidPGIdentifier(s string) bool {
+	if s == "" || len(s) > 63 {
+		return false
+	}
+	for i, r := range s {
+		switch {
+		case r == '_':
+		case r >= 'a' && r <= 'z':
+		case r >= 'A' && r <= 'Z':
+		case r >= '0' && r <= '9' && i > 0:
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // pgSSLModeIsDisable returns true when dsn explicitly sets sslmode=disable in
