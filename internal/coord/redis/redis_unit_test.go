@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestLockKeyIsDeterministicAndHumanReadable(t *testing.T) {
@@ -63,4 +65,26 @@ func TestResolveExplicitRenewalIntervalRespected(t *testing.T) {
 	if r.RenewalInterval.String() != "5s" {
 		t.Fatalf("expected explicit 5s, got %v", r.RenewalInterval)
 	}
+}
+
+func TestBuildClientByMode(t *testing.T) {
+	c, err := buildClient(Options{Mode: "single", URL: "redis://localhost:6379"})
+	require.NoError(t, err)
+	require.NotNil(t, c)
+
+	c, err = buildClient(Options{Mode: "sentinel", Sentinel: SentinelOptions{MasterName: "m", Addrs: []string{"a:26379"}}})
+	require.NoError(t, err)
+	require.NotNil(t, c)
+
+	c, err = buildClient(Options{Mode: "cluster", Cluster: ClusterOptions{Addrs: []string{"n:6379"}}})
+	require.NoError(t, err)
+	require.NotNil(t, c)
+
+	_, err = buildClient(Options{URL: "redis://localhost:6379"}) // empty mode == single
+	require.NoError(t, err)
+
+	_, err = buildClient(Options{Mode: "single"})
+	require.ErrorContains(t, err, "url is required")
+	_, err = buildClient(Options{Mode: "galaxy"})
+	require.ErrorContains(t, err, "unsupported mode")
 }

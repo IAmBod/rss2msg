@@ -221,12 +221,7 @@ func openCoordinator(ctx context.Context, cc config.CoordinationConfig, sc confi
 			TLS:      coordPGTLSFromConfig(cc.Postgres.TLS),
 		})
 	case "redis":
-		return coordredis.New(ctx, coordredis.Options{
-			URL:             cc.Redis.URL,
-			LockTTL:         cc.Redis.LockTTL,
-			RenewalInterval: cc.Redis.RenewalInterval,
-			TLS:             redisTLSFromConfig(cc.Redis.TLS),
-		})
+		return coordredis.New(ctx, redisCoordOptions(cc))
 	default:
 		return nil, fmt.Errorf("unsupported coordination driver %q", driver)
 	}
@@ -278,6 +273,32 @@ func redisTLSFromConfig(t config.CoordinationRedisTLSConfig) *coordredis.TLSOpti
 		KeyFile:            t.KeyFile,
 		ServerName:         t.ServerName,
 		InsecureSkipVerify: t.InsecureSkipVerify,
+	}
+}
+
+// redisCoordOptions maps coordination config into coordredis.Options for all modes.
+func redisCoordOptions(cc config.CoordinationConfig) coordredis.Options {
+	r := cc.Redis
+	return coordredis.Options{
+		Mode:            r.Mode,
+		URL:             r.URL,
+		LockTTL:         r.LockTTL,
+		RenewalInterval: r.RenewalInterval,
+		TLS:             redisTLSFromConfig(r.TLS),
+		Sentinel: coordredis.SentinelOptions{
+			MasterName:       r.Sentinel.MasterName,
+			Addrs:            r.Sentinel.Addrs,
+			Username:         r.Sentinel.Username,
+			Password:         r.Sentinel.Password,
+			SentinelUsername: r.Sentinel.SentinelUsername,
+			SentinelPassword: r.Sentinel.SentinelPassword,
+			DB:               r.Sentinel.DB,
+		},
+		Cluster: coordredis.ClusterOptions{
+			Addrs:    r.Cluster.Addrs,
+			Username: r.Cluster.Username,
+			Password: r.Cluster.Password,
+		},
 	}
 }
 

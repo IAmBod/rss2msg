@@ -3,7 +3,59 @@ package config
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
+
+// mustLoadYAML writes yaml to a temp file and loads it as a Config.
+func mustLoadYAML(t *testing.T, yaml string) Config {
+	t.Helper()
+	p := writeTempConfig(t, yaml)
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatalf("mustLoadYAML: %v", err)
+	}
+	return cfg
+}
+
+func TestRedisCoordinationModeBlocksParse(t *testing.T) {
+	cfg := mustLoadYAML(t, `
+coordination:
+  driver: redis
+  redis:
+    mode: sentinel
+    lock_ttl: 30s
+    sentinel:
+      master_name: mymaster
+      addrs: [a:26379, b:26379]
+      password: secret
+      sentinel_password: spass
+      db: 2
+    cluster:
+      addrs: [n1:6379, n2:6379]
+      username: u
+`)
+	r := cfg.Coordination.Redis
+	require.Equal(t, "sentinel", r.Mode)
+	require.Equal(t, "mymaster", r.Sentinel.MasterName)
+	require.Equal(t, []string{"a:26379", "b:26379"}, r.Sentinel.Addrs)
+	require.Equal(t, "secret", r.Sentinel.Password)
+	require.Equal(t, "spass", r.Sentinel.SentinelPassword)
+	require.Equal(t, 2, r.Sentinel.DB)
+	require.Equal(t, []string{"n1:6379", "n2:6379"}, r.Cluster.Addrs)
+	require.Equal(t, "u", r.Cluster.Username)
+}
+
+func TestRedisCoordinationLegacyURLStillParses(t *testing.T) {
+	cfg := mustLoadYAML(t, `
+coordination:
+  driver: redis
+  redis:
+    url: redis://localhost:6379
+`)
+	require.Equal(t, "", cfg.Coordination.Redis.Mode)
+	require.Equal(t, "redis://localhost:6379", cfg.Coordination.Redis.URL)
+}
 
 func TestLoad_FeedSink(t *testing.T) {
 	t.Parallel()
