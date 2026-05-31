@@ -135,3 +135,28 @@ func TestPublishRecordsMetrics(t *testing.T) {
 		t.Fatal("expected metrics recorded")
 	}
 }
+
+func TestPublishIsConcurrencySafe(t *testing.T) {
+	t.Parallel()
+	// One composite instance is shared across feeds publishing concurrently.
+	// The branch slice is read-only after SetBranches, so this must be race-free
+	// (run with -race) and every child must receive every change exactly once.
+	a, b := &fakeSink{name: "a"}, &fakeSink{name: "b"}
+	p, _ := New(Options{Name: "fanout"})
+	p.SetBranches([]Branch{branch("a", a, nil), branch("b", b, nil)})
+	const n = 100
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := p.Publish(context.Background(), sampleChange()); err != nil {
+				t.Errorf("publish: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	if a.count() != n || b.count() != n {
+		t.Fatalf("each child should receive %d: a=%d b=%d", n, a.count(), b.count())
+	}
+}
