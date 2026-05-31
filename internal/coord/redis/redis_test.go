@@ -7,6 +7,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -224,10 +226,9 @@ func TestCanceledReleaseCtxStillFreesLease(t *testing.T) {
 	_ = relB(ctx)
 }
 
-// startRedisSentinel brings up a single Redis master plus one Sentinel,
-// both on a shared user-defined Docker network so the Sentinel can reach the
-// master by container alias. It returns the master name ("mymaster") and the
-// host:port the test should hand to coordredis as a Sentinel address.
+// startRedisSentinel brings up a single Redis master plus one Sentinel and
+// returns the master name ("mymaster") and the host:port the test should hand
+// to coordredis as a Sentinel address.
 //
 // The single-node modules/redis helper can't model a Sentinel topology, so we
 // drive raw GenericContainer requests here. As with the other helpers in this
@@ -235,14 +236,27 @@ func TestCanceledReleaseCtxStillFreesLease(t *testing.T) {
 // or network failure (most importantly: no Docker daemon) we Skipf so the
 // suite stays green in environments without Docker and only runs for real in
 // CI/Docker.
+//
+// Reachability is the subtle part. A go-redis FailoverClient connects to the
+// Sentinel, asks it for the master address, and then dials THAT address
+// directly. So the address Sentinel advertises must be reachable both from the
+// Sentinel container (to monitor the master) and from the host process running
+// the test (to dial the master). A container-internal alias satisfies only the
+// former. We bridge the two vantage points through the Docker bridge gateway IP
+// (typically 172.17.0.1): the master exposes 6379, testcontainers publishes it
+// to an ephemeral host port, and that published port is reachable as
+// gatewayIP:<hostPort> both from the host (the gateway is a local interface)
+// and from the Sentinel container (the gateway is its default route). Sentinel
+// is configured to monitor exactly that gatewayIP:<hostPort>, so it advertises
+// a host-reachable address back to the client.
 func startRedisSentinel(t *testing.T) (masterName string, sentinelAddrs []string) {
 	t.Helper()
 	ctx := context.Background()
 
-	const (
-		master = "mymaster"
-		alias  = "redis-master"
-	)
+	const master = "mymaster"
+
+	// Bridge gateway IP, reachable from both the host and bridge containers.
+	gatewayIP := dockerBridgeGateway(t)
 
 	net, err := network.New(ctx, network.WithAttachable())
 	if err != nil {
@@ -250,15 +264,13 @@ func startRedisSentinel(t *testing.T) (masterName string, sentinelAddrs []string
 	}
 	t.Cleanup(func() { _ = net.Remove(ctx) })
 
-	// Master.
+	// Master: expose 6379; testcontainers publishes it to an ephemeral host
+	// port, which we then read back and feed to the Sentinel config.
 	masterC, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        "redis:7-alpine",
 			ExposedPorts: []string{"6379/tcp"},
 			Networks:     []string{net.Name},
-			NetworkAliases: map[string][]string{
-				net.Name: {alias},
-			},
 			WaitingFor: wait.ForListeningPort("6379/tcp").
 				WithStartupTimeout(30 * time.Second),
 		},
@@ -269,12 +281,19 @@ func startRedisSentinel(t *testing.T) (masterName string, sentinelAddrs []string
 	}
 	t.Cleanup(func() { _ = testcontainers.TerminateContainer(masterC) })
 
+	masterHostPort, err := masterC.MappedPort(ctx, "6379/tcp")
+	if err != nil {
+		t.Skipf("skipping: cannot resolve master mapped port: %v", err)
+	}
+
 	// Sentinel. The config is generated in-container via a small sh entrypoint
 	// so the file is written next to where redis-sentinel reads it; this avoids
-	// having to bake a file mount and keeps the helper hermetic.
+	// having to bake a file mount and keeps the helper hermetic. Monitoring by
+	// the gateway IP means Sentinel advertises that same host-reachable IP:port
+	// back to the FailoverClient.
 	sentinelConf := strings.Join([]string{
 		"port 26379",
-		fmt.Sprintf("sentinel monitor %s %s 6379 1", master, alias),
+		fmt.Sprintf("sentinel monitor %s %s %s 1", master, gatewayIP, masterHostPort.Port()),
 		fmt.Sprintf("sentinel down-after-milliseconds %s 1000", master),
 		fmt.Sprintf("sentinel failover-timeout %s 5000", master),
 	}, "\\n")
@@ -309,6 +328,39 @@ func startRedisSentinel(t *testing.T) (masterName string, sentinelAddrs []string
 	}
 
 	return master, []string{fmt.Sprintf("%s:%s", host, port.Port())}
+}
+
+// dockerBridgeGateway returns the gateway IP of the default Docker bridge
+// network, which is reachable from both the host (it's a local interface) and
+// from bridge-attached containers (it's their default gateway). It Skipf's the
+// test if the value can't be determined. Resolved via the docker CLI to avoid
+// pulling the Docker SDK into the test's import surface.
+func dockerBridgeGateway(t *testing.T) string {
+	t.Helper()
+	out, err := exec.Command(
+		"docker", "network", "inspect", "bridge",
+		"--format", "{{range .IPAM.Config}}{{.Gateway}}{{end}}",
+	).Output()
+	if err != nil {
+		t.Skipf("skipping: cannot inspect docker bridge network: %v", err)
+	}
+	gw := strings.TrimSpace(string(out))
+	if gw == "" {
+		t.Skip("skipping: docker bridge network has no gateway IP")
+	}
+	return gw
+}
+
+// freeTCPPort asks the kernel for an unused TCP port. There is an inherent
+// (small) TOCTOU window between closing the listener and Docker binding the
+// port; acceptable for a single-shot integration test.
+func freeTCPPort() (int, error) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = l.Close() }()
+	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
 // TestCoordinator_Sentinel_AcquireRenewRelease exercises the full lease
