@@ -10,3 +10,10 @@ coverage.txt
 .idea/
 .vscode/
 .task/
+
+# Obsidian per-user UI state (churny, machine-specific)
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+
+# Claude+Obsidian tooling state — generated per-machine (absolute paths), not source
+.vault-meta/
