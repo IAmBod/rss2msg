@@ -122,6 +122,7 @@ type SinkConfig struct {
 	SNS        SNSSinkConfig          `mapstructure:"sns"`
 	Stdout     StdoutSinkConfig       `mapstructure:"stdout"`
 	HTTP       HTTPSinkConfig         `mapstructure:"http"`
+	Feed       FeedSinkConfig         `mapstructure:"feed"`
 	Extra      map[string]interface{} `mapstructure:",remain"`
 }
 
@@ -131,6 +132,62 @@ type HTTPSinkConfig struct {
 	Headers      map[string]string `mapstructure:"headers"`       // static request headers
 	Timeout      time.Duration     `mapstructure:"timeout"`       // 0 -> 30s
 	SuccessCodes []int             `mapstructure:"success_codes"` // empty -> {200,201,202,204}
+}
+
+type FeedSinkConfig struct {
+	Listen          string             `mapstructure:"listen"`
+	PublicURL       string             `mapstructure:"public_url"`
+	Title           string             `mapstructure:"title"`
+	Link            string             `mapstructure:"link"`
+	Description     string             `mapstructure:"description"`
+	MaxItems        int                `mapstructure:"max_items"`
+	RSSPath         string             `mapstructure:"rss_path"`
+	AtomPath        string             `mapstructure:"atom_path"`
+	RenderCacheTTL  time.Duration      `mapstructure:"render_cache_ttl"`
+	CacheControlTTL time.Duration      `mapstructure:"cache_control_ttl"`
+	Timeouts        FeedTimeoutsConfig `mapstructure:"timeouts"`
+	TLS             FeedTLSConfig      `mapstructure:"tls"`
+	Auth            FeedAuthConfig     `mapstructure:"auth"`
+	Store           FeedStoreConfig    `mapstructure:"store"`
+}
+
+type FeedTimeoutsConfig struct {
+	ReadHeader time.Duration `mapstructure:"read_header"`
+	Read       time.Duration `mapstructure:"read"`
+	Write      time.Duration `mapstructure:"write"`
+	Idle       time.Duration `mapstructure:"idle"`
+	Shutdown   time.Duration `mapstructure:"shutdown"`
+}
+
+type FeedTLSConfig struct {
+	CertFile string `mapstructure:"cert_file"`
+	KeyFile  string `mapstructure:"key_file"`
+}
+
+type FeedAuthConfig struct {
+	Basic       FeedBasicAuthConfig `mapstructure:"basic"`
+	BearerToken string              `mapstructure:"bearer_token"`
+}
+
+type FeedBasicAuthConfig struct {
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
+}
+
+type FeedStoreConfig struct {
+	Driver   string                  `mapstructure:"driver"`
+	SQLite   FeedStoreSQLiteConfig   `mapstructure:"sqlite"`
+	Postgres FeedStorePostgresConfig `mapstructure:"postgres"`
+}
+
+type FeedStoreSQLiteConfig struct {
+	Path string `mapstructure:"path"`
+}
+
+type FeedStorePostgresConfig struct {
+	DSN   string           `mapstructure:"dsn"`
+	Table string           `mapstructure:"table"`
+	TLS   StatePGTLSConfig `mapstructure:"tls"`
 }
 
 type StdoutSinkConfig struct {
