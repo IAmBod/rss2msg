@@ -48,6 +48,26 @@ tasks:
     cmds:
       - rm -f {{.BIN}}
 
+  lint:
+    desc: Run golangci-lint (requires golangci-lint v2; `task vet` is the dependency-free alternative)
+    cmds:
+      - golangci-lint run ./...
+
+  changelog:
+    desc: Regenerate CHANGELOG.md from conventional commits (requires git-cliff)
+    cmds:
+      - git cliff --config cliff.toml --output CHANGELOG.md
+
+  release-check:
+    desc: Validate the GoReleaser config without building (requires goreleaser)
+    cmds:
+      - goreleaser check
+
+  release-snapshot:
+    desc: Dry-run a release into ./dist without publishing (requires goreleaser + Docker)
+    cmds:
+      - goreleaser release --snapshot --clean
+
   docker-build:
     desc: Build the production container image ({{.IMAGE}}:latest)
     cmds:

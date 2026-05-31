@@ -7,7 +7,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"net"
 	"os/exec"
 	"strings"
 	"testing"
@@ -349,18 +348,6 @@ func dockerBridgeGateway(t *testing.T) string {
 		t.Skip("skipping: docker bridge network has no gateway IP")
 	}
 	return gw
-}
-
-// freeTCPPort asks the kernel for an unused TCP port. There is an inherent
-// (small) TOCTOU window between closing the listener and Docker binding the
-// port; acceptable for a single-shot integration test.
-func freeTCPPort() (int, error) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return 0, err
-	}
-	defer func() { _ = l.Close() }()
-	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
 // TestCoordinator_Sentinel_AcquireRenewRelease exercises the full lease

@@ -44,3 +44,4 @@ Start here. Pages are grouped the way you use them.
 - [Building and Testing](development/building-and-testing.md)
 - [Project Layout](development/project-layout.md)
 - [Contributing](development/contributing.md)
+- [Releasing](development/releasing.md)

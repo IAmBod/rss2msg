@@ -66,7 +66,7 @@ func (r *RetryingPublisher) Deliver(ctx context.Context, change model.Change) Br
 	envelope.DLQAttempts = res.Attempts
 
 	if err := r.dlq.Publish(ctx, envelope); err != nil {
-		return BranchResult{State: BranchDropped, Attempts: res.Attempts, Err: fmt.Errorf("primary err=%w; dlq err=%v", res.Err, err)}
+		return BranchResult{State: BranchDropped, Attempts: res.Attempts, Err: fmt.Errorf("primary err=%w; dlq err=%w", res.Err, err)}
 	}
 	return BranchResult{State: BranchDLQ, Attempts: res.Attempts, Err: res.Err}
 }

@@ -1,6 +1,8 @@
 # Build artifacts
 /rss2msg
 /bin/
+# GoReleaser output
+/dist/
 
 # State store (SQLite)
 /rss2msg.db

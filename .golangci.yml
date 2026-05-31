@@ -1,0 +1,55 @@
+# golangci-lint configuration (v2 schema).
+# Run locally with: golangci-lint run
+# Verify this file with: golangci-lint config verify
+version: "2"
+
+run:
+  # Build tags so integration-tagged files are linted too.
+  build-tags:
+    - integration
+
+linters:
+  # Start from the curated "standard" set and layer on a few high-signal linters.
+  default: standard
+  enable:
+    - bodyclose      # HTTP response bodies are closed
+    - errorlint      # correct error wrapping/comparison (errors.Is/As)
+    - misspell       # common spelling mistakes in comments/strings
+    - revive         # fast, configurable golint replacement
+    - unconvert      # remove redundant type conversions
+    - whitespace     # leading/trailing whitespace in funcs
+
+  settings:
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: var-declaration
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # Test files may use looser error handling and helper patterns.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - bodyclose
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
