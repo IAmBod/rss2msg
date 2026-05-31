@@ -6,11 +6,13 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/iambod/rss2msg/internal/config"
 	"github.com/iambod/rss2msg/internal/feedsource"
+	"github.com/iambod/rss2msg/internal/health"
 	"github.com/iambod/rss2msg/internal/scheduler"
 	"github.com/iambod/rss2msg/internal/telemetry"
 )
@@ -54,6 +56,27 @@ func newServeCmd(opts *rootOpts) *cobra.Command {
 			defer closeSources()
 
 			agg := feedsource.NewAggregator(sources...)
+
+			readyChecks := []health.Check{
+				{Name: "state", Fn: w.store.Ping},
+			}
+			if p, ok := w.coord.(health.Pinger); ok {
+				readyChecks = append(readyChecks, health.Check{Name: "coordination", Fn: p.Ping})
+			}
+			hs := health.New(cfg.Health, tel.Logger, readyChecks...)
+			if err := hs.Start(); err != nil {
+				return err
+			}
+			defer func() {
+				sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				_ = hs.Shutdown(sctx)
+			}()
+			hs.MarkStarted()
+			go func() {
+				<-ctx.Done()
+				hs.SetDraining()
+			}()
 
 			// SIGHUP forces a re-read of all sources.
 			hup := make(chan os.Signal, 1)
