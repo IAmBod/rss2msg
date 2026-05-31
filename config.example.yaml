@@ -59,7 +59,13 @@ state:
   #     insecure_skip_verify: false          # true = disable cert verification (test only)
 
 sinks:
+  # A composite fans every change out to its children. Used as `default`, so
+  # feeds with no explicit `sinks:` list publish to both children.
   - name: default
+    driver: composite
+    composite:
+      children: [console, pretty]
+  - name: console
     driver: stdout
     stdout:
       target: stdout                              # stdout (default) | stderr
