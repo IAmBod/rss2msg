@@ -29,16 +29,3 @@ Full documentation lives in [`docs/`](./docs/index.md). Start there, or jump in:
 
 **Understand it**
 - [How It Works](./docs/explanation/how-it-works.md) · [Operational Notes](./docs/explanation/operations.md)
-
----
-
-## Design docs
-
-- [`docs/superpowers/specs/2026-05-28-rss2msg-design.md`](./docs/superpowers/specs/2026-05-28-rss2msg-design.md)
-  — original design (v1).
-- [`docs/superpowers/specs/2026-05-28-rss2msg-v1.5-design.md`](./docs/superpowers/specs/2026-05-28-rss2msg-v1.5-design.md)
-  — multi-instance coordination + SQS/SNS.
-- [`docs/superpowers/specs/2026-05-28-rss2msg-coord-redis-design.md`](./docs/superpowers/specs/2026-05-28-rss2msg-coord-redis-design.md)
-  — Redis coordinator backend.
-- Implementation plans live alongside the specs under
-  `docs/superpowers/plans/`.
