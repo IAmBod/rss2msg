@@ -1,5 +1,7 @@
 // Package redis provides a Coordinator backed by a Redis lease:
-//   SET key token NX EX <lock_ttl>
+//
+//	SET key token NX EX <lock_ttl>
+//
 // with a background renewal goroutine that CAS-extends the lease every
 // LockTTL/3, and a CAS-checked DEL on release. The key derivation mirrors
 // the Postgres backend's hash domain (sha256(feed_url)) but is rendered as
@@ -27,7 +29,7 @@ import (
 // Options configures the Redis-backed Coordinator. Zero LockTTL means "30s";
 // zero RenewalInterval means "LockTTL / 3".
 type Options struct {
-	URL             string        // required
+	URL             string        // required for single mode
 	LockTTL         time.Duration // 0 -> 30s
 	RenewalInterval time.Duration // 0 -> LockTTL / 3
 
@@ -35,6 +37,10 @@ type Options struct {
 	// produces for rediss:// URLs (system roots, SNI = URL host). Must be
 	// nil for plain redis:// URLs.
 	TLS *TLSOptions
+
+	Mode     string // "" or "single" | "sentinel" | "cluster"
+	Sentinel SentinelOptions
+	Cluster  ClusterOptions
 }
 
 // TLSOptions configures custom TLS for rediss:// connections. Zero-valued
@@ -53,6 +59,24 @@ type TLSOptions struct {
 	// InsecureSkipVerify disables server certificate verification. For
 	// local/test only — logged at warn.
 	InsecureSkipVerify bool
+}
+
+// SentinelOptions configures Redis Sentinel (failover) connections.
+type SentinelOptions struct {
+	MasterName       string
+	Addrs            []string
+	Username         string // data-node (master/replica) auth
+	Password         string
+	SentinelUsername string // sentinel-node auth
+	SentinelPassword string
+	DB               int
+}
+
+// ClusterOptions configures Redis Cluster connections.
+type ClusterOptions struct {
+	Addrs    []string
+	Username string
+	Password string
 }
 
 type resolvedOptions struct {
@@ -102,7 +126,7 @@ type lease struct {
 }
 
 type Coordinator struct {
-	client *redis.Client
+	client redis.UniversalClient
 	opts   resolvedOptions
 
 	mu      sync.Mutex
@@ -111,32 +135,90 @@ type Coordinator struct {
 	closed  bool // true once client.Close() has been called
 }
 
-// New parses opts.URL, dials Redis, and returns a ready Coordinator.
+// buildClient constructs the topology-appropriate client WITHOUT dialing.
+func buildClient(opts Options) (redis.UniversalClient, error) {
+	switch opts.Mode {
+	case "", "single":
+		if opts.URL == "" {
+			return nil, fmt.Errorf("coord/redis: url is required for single mode")
+		}
+		cfg, err := redis.ParseURL(opts.URL)
+		if err != nil {
+			return nil, fmt.Errorf("coord/redis: parse url: %w", err)
+		}
+		if opts.TLS != nil {
+			if cfg.TLSConfig == nil {
+				return nil, fmt.Errorf("coord/redis: TLS options provided but URL scheme is not rediss://")
+			}
+			tc, err := buildTLSConfig(*opts.TLS, cfg.TLSConfig.ServerName)
+			if err != nil {
+				return nil, fmt.Errorf("coord/redis: build TLS config: %w", err)
+			}
+			cfg.TLSConfig = tc
+			warnInsecureTLS(opts.TLS)
+		}
+		return redis.NewClient(cfg), nil
+	case "sentinel":
+		tc, err := tlsConfigOrNil(opts.TLS)
+		if err != nil {
+			return nil, err
+		}
+		return redis.NewFailoverClient(&redis.FailoverOptions{
+			MasterName:       opts.Sentinel.MasterName,
+			SentinelAddrs:    opts.Sentinel.Addrs,
+			Username:         opts.Sentinel.Username,
+			Password:         opts.Sentinel.Password,
+			SentinelUsername: opts.Sentinel.SentinelUsername,
+			SentinelPassword: opts.Sentinel.SentinelPassword,
+			DB:               opts.Sentinel.DB,
+			TLSConfig:        tc,
+		}), nil
+	case "cluster":
+		tc, err := tlsConfigOrNil(opts.TLS)
+		if err != nil {
+			return nil, err
+		}
+		return redis.NewClusterClient(&redis.ClusterOptions{
+			Addrs:     opts.Cluster.Addrs,
+			Username:  opts.Cluster.Username,
+			Password:  opts.Cluster.Password,
+			TLSConfig: tc,
+		}), nil
+	default:
+		return nil, fmt.Errorf("coord/redis: unsupported mode %q", opts.Mode)
+	}
+}
+
+// tlsConfigOrNil builds a *tls.Config for sentinel/cluster modes (no URL to
+// derive an SNI host from, so defaultServerName is empty; set TLSOptions.ServerName
+// if certificate verification needs a specific host).
+func tlsConfigOrNil(t *TLSOptions) (*tls.Config, error) {
+	if t == nil {
+		return nil, nil
+	}
+	tc, err := buildTLSConfig(*t, "")
+	if err != nil {
+		return nil, fmt.Errorf("coord/redis: build TLS config: %w", err)
+	}
+	warnInsecureTLS(t)
+	return tc, nil
+}
+
+func warnInsecureTLS(t *TLSOptions) {
+	if t != nil && t.InsecureSkipVerify {
+		log.Warn().
+			Str("coord_driver", "redis").
+			Msg("coord/redis: TLS verification disabled (insecure_skip_verify=true)")
+	}
+}
+
+// New builds the client for opts.Mode, dials it, and returns a ready Coordinator.
 func New(ctx context.Context, opts Options) (*Coordinator, error) {
 	ro := opts.resolved()
-	if ro.URL == "" {
-		return nil, fmt.Errorf("coord/redis: url is required")
-	}
-	cfg, err := redis.ParseURL(ro.URL)
+	client, err := buildClient(opts)
 	if err != nil {
-		return nil, fmt.Errorf("coord/redis: parse url: %w", err)
+		return nil, err
 	}
-	if opts.TLS != nil {
-		if cfg.TLSConfig == nil {
-			return nil, fmt.Errorf("coord/redis: TLS options provided but URL scheme is not rediss://")
-		}
-		tc, err := buildTLSConfig(*opts.TLS, cfg.TLSConfig.ServerName)
-		if err != nil {
-			return nil, fmt.Errorf("coord/redis: build TLS config: %w", err)
-		}
-		cfg.TLSConfig = tc
-		if opts.TLS.InsecureSkipVerify {
-			log.Warn().
-				Str("coord_driver", "redis").
-				Msg("coord/redis: TLS verification disabled (insecure_skip_verify=true)")
-		}
-	}
-	client := redis.NewClient(cfg)
 	if err := client.Ping(ctx).Err(); err != nil {
 		_ = client.Close()
 		return nil, fmt.Errorf("coord/redis: ping: %w", err)
