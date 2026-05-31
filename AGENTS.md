@@ -26,11 +26,16 @@ run `task --list` for the full set:
 | `task build` | Compile `./cmd/rss2msg` → `./rss2msg`. |
 | `task test` | Unit tests: `go test -race ./...` (fast, no containers). |
 | `task test-integration` | Integration tests (`-tags=integration`); spins Postgres / Kafka / Redis / LocalStack via testcontainers — **requires Docker**. |
-| `task vet` | `go vet ./...` (this is the static-check target — there is no `lint`). |
+| `task vet` | `go vet ./...` (dependency-free static check; always available). |
+| `task lint` | `golangci-lint run ./...` (the full lint gate CI runs; needs golangci-lint v2). |
 | `task tidy` | `go mod tidy`. |
 | `task clean` | Remove the built binary. |
+| `task changelog` | Regenerate `CHANGELOG.md` from conventional commits (needs git-cliff). |
+| `task release-check` / `task release-snapshot` | Validate / dry-run the GoReleaser config (needs goreleaser; snapshot needs Docker). |
 
-The end-to-end suite lives in [`test/e2e`](test/e2e) and also needs Docker.
+The end-to-end suite lives in [`test/e2e`](test/e2e) and also needs Docker. The
+release pipeline (golangci-lint, git-cliff, GoReleaser, and the GitHub Actions
+workflows) is documented in [docs/development/releasing.md](docs/development/releasing.md).
 
 ## Parallel agents: worktrees and separate PRs
 
@@ -66,9 +71,10 @@ Keep the body the single self-contained source of truth.
 ## Working conventions
 
 - **TDD.** Write a failing test first, then the implementation. Maintain existing test
-  coverage; run `task test` and `task vet` before opening a PR. Run `task tidy` if you
-  changed dependencies. Run `task test-integration` when your change touches a sink, the
-  state store, or a coordinator backend (needs Docker).
+  coverage; run `task test`, `task vet`, and `task lint` before opening a PR (CI runs
+  golangci-lint and will block on findings). Run `task tidy` if you changed dependencies.
+  Run `task test-integration` when your change touches a sink, the state store, or a
+  coordinator backend (needs Docker).
 - **Config-first.** Prefer adding/extending YAML-driven behavior with validation over
   hard-coding. Keep config examples and docs in sync with new options.
 - **Commits.** Use Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`, `chore:`),

@@ -2,8 +2,8 @@
 title: CLI
 type: reference
 tags: [rss2msg/docs, cli]
-summary: The serve, run-once, and validate-config commands, their flags, and signal handling.
-updated: 2026-05-30
+summary: The serve, run-once, validate-config, and version commands, their flags, and signal handling.
+updated: 2026-06-01
 ---
 
 # CLI
@@ -15,6 +15,7 @@ Commands
   serve              Run as a long-lived daemon; one goroutine per feed
   run-once           Poll every feed once and exit (bounded worker pool)
   validate-config    Parse config, dial state + each sink, exit 0/1
+  version            Print version, commit, and build date
 
 Flags
   --config <path>    Path to config file
@@ -24,7 +25,13 @@ Flags
 `serve` exits cleanly on SIGINT/SIGTERM and waits up to
 [`runtime.shutdown_drain_timeout`](configuration.md#runtime) for in-flight publishes to finish.
 
+`version` reports the build metadata stamped in by the release pipeline (version, git
+commit, build date, plus the Go and OS/arch). On a plain `go build` it prints
+`dev`/`none`/`unknown`; release binaries carry the real values. See
+[Releasing](../development/releasing.md).
+
 ## Related
 
 - [Getting Started](../getting-started.md) — first run of each command.
 - [Configuration Reference](configuration.md) — the config file the `--config` flag loads.
+- [Releasing](../development/releasing.md) — how version metadata is produced.

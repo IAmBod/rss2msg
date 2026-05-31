@@ -20,6 +20,7 @@ changes get made.
    ```bash
    task test                # unit tests with -race
    task vet                 # go vet
+   task lint                # golangci-lint (CI runs this; needs golangci-lint v2)
    bash scripts/check-doc-links.sh   # only needed when you touched docs/ or README
    ```
    Run `task test-integration` too if your change touches a sink, the state store,
@@ -30,7 +31,8 @@ changes get made.
 
 Commits use a conventional-style type prefix matching the branch type — e.g.
 `feat(sink/http): …`, `docs: …`, `chore: …`. Keep the subject in the imperative
-mood and scoped to one change.
+mood and scoped to one change. The release pipeline parses these prefixes to build
+the changelog and derive version bumps — see [Releasing](releasing.md).
 
 ## Tests
 
@@ -54,3 +56,4 @@ Docs live under [`docs/`](../index.md) and follow a Diátaxis structure
 
 - [Building and Testing](building-and-testing.md) — the commands the checks run.
 - [Project Layout](project-layout.md) — where to make a given change.
+- [Releasing](releasing.md) — how conventional commits become tagged releases and a changelog.
