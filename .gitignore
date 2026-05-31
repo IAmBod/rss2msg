@@ -20,3 +20,9 @@ coverage.txt
 
 # Local working config (copy from config.example.yaml or config.example.full.yaml)
 /config.yaml
+
+# Obsidian vault config + plugins (repo doubles as a vault; local-only)
+.obsidian/
+
+# Claude Code tooling state (settings, worktrees) — local-only
+.claude/
