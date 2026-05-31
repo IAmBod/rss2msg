@@ -13,6 +13,7 @@ import (
 	"github.com/iambod/rss2msg/internal/retry"
 	"github.com/iambod/rss2msg/internal/scheduler"
 	"github.com/iambod/rss2msg/internal/sink"
+	compositesink "github.com/iambod/rss2msg/internal/sink/composite"
 	feedsink "github.com/iambod/rss2msg/internal/sink/feed"
 	sinkhttp "github.com/iambod/rss2msg/internal/sink/http"
 	sinkkafka "github.com/iambod/rss2msg/internal/sink/kafka"
@@ -55,20 +56,10 @@ func (w *wired) newPipelineFactory(cfg config.Config, tel *telemetry.Telemetry, 
 		names := config.ResolveFeedSinks(fc)
 		branches := make([]sinkBranch, 0, len(names))
 		for _, name := range names {
-			primary, ok := w.registry.Get(name)
-			if !ok {
-				return nil, fmt.Errorf("feed %s: unknown sink %q", fc.URL, name)
+			wrapped, err := wrapSink(w.registry, cfg, name)
+			if err != nil {
+				return nil, fmt.Errorf("feed %s: %w", fc.URL, err)
 			}
-			scCfg := findSink(cfg.Sinks, name)
-			var dlq sink.Publisher
-			if scCfg.DeadLetter != "" {
-				dlq, _ = w.registry.Get(scCfg.DeadLetter)
-			}
-			wrapped := sink.WithRetry(primary, dlq, retry.Config{
-				MaxAttempts: cfg.Retry.MaxAttempts,
-				BaseDelay:   cfg.Retry.BaseDelay,
-				MaxDelay:    cfg.Retry.MaxDelay,
-			})
 			branches = append(branches, sinkBranch{name: name, wrapped: wrapped})
 		}
 		return &pipeline{
@@ -103,6 +94,12 @@ func wireAll(ctx context.Context, cfg config.Config, tel *telemetry.Telemetry) (
 			_ = st.Close()
 			return nil, err
 		}
+	}
+
+	if err := linkComposites(reg, cfg); err != nil {
+		_ = reg.Close()
+		_ = st.Close()
+		return nil, err
 	}
 
 	cd, err := openCoordinator(ctx, cfg.Coordination, cfg.State, len(cfg.Feeds))
@@ -146,6 +143,60 @@ func findSink(list []config.SinkConfig, name string) config.SinkConfig {
 		}
 	}
 	return config.SinkConfig{}
+}
+
+// wrapSink resolves a sink by name and wraps it for delivery. A composite owns
+// its per-child retry/DLQ internally and must never be retried as a unit (that
+// would re-send to children that already succeeded), so it is wrapped
+// pass-through: one attempt, no DLQ. Every other driver gets the global retry
+// budget plus its configured dead_letter.
+func wrapSink(reg *sink.Registry, cfg config.Config, name string) (*sink.RetryingPublisher, error) {
+	primary, ok := reg.Get(name)
+	if !ok {
+		return nil, fmt.Errorf("unknown sink %q", name)
+	}
+	scCfg := findSink(cfg.Sinks, name)
+	if scCfg.Driver == "composite" {
+		return sink.WithRetry(primary, nil, retry.Config{MaxAttempts: 1}), nil
+	}
+	var dlq sink.Publisher
+	if scCfg.DeadLetter != "" {
+		dlq, _ = reg.Get(scCfg.DeadLetter)
+	}
+	return sink.WithRetry(primary, dlq, retry.Config{
+		MaxAttempts: cfg.Retry.MaxAttempts,
+		BaseDelay:   cfg.Retry.BaseDelay,
+		MaxDelay:    cfg.Retry.MaxDelay,
+	}), nil
+}
+
+// linkComposites resolves each composite sink's children from the registry and
+// attaches the wrapped branches. Called after every sink is built and added,
+// so child pointers (including nested composites) are already present.
+func linkComposites(reg *sink.Registry, cfg config.Config) error {
+	for _, sc := range cfg.Sinks {
+		if sc.Driver != "composite" {
+			continue
+		}
+		p, ok := reg.Get(sc.Name)
+		if !ok {
+			return fmt.Errorf("composite %q: not in registry (bug)", sc.Name)
+		}
+		comp, ok := p.(*compositesink.Publisher)
+		if !ok {
+			return fmt.Errorf("composite %q: expected *compositesink.Publisher, got %T", sc.Name, p)
+		}
+		branches := make([]compositesink.Branch, 0, len(sc.Composite.Children))
+		for _, child := range sc.Composite.Children {
+			wrapped, err := wrapSink(reg, cfg, child)
+			if err != nil {
+				return fmt.Errorf("composite %q: child %q: %w", sc.Name, child, err)
+			}
+			branches = append(branches, compositesink.Branch{Name: child, Wrapped: wrapped})
+		}
+		comp.SetBranches(branches)
+	}
+	return nil
 }
 
 func openCoordinator(ctx context.Context, cc config.CoordinationConfig, sc config.StateConfig, feedCount int) (coord.Coordinator, error) {
@@ -333,6 +384,13 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 			StoreDriver: f.Store.Driver, SQLitePath: f.Store.SQLite.Path,
 			PostgresDSN: f.Store.Postgres.DSN, Table: f.Store.Postgres.Table, PostgresTLS: pgTLS,
 			Meter: tel.Meter, Logger: tel.Logger,
+		})
+	case "composite":
+		return compositesink.New(compositesink.Options{
+			Name:     sc.Name,
+			Children: sc.Composite.Children,
+			Logger:   tel.Logger,
+			Meter:    tel.Meter,
 		})
 	default:
 		return nil, fmt.Errorf("unsupported sink driver %q", sc.Driver)
