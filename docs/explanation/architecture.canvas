@@ -1,0 +1,20 @@
+{
+	"nodes":[
+		{"id":"f6a5b7c8d9e0a5c6","type":"group","x":-60,"y":-120,"width":1480,"height":360,"label":"pipeline · poll → detect → store → publish"},
+		{"id":"a1f0c2d3e4b56071","type":"text","x":0,"y":0,"width":260,"height":170,"color":"5","text":"## feeds\n\nRSS / Atom / JSON sources"},
+		{"id":"b2e1d3c4f5a06182","type":"text","x":380,"y":0,"width":280,"height":170,"color":"6","text":"## feed fetcher / detector\n\nconditional GET (304 short-circuits), parse, content-hash classify"},
+		{"id":"c3d2e4f5a6b07293","type":"text","x":780,"y":0,"width":260,"height":170,"color":"2","text":"## state store\n\n`seen_items` + `feed_meta`\n\npgxpool · sqlite"},
+		{"id":"d4c3f5a6b7c083a4","type":"text","x":1160,"y":0,"width":260,"height":170,"color":"4","text":"## sinks\n\npg · kafka · rabbitmq · sqs · sns · stdout · http"},
+		{"id":"e5b4a6c7d8e094b5","type":"text","x":380,"y":400,"width":320,"height":160,"color":"3","text":"## coordinator\n\nmemory | postgres | redis\n\ngates poll cycles — multi-instance, no leader election"}
+	],
+	"edges":[
+		{"id":"0a1b2c3d4e5f6071","fromNode":"a1f0c2d3e4b56071","fromSide":"right","toNode":"b2e1d3c4f5a06182","toSide":"left","toEnd":"arrow","label":"poll · HTTP + cache headers"},
+		{"id":"1b2c3d4e5f607182","fromNode":"b2e1d3c4f5a06182","fromSide":"right","toNode":"c3d2e4f5a6b07293","toSide":"left","toEnd":"arrow","label":"classify · new/updated vs seen"},
+		{"id":"2c3d4e5f60718293","fromNode":"c3d2e4f5a6b07293","fromSide":"right","toNode":"d4c3f5a6b7c083a4","toSide":"left","toEnd":"arrow","label":"publish · fan-out · retry + DLQ"},
+		{"id":"3d4e5f6071829304","fromNode":"e5b4a6c7d8e094b5","fromSide":"top","toNode":"b2e1d3c4f5a06182","toSide":"bottom","toEnd":"arrow","label":"gates poll cycles"}
+	],
+	"metadata":{
+		"version":"1.0-1.0",
+		"frontmatter":{}
+	}
+}
