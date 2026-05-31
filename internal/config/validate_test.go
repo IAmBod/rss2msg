@@ -872,6 +872,23 @@ func TestValidate_FeedRequiresListen(t *testing.T) {
 	}
 }
 
+func TestValidate_FeedMaxItemsOmittedIsAllowed(t *testing.T) {
+	// max_items omitted (0) is valid — the sink applies the default (50).
+	c := feedSinkBase()
+	c.Sinks[0].Feed.MaxItems = 0
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("omitted max_items must be allowed (defaults later), got %v", err)
+	}
+}
+
+func TestValidate_FeedRejectsNegativeMaxItems(t *testing.T) {
+	c := feedSinkBase()
+	c.Sinks[0].Feed.MaxItems = -1
+	if _, err := Validate(c); err == nil {
+		t.Fatal("expected error for negative max_items")
+	}
+}
+
 func TestValidate_FeedRejectsBadStoreDriver(t *testing.T) {
 	c := feedSinkBase()
 	c.Sinks[0].Feed.Store.Driver = "redis"
