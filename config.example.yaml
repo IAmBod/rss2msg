@@ -134,3 +134,13 @@ feeds:
       timeout: 10s
       headers:
         Authorization: "Bearer ${OTHER_FEED_TOKEN}"
+
+# Dynamic feed sources (optional). Ordered list; earlier entries win on URL
+# collision. Omit entirely to use only the static feeds: block above. The serve
+# daemon reloads feeds from these at runtime (file watch + SIGHUP) without a
+# restart. Only "static" and "file" types are implemented today.
+# feed_sources:
+#   - type: file          # JSON array of feed specs; watched, reloads on change
+#     name: control-plane
+#     path: /etc/rss2msg/feeds.json
+#   - type: static        # injects the feeds: block at this precedence position

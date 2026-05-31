@@ -3,15 +3,16 @@ package config
 import "time"
 
 type Config struct {
-	Log       LogConfig       `mapstructure:"log"`
-	Telemetry TelemetryConfig `mapstructure:"telemetry"`
-	HTTP      HTTPConfig      `mapstructure:"http"`
-	Retry     RetryConfig     `mapstructure:"retry"`
+	Log          LogConfig          `mapstructure:"log"`
+	Telemetry    TelemetryConfig    `mapstructure:"telemetry"`
+	HTTP         HTTPConfig         `mapstructure:"http"`
+	Retry        RetryConfig        `mapstructure:"retry"`
 	Runtime      RuntimeConfig      `mapstructure:"runtime"`
 	Coordination CoordinationConfig `mapstructure:"coordination"`
 	State        StateConfig        `mapstructure:"state"`
-	Sinks     []SinkConfig    `mapstructure:"sinks"`
-	Feeds     []FeedConfig    `mapstructure:"feeds"`
+	Sinks        []SinkConfig       `mapstructure:"sinks"`
+	Feeds        []FeedConfig       `mapstructure:"feeds"`
+	FeedSources  []FeedSourceConfig `mapstructure:"feed_sources"`
 }
 
 type LogConfig struct {
@@ -72,10 +73,10 @@ type CoordinationPGTLSConfig struct {
 }
 
 type CoordinationRedisConfig struct {
-	URL             string                        `mapstructure:"url"`
-	LockTTL         time.Duration                 `mapstructure:"lock_ttl"`
-	RenewalInterval time.Duration                 `mapstructure:"renewal_interval"`
-	TLS             CoordinationRedisTLSConfig    `mapstructure:"tls"`
+	URL             string                     `mapstructure:"url"`
+	LockTTL         time.Duration              `mapstructure:"lock_ttl"`
+	RenewalInterval time.Duration              `mapstructure:"renewal_interval"`
+	TLS             CoordinationRedisTLSConfig `mapstructure:"tls"`
 }
 
 type CoordinationRedisTLSConfig struct {
@@ -171,6 +172,16 @@ type SNSSinkConfig struct {
 	Region       string `mapstructure:"region"`
 	EndpointURL  string `mapstructure:"endpoint_url"`
 	MessageGroup string `mapstructure:"message_group"` // FIFO only: feed_url (default) | item_id | sink
+}
+
+// FeedSourceConfig is one entry in the ordered feed_sources list. Order is
+// precedence: earlier entries win on URL collision. The static feeds: block is
+// represented by an entry with Type "static".
+type FeedSourceConfig struct {
+	Type     string        `mapstructure:"type"` // "static" and "file" are implemented; http|postgres|sqlite|redis|s3|env are added by later plans
+	Name     string        `mapstructure:"name"` // optional; defaults to "<type>[index]"
+	Path     string        `mapstructure:"path"` // file source
+	Interval time.Duration `mapstructure:"interval"`
 }
 
 type FeedConfig struct {

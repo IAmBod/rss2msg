@@ -258,7 +258,7 @@ func Validate(c Config) error {
 		hasDefault = true
 	}
 
-	if len(c.Feeds) == 0 {
+	if len(c.Feeds) == 0 && len(c.FeedSources) == 0 {
 		return fmt.Errorf("at least one feed must be declared")
 	}
 	for i, f := range c.Feeds {
@@ -283,6 +283,23 @@ func Validate(c Config) error {
 			if _, bad := reservedHeaders[canon]; bad {
 				return fmt.Errorf("feeds[%d].http.headers must not set reserved cache header %q", i, h)
 			}
+		}
+	}
+	for i, s := range c.FeedSources {
+		switch s.Type {
+		case "static":
+			// no required fields; injects the feeds: block at this position
+		case "file":
+			if strings.TrimSpace(s.Path) == "" {
+				return fmt.Errorf("feed_sources[%d] (file): path is required", i)
+			}
+		case "":
+			return fmt.Errorf("feed_sources[%d]: type is required", i)
+		default:
+			return fmt.Errorf("feed_sources[%d]: unsupported type %q", i, s.Type)
+		}
+		if s.Interval != 0 && s.Interval < time.Second {
+			return fmt.Errorf("feed_sources[%d].interval %v is below the 1s minimum", i, s.Interval)
 		}
 	}
 	return nil
