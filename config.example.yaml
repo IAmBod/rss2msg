@@ -24,6 +24,13 @@ runtime:
   shutdown_drain_timeout: 30s
   run_once_concurrency: 8
 
+health:
+  enabled: true
+  listen: ":8080"               # probe listener address
+  liveness_path: /healthz       # 200 while the process is alive
+  readiness_path: /readyz       # 200 when started, not draining, deps reachable
+  startup_path: /startupz       # 503 until boot completes, then 200
+
 coordination:
   driver: memory   # memory | postgres | redis ; default memory
   # postgres:
