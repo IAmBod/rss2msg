@@ -27,14 +27,15 @@ var knownStateDrivers = map[string]struct{}{
 }
 
 var knownSinkDrivers = map[string]struct{}{
-	"postgres": {},
-	"kafka":    {},
-	"rabbitmq": {},
-	"sqs":      {},
-	"sns":      {},
-	"stdout":   {},
-	"http":     {},
-	"feed":     {},
+	"postgres":  {},
+	"kafka":     {},
+	"rabbitmq":  {},
+	"sqs":       {},
+	"sns":       {},
+	"stdout":    {},
+	"http":      {},
+	"feed":      {},
+	"composite": {},
 }
 
 var knownFeedStoreDrivers = map[string]struct{}{
@@ -238,12 +239,24 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			return *warnings, fmt.Errorf("sinks[%d].driver %q is not supported", i, s.Driver)
 		}
 	}
-	// Build a map from sink name to driver for dead-letter driver checks.
+	// Build a map from sink name to driver for dead-letter driver checks,
+	// and a composite-children map used for cycle detection.
 	sinkDrivers := make(map[string]string, len(c.Sinks))
+	compositeChildren := make(map[string][]string)
 	for _, s := range c.Sinks {
 		sinkDrivers[s.Name] = s.Driver
+		if s.Driver == "composite" {
+			compositeChildren[s.Name] = s.Composite.Children
+		}
 	}
 	for i, s := range c.Sinks {
+		// Check the composite dead_letter guard before the generic dead_letter
+		// validation so a composite that mistakenly sets dead_letter always gets
+		// the actionable "not allowed on a composite" message, even when the
+		// target itself is unknown or invalid.
+		if s.Driver == "composite" && s.DeadLetter != "" {
+			return *warnings, fmt.Errorf("sinks[%d] (composite %q): dead_letter is not allowed on a composite; configure dead_letter on each child instead", i, s.Name)
+		}
 		if s.DeadLetter != "" {
 			if s.DeadLetter == s.Name {
 				return *warnings, fmt.Errorf("sinks[%d].dead_letter must not refer to its own sink %q", i, s.Name)
@@ -317,6 +330,26 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			}
 			if s.RabbitMQ.Declare && strings.TrimSpace(s.RabbitMQ.Exchange) == "" {
 				return *warnings, fmt.Errorf("sinks[%d] (rabbitmq %q): declare=true requires a non-empty exchange (the default exchange cannot be declared)", i, s.Name)
+			}
+		case "composite":
+			if len(s.Composite.Children) == 0 {
+				return *warnings, fmt.Errorf("sinks[%d] (composite %q): composite.children is required", i, s.Name)
+			}
+			seen := make(map[string]struct{}, len(s.Composite.Children))
+			for _, child := range s.Composite.Children {
+				if child == s.Name {
+					return *warnings, fmt.Errorf("sinks[%d] (composite %q): composite.children must not reference its own sink", i, s.Name)
+				}
+				if _, ok := names[child]; !ok {
+					return *warnings, fmt.Errorf("sinks[%d] (composite %q): composite.children references unknown sink %q", i, s.Name, child)
+				}
+				if _, dup := seen[child]; dup {
+					return *warnings, fmt.Errorf("sinks[%d] (composite %q): composite.children has a duplicate entry %q", i, s.Name, child)
+				}
+				seen[child] = struct{}{}
+			}
+			if path := compositeCycle(s.Name, compositeChildren); path != "" {
+				return *warnings, fmt.Errorf("sinks[%d] (composite %q): cyclic child reference (%s)", i, s.Name, path)
 			}
 		case "feed":
 			f := s.Feed
@@ -447,6 +480,38 @@ func ResolveFeedSinks(f FeedConfig) []string {
 		return f.Sinks
 	}
 	return []string{"default"}
+}
+
+// compositeCycle returns a "a -> b -> a" path string if the composite graph
+// rooted at start contains a cycle. It only walks into children that are
+// themselves composites (present as keys in childrenOf).
+func compositeCycle(start string, childrenOf map[string][]string) string {
+	onStack := make(map[string]bool)
+	var path []string
+	var dfs func(n string) bool
+	dfs = func(n string) bool {
+		onStack[n] = true
+		path = append(path, n)
+		for _, c := range childrenOf[n] {
+			if _, isComposite := childrenOf[c]; !isComposite {
+				continue
+			}
+			if onStack[c] {
+				path = append(path, c)
+				return true
+			}
+			if dfs(c) {
+				return true
+			}
+		}
+		onStack[n] = false
+		path = path[:len(path)-1]
+		return false
+	}
+	if dfs(start) {
+		return strings.Join(path, " -> ")
+	}
+	return ""
 }
 
 // redisparseURL is a lightweight syntactic check that mirrors the subset of

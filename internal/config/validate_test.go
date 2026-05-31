@@ -924,6 +924,97 @@ func TestValidate_FeedCannotBeDeadLetter(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsComposite(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name:      "fanout",
+		Driver:    "composite",
+		Composite: CompositeSinkConfig{Children: []string{"pg-main", "dlq-main"}},
+	})
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func compositeCfg(children []string) Config {
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "fanout", Driver: "composite",
+		Composite: CompositeSinkConfig{Children: children},
+	})
+	return c
+}
+
+func TestValidateRejectsCompositeEmptyChildren(t *testing.T) {
+	t.Parallel()
+	_, err := Validate(compositeCfg(nil))
+	if err == nil || !strings.Contains(err.Error(), "children") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsCompositeUnknownChild(t *testing.T) {
+	t.Parallel()
+	_, err := Validate(compositeCfg([]string{"nope"}))
+	if err == nil || !strings.Contains(err.Error(), "nope") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsCompositeSelfReference(t *testing.T) {
+	t.Parallel()
+	_, err := Validate(compositeCfg([]string{"fanout"}))
+	if err == nil || !strings.Contains(err.Error(), "its own sink") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsCompositeDuplicateChild(t *testing.T) {
+	t.Parallel()
+	_, err := Validate(compositeCfg([]string{"pg-main", "pg-main"}))
+	if err == nil || !strings.Contains(err.Error(), "duplicate") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsCompositeWithDeadLetter(t *testing.T) {
+	t.Parallel()
+	c := compositeCfg([]string{"pg-main"})
+	c.Sinks[len(c.Sinks)-1].DeadLetter = "dlq-main"
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "dead_letter") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsCompositeCycle(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks,
+		SinkConfig{Name: "a", Driver: "composite", Composite: CompositeSinkConfig{Children: []string{"b"}}},
+		SinkConfig{Name: "b", Driver: "composite", Composite: CompositeSinkConfig{Children: []string{"a"}}},
+	)
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "cyclic") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateAcceptsCompositeChain(t *testing.T) {
+	t.Parallel()
+	// A cycle-free composite DAG (a -> b -> pg-main) must validate: the cycle
+	// detector should return no error for a multi-hop, nested-but-acyclic graph.
+	c := goodCfg()
+	c.Sinks = append(c.Sinks,
+		SinkConfig{Name: "a", Driver: "composite", Composite: CompositeSinkConfig{Children: []string{"b"}}},
+		SinkConfig{Name: "b", Driver: "composite", Composite: CompositeSinkConfig{Children: []string{"pg-main"}}},
+	)
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("expected nil for acyclic composite chain, got %v", err)
+	}
+}
+
 func TestValidate_FeedMultiInstanceWarning(t *testing.T) {
 	c := feedSinkBase()
 	c.Coordination = CoordinationConfig{Driver: "redis", Redis: CoordinationRedisConfig{URL: "redis://localhost:6379"}}
