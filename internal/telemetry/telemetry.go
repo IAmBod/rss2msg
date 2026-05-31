@@ -105,7 +105,7 @@ func buildLogger(c config.LogConfig, out io.Writer) zerolog.Logger {
 	if err != nil || lvl == zerolog.NoLevel {
 		lvl = zerolog.InfoLevel
 	}
-	var w io.Writer = out
+	w := out
 	if c.Format == "console" {
 		w = zerolog.ConsoleWriter{Out: out}
 	}

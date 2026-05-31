@@ -1,0 +1,100 @@
+# GoReleaser configuration — https://goreleaser.com
+#
+# Validate locally with:  goreleaser check
+# Dry-run a release with:  goreleaser release --snapshot --clean
+#
+# Releases are cut by pushing a semver tag (vX.Y.Z); the release workflow
+# generates the changelog with git-cliff and hands it to GoReleaser via
+# `--release-notes`, so GoReleaser's own changelog is disabled below.
+version: 2
+
+project_name: rss2msg
+
+before:
+  hooks:
+    - go mod tidy
+    - go mod download
+
+builds:
+  - id: rss2msg
+    main: ./cmd/rss2msg
+    binary: rss2msg
+    # Pure-Go SQLite driver (modernc.org/sqlite) means CGO can stay off, so
+    # cross-compilation needs no C toolchain.
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .Commit }}
+      - -X main.date={{ .Date }}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    # Windows on arm64 is uncommon for a server binary; drop it.
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: rss2msg
+    ids:
+      - rss2msg
+    # Use the modern default; .zip for Windows for native tooling.
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - README.md
+      - LICENSE*
+      - CHANGELOG.md
+      - config.example.yaml
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+# git-cliff owns the changelog; disable GoReleaser's built-in generator so the
+# two don't compete. The workflow passes the git-cliff output via --release-notes.
+changelog:
+  disable: true
+
+# Multi-arch image built and pushed as a single manifest (dockers_v2 supersedes
+# the older dockers/docker_manifests pair).
+dockers_v2:
+  - id: rss2msg
+    dockerfile: Dockerfile.goreleaser
+    images:
+      - ghcr.io/iambod/rss2msg
+    tags:
+      - "{{ .Version }}"
+      - latest
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.title: "{{ .ProjectName }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.source: "https://github.com/IAmBod/rss2msg"
+
+release:
+  github:
+    owner: IAmBod
+    name: rss2msg
+  # Mark pre-1.0 and pre-release tags (e.g. v1.0.0-rc.1) appropriately.
+  prerelease: auto
+  draft: false
