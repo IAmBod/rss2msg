@@ -1097,3 +1097,71 @@ func TestValidateRedisCoordinationModes(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateHealthAcceptsDefaults(t *testing.T) {
+	t.Parallel()
+	if _, err := Validate(goodCfg()); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateHealthRejectsPathWithoutLeadingSlash(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Health.LivenessPath = "healthz"
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "liveness_path") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateHealthRejectsDuplicatePaths(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Health.ReadinessPath = c.Health.LivenessPath
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "distinct") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateHealthRequiresListen(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Health.Listen = ""
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "health.listen") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateHealthSharedListenerWarns(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Telemetry.Prometheus.Enabled = true
+	c.Telemetry.Prometheus.Listen = ":9090"
+	c.Health.Listen = ":9090"
+	warnings, err := Validate(c)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	var found bool
+	for _, w := range warnings {
+		if strings.Contains(w, "prometheus.listen") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected a warning mentioning prometheus.listen, got %v", warnings)
+	}
+}
+
+func TestValidateHealthDisabledSkipsChecks(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Health.Enabled = false
+	c.Health.LivenessPath = ""
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
