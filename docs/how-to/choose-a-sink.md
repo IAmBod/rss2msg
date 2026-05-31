@@ -22,17 +22,17 @@ Common fields on every sink:
 
 ## Drivers
 
-| driver   | use it for                                       | page                            |
-| -------- | ------------------------------------------------ | ------------------------------- |
-| postgres | durable SQL store, queryable history             | [postgres](sinks/postgres.md)   |
-| kafka | high-throughput streaming, co-partition by item | [kafka](sinks/kafka.md) |
-| sqs | AWS queue, optional FIFO ordering | [sqs](sinks/sqs.md) |
-| sns | AWS pub/sub fan-out, optional FIFO | [sns](sinks/sns.md) |
-| rabbitmq | AMQP routing (topic/direct/fanout) | [rabbitmq](sinks/rabbitmq.md) |
-| stdout | local dev, debugging, ad-hoc pipelines | [stdout](sinks/stdout.md) |
-| http | webhooks (Slack, Discord, custom receivers) | [http](sinks/http.md) |
-| feed | serve detected changes as an RSS/Atom feed over HTTP (store: memory / sqlite / postgres) | [feed](sinks/feed.md) |
-| composite | fan one change out to several child sinks under one name | [composite](sinks/composite.md) |
+| driver    | use it for                                                                               | page                            |
+| --------- | ---------------------------------------------------------------------------------------- | ------------------------------- |
+| postgres  | durable SQL store, queryable history                                                     | [postgres](sinks/postgres.md)   |
+| kafka     | high-throughput streaming, co-partition by item                                          | [kafka](sinks/kafka.md)         |
+| sqs       | AWS queue, optional FIFO ordering                                                        | [sqs](sinks/sqs.md)             |
+| sns       | AWS pub/sub fan-out, optional FIFO                                                       | [sns](sinks/sns.md)             |
+| rabbitmq  | AMQP routing (topic/direct/fanout)                                                       | [rabbitmq](sinks/rabbitmq.md)   |
+| stdout    | local dev, debugging, ad-hoc pipelines                                                   | [stdout](sinks/stdout.md)       |
+| http      | webhooks (Slack, Discord, custom receivers)                                              | [http](sinks/http.md)           |
+| feed      | serve detected changes as an RSS/Atom feed over HTTP (store: memory / sqlite / postgres) | [feed](sinks/feed.md)           |
+| composite | fan one change out to several child sinks under one name                                 | [composite](sinks/composite.md) |
 
 ## Related
 
