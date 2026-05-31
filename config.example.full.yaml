@@ -1,0 +1,499 @@
+# Comprehensive, runnable example configuration.
+#
+# Single-process setup (memory coordinator), local SQLite state, and an
+# NDJSON stdout sink, wired to a large real-world set of feeds. Copy to
+# config.yaml and adjust to taste:
+#
+#   cp config.example.full.yaml config.yaml && ./rss2msg run-once
+#
+# For the minimal, fully annotated reference of every field, see
+# config.example.yaml and docs/reference/configuration.md.
+
+log:
+  level: info
+  format: console
+
+# Single-process feed ownership; no external coordination dependency.
+coordination:
+  driver: memory
+
+# Persist per-feed processing state to a local SQLite file.
+state:
+  driver: sqlite
+  sqlite:
+    path: ./rss2msg.db
+
+sinks:
+  # Emit each detected change as NDJSON to standard output.
+  - name: default
+    driver: stdout
+    stdout:
+      target: stdout
+      format: json
+
+feeds:
+  - url: https://telex.hu/rss/archivum?filters=%7B%22parentId%22%3A%5B%22null%22%5D%7D&perPage=100
+    interval: 15s
+    sinks: [default]
+  - url: https://hvg.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://444.hu/feed
+    interval: 15s
+    sinks: [default]
+  - url: https://24.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://www.portfolio.hu/rss/all.xml
+    interval: 15s
+    sinks: [default]
+
+  # Mediaworks network — same publicapi/hu/rss/<slug>/articles structure as origo/szegedma.
+  # National titles
+  - url: https://www.vg.hu/publicapi/hu/rss/vilaggazdasag/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.origo.hu/publicapi/hu/rss/origo/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://magyarnemzet.hu/publicapi/hu/rss/magyar_nemzet/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.borsonline.hu/publicapi/hu/rss/bors/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://metropol.hu/publicapi/hu/rss/metropol/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://ripost.hu/publicapi/hu/rss/ripost/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://szabadfold.hu/publicapi/hu/rss/szabadfold/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://hirtv.origo.hu/publicapi/hu/rss/hirtv/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://radio1gong.hu/publicapi/hu/rss/gong_radio/articles
+    interval: 15s
+    sinks: [default]
+  # Lifestyle titles
+  - url: https://www.life.hu/publicapi/hu/rss/life/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://she.life.hu/publicapi/hu/rss/she/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.mindmegette.hu/publicapi/hu/rss/mindmegette/articles
+    interval: 15s
+    sinks: [default]
+  # County / regional dailies
+  - url: https://www.bama.hu/publicapi/hu/rss/bama/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.baon.hu/publicapi/hu/rss/baon/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.beol.hu/publicapi/hu/rss/beol/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.boon.hu/publicapi/hu/rss/boon/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.delmagyar.hu/publicapi/hu/rss/delmagyar/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.duol.hu/publicapi/hu/rss/duol/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.feol.hu/publicapi/hu/rss/feol/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.haon.hu/publicapi/hu/rss/haon/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.heol.hu/publicapi/hu/rss/heol/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.kemma.hu/publicapi/hu/rss/kemma/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.kisalfold.hu/publicapi/hu/rss/kisalfold/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.nool.hu/publicapi/hu/rss/nool/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.sonline.hu/publicapi/hu/rss/sonline/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.szoljon.hu/publicapi/hu/rss/szoljon/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.szon.hu/publicapi/hu/rss/szon/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.teol.hu/publicapi/hu/rss/teol/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.vaol.hu/publicapi/hu/rss/vaol/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.veol.hu/publicapi/hu/rss/veol/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://www.zaol.hu/publicapi/hu/rss/zaol/articles
+    interval: 15s
+    sinks: [default]
+
+  # Mediaworks WordPress satellites — standard WP feeds (not the publicapi structure).
+  - url: https://gamer.origo.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://astronet.borsonline.hu/rss/
+    interval: 15s
+    sinks: [default]
+  - url: https://www.automotor.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://www.lakaskultura.hu/feed/
+    interval: 15s
+    sinks: [default]
+
+  # Startlap / Hírstart network — assorted Hungarian portals (validated working RSS feeds).
+  - url: https://adozona.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://aquamagazin.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: "https://balintgazda.hu/?format=feed&type=rss"
+    interval: 15s
+    sinks: [default]
+  - url: https://agraragazat.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://www.atv.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://biztosdontes.hu/rss/personal_finance
+    interval: 15s
+    sinks: [default]
+  - url: https://autopro.hu/feed/all.rss
+    interval: 15s
+    sinks: [default]
+  - url: https://balkonada.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: "https://biasradio.com/?feed=rss2"
+    interval: 15s
+    sinks: [default]
+  - url: https://centralmediacsoport.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://drive.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://egy.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://acnews.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://firstclass.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://10perc.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://esport365.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://g7.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://hamuesgyemant.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://haszon.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://fintech.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://esgsummit.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://gyerekszoba.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://hovege.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://igenyesferfi.hu/feed
+    interval: 15s
+    sinks: [default]
+  - url: https://alternativenergia.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://hellosajto.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://in.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://index.hu/24ora/rss/
+    interval: 15s
+    sinks: [default]
+  - url: https://gepmax.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://demokrata.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://klubradio.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://karcfm.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://konyvesmagazin.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://gepigeny.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://lakbermagazin.hu/feed
+    interval: 15s
+    sinks: [default]
+  - url: https://kronometer.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://kriptomagazin.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://integratorfm.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://lifeandbody.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://magyarhirlap.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://librarius.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://marieclaire.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://magyarmezogazdasag.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://litera.hu/rss/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://mandiner.hu/publicapi/hu/rss/mandiner/articles
+    interval: 15s
+    sinks: [default]
+  - url: https://meglepetes.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://mediapiac.com/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://mezohir.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://mfor.hu/rss/
+    interval: 15s
+    sinks: [default]
+  - url: https://mmonline.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://nlc.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://www.noklapja.hu/fooldal/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://piacesprofit.hu/rss/rss.xml
+    interval: 15s
+    sinks: [default]
+  - url: https://kriptoakademia.com/feed
+    interval: 15s
+    sinks: [default]
+  - url: https://podcast.hirstart.hu/rss/custom
+    interval: 15s
+    sinks: [default]
+  - url: https://player.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://privatbankar.hu/rss/
+    interval: 15s
+    sinks: [default]
+  - url: https://profitline.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://planetz.hu/nyitooldal/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://racingline.hu/rss.xml
+    interval: 15s
+    sinks: [default]
+  - url: https://newtechnology.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://roadster.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://raketa.hu/feed
+    interval: 15s
+    sinks: [default]
+  - url: https://spatrendonline.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://sokszinuvidek.24.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://okodrive.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://spabook.net/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://szinesotletek.blog.hu/rss2
+    interval: 15s
+    sinks: [default]
+  - url: https://prove.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://villanyautosok.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: "https://utazasielmenyek.hu/?format=feed&type=rss"
+    interval: 15s
+    sinks: [default]
+  - url: https://transpack.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://wmn.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://diplomatszerzek.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://www.autonavigator.hu/rss.xml
+    interval: 15s
+    sinks: [default]
+  - url: https://www.bestfmbudapest.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://vasarnap.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://www.blikk.hu/rss-articles.xml
+    interval: 15s
+    sinks: [default]
+  - url: https://www.bien.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://www.autoszektor.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://www.bitcoinbazis.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://wellandfit.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://www.butlers.hu/rss-novinky
+    interval: 15s
+    sinks: [default]
+  - url: https://www.babanet.hu/rss/
+    interval: 15s
+    sinks: [default]
+  - url: https://www.cib.hu/rss/
+    interval: 15s
+    sinks: [default]
+  - url: https://www.diaktajekoztatas.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://www.agroinform.hu/rss.php
+    interval: 15s
+    sinks: [default]
+  - url: "https://www.digitalhungary.hu/_feeder.php?id=all"
+    interval: 15s
+    sinks: [default]
+  - url: https://www.egeszsegkalauz.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://agroforum.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://www.femcafe.hu/rss.xml
+    interval: 15s
+    sinks: [default]
+  - url: https://www.glamour.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://www.gamer365.hu/rss.xml
+    interval: 15s
+    sinks: [default]
+  - url: https://www.fintechradar.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://www.gamekapocs.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://podcast.hirstart.hu/feed/podcast/
+    interval: 15s
+    sinks: [default]
+  - url: https://www.hrportal.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://www.hirextra.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://www.ingatlanok.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://www.koloknet.hu/rss/
+    interval: 15s
+    sinks: [default]
+  - url: https://www.kispolgar.com/feed/
+    interval: 15s
+    sinks: [default]
+  - url: "https://www.kertvarazsmagazin.hu/?format=feed&type=rss"
+    interval: 15s
+    sinks: [default]
+  - url: https://www.mavcsoport.hu/rss.xml
+    interval: 15s
+    sinks: [default]
+  - url: https://www.otthon.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://www.penzcentrum.hu/rss/all.xml
+    interval: 15s
+    sinks: [default]
+  - url: https://www.praktika.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://www.retroradio.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://www.sport1tv.hu/front-page/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://www.szeretlekmagyarorszag.hu/rss
+    interval: 15s
+    sinks: [default]
+  - url: https://www.vezess.hu/feed/
+    interval: 15s
+    sinks: [default]
+  - url: https://www.tv2.hu/feed
+    interval: 15s
+    sinks: [default]
+  - url: https://viasat3.hu/feed/
+    interval: 15s
+    sinks: [default]
