@@ -10,6 +10,7 @@ type Config struct {
 	Runtime      RuntimeConfig      `mapstructure:"runtime"`
 	Coordination CoordinationConfig `mapstructure:"coordination"`
 	State        StateConfig        `mapstructure:"state"`
+	Health       HealthConfig       `mapstructure:"health"`
 	Sinks        []SinkConfig       `mapstructure:"sinks"`
 	Feeds        []FeedConfig       `mapstructure:"feeds"`
 	FeedSources  []FeedSourceConfig `mapstructure:"feed_sources"`
@@ -104,6 +105,16 @@ type CoordinationRedisTLSConfig struct {
 	KeyFile            string `mapstructure:"key_file"`
 	ServerName         string `mapstructure:"server_name"`
 	InsecureSkipVerify bool   `mapstructure:"insecure_skip_verify"`
+}
+
+// HealthConfig configures the Kubernetes-style health probe endpoints served by
+// the serve daemon. Disabled => no probe listener is started.
+type HealthConfig struct {
+	Enabled       bool   `mapstructure:"enabled"`
+	Listen        string `mapstructure:"listen"`
+	LivenessPath  string `mapstructure:"liveness_path"`
+	ReadinessPath string `mapstructure:"readiness_path"`
+	StartupPath   string `mapstructure:"startup_path"`
 }
 
 type StateConfig struct {
@@ -295,5 +306,12 @@ func Defaults() Config {
 		Retry:        RetryConfig{MaxAttempts: 3, BaseDelay: 500 * time.Millisecond, MaxDelay: 10 * time.Second},
 		Runtime:      RuntimeConfig{ShutdownDrainTimeout: 30 * time.Second, RunOnceConcurrency: 0},
 		Coordination: CoordinationConfig{Driver: "memory"},
+		Health: HealthConfig{
+			Enabled:       true,
+			Listen:        ":8080",
+			LivenessPath:  "/healthz",
+			ReadinessPath: "/readyz",
+			StartupPath:   "/startupz",
+		},
 	}
 }
