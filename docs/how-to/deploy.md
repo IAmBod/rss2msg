@@ -51,22 +51,18 @@ rss2msg validate-config --config /etc/rss2msg/config.yaml
   by `runtime.run_once_concurrency`). Use this from cron or a Kubernetes CronJob
   when you don't want a long-lived process.
 
-### Container image (example)
+### Container image
 
-There is no Dockerfile in the repo; a minimal one looks like this — adjust the
-base image and registry to your environment:
+The repo ships a multi-stage [`Dockerfile`](../../Dockerfile) whose `production`
+target compiles a static binary onto a rootless distroless base:
 
-```dockerfile
-FROM golang:1.25 AS build
-WORKDIR /src
-COPY . .
-RUN go build -o /rss2msg ./cmd/rss2msg
-
-FROM gcr.io/distroless/base-debian12
-COPY --from=build /rss2msg /rss2msg
-COPY config.yaml /etc/rss2msg/config.yaml
-ENTRYPOINT ["/rss2msg", "serve"]
+```bash
+docker build --target production -t rss2msg:latest .
+docker run --rm -v "$PWD/config.yaml:/etc/rss2msg/config.yaml:ro" rss2msg:latest serve
 ```
+
+See [Run with Docker](run-with-docker.md) for the hot-reload development image, the
+Docker Compose dev stack, and the full build/run reference.
 
 ## 4. Scale out
 
@@ -93,6 +89,7 @@ sink publish failures/durations) are listed in [Telemetry](../reference/telemetr
 
 ## Related
 
+- [Run with Docker](run-with-docker.md) — multi-stage image, Compose, hot reload.
 - [Operational Notes](../explanation/operations.md) — delivery semantics, DLQs, shutdown.
 - [Run Multiple Instances](run-multiple-instances.md) — coordinator setup.
 - [Secure Connections (TLS)](secure-connections-tls.md) — transport security.
