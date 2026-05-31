@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite" // register the pure-Go "sqlite" database/sql driver
 
 	"github.com/iambod/rss2msg/internal/state"
 )

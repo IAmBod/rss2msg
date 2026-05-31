@@ -6,8 +6,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/mmcdole/gofeed"
 	"github.com/iambod/rss2msg/internal/model"
+	"github.com/mmcdole/gofeed"
 )
 
 func TestRender_AtomSelfLinkURLIsEscaped(t *testing.T) {
