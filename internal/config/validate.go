@@ -278,8 +278,10 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			if strings.TrimSpace(f.Listen) == "" {
 				return *warnings, fmt.Errorf("sinks[%d] (feed %q): feed.listen is required", i, s.Name)
 			}
-			if f.MaxItems < 1 {
-				return *warnings, fmt.Errorf("sinks[%d] (feed %q): feed.max_items must be >= 1", i, s.Name)
+			// 0 means "unset" → the sink applies the default (50). Reject only
+			// negative values, which are never meaningful.
+			if f.MaxItems < 0 {
+				return *warnings, fmt.Errorf("sinks[%d] (feed %q): feed.max_items must not be negative", i, s.Name)
 			}
 			rss := f.RSSPath
 			if rss == "" {
