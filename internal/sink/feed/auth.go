@@ -6,9 +6,9 @@ import (
 	"strings"
 )
 
-type authConfig struct {
-	basicUser, basicPass string
-	bearerToken          string
+type AuthConfig struct {
+	BasicUser, BasicPass string
+	BearerToken          string
 }
 
 func (h *handler) authOK(r *http.Request) bool {
@@ -16,16 +16,16 @@ func (h *handler) authOK(r *http.Request) bool {
 	if a == nil {
 		return true
 	}
-	if a.bearerToken != "" {
+	if a.BearerToken != "" {
 		const p = "Bearer "
 		got := r.Header.Get("Authorization")
-		return strings.HasPrefix(got, p) && ctEqual(got[len(p):], a.bearerToken)
+		return strings.HasPrefix(got, p) && ctEqual(got[len(p):], a.BearerToken)
 	}
 	u, pw, ok := r.BasicAuth()
 	// Evaluate both comparisons unconditionally (no && short-circuit) so the
 	// response time doesn't reveal whether the username alone matched.
-	userOK := ctEqual(u, a.basicUser)
-	passOK := ctEqual(pw, a.basicPass)
+	userOK := ctEqual(u, a.BasicUser)
+	passOK := ctEqual(pw, a.BasicPass)
 	return ok && userOK && passOK
 }
 
@@ -34,7 +34,7 @@ func ctEqual(a, b string) bool {
 }
 
 func (h *handler) writeUnauthorized(w http.ResponseWriter) {
-	if h.cfg.auth != nil && h.cfg.auth.bearerToken == "" {
+	if h.cfg.auth != nil && h.cfg.auth.BearerToken == "" {
 		w.Header().Set("WWW-Authenticate", `Basic realm="rss2msg"`)
 	}
 	http.Error(w, "unauthorized", http.StatusUnauthorized)

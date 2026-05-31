@@ -20,10 +20,10 @@ type postgresOptions struct {
 	DSN   string
 	Table string
 	Max   int
-	TLS   *pgTLSOptions
+	TLS   *PGTLSOptions
 }
 
-type pgTLSOptions struct {
+type PGTLSOptions struct {
 	CAFile, CertFile, KeyFile, ServerName string
 	InsecureSkipVerify                    bool
 }
@@ -66,7 +66,7 @@ func newPostgresStore(ctx context.Context, opts postgresOptions) (*postgresStore
 	return s, nil
 }
 
-func buildTLS(o *pgTLSOptions) (*tls.Config, error) {
+func buildTLS(o *PGTLSOptions) (*tls.Config, error) {
 	c := &tls.Config{ServerName: o.ServerName, InsecureSkipVerify: o.InsecureSkipVerify} //nolint:gosec
 	if o.CAFile != "" {
 		pem, err := os.ReadFile(o.CAFile)

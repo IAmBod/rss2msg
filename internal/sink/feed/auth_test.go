@@ -10,7 +10,7 @@ import (
 
 func TestAuth_BasicRequired(t *testing.T) {
 	h := newTestHandler(t)
-	h.cfg.auth = &authConfig{basicUser: "u", basicPass: "p"}
+	h.cfg.auth = &AuthConfig{BasicUser: "u", BasicPass: "p"}
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/rss", nil))
 	if rec.Code != http.StatusUnauthorized {
@@ -33,7 +33,7 @@ func TestAuth_BasicRequired(t *testing.T) {
 
 func TestAuth_BearerRequired(t *testing.T) {
 	h := newTestHandler(t)
-	h.cfg.auth = &authConfig{bearerToken: "sekret"}
+	h.cfg.auth = &AuthConfig{BearerToken: "sekret"}
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/rss", nil))
 	if rec.Code != http.StatusUnauthorized {

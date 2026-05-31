@@ -20,7 +20,7 @@ type handlerConfig struct {
 	atomPath        string
 	renderCacheTTL  time.Duration
 	cacheControlTTL time.Duration
-	auth            *authConfig
+	auth            *AuthConfig
 	startedAt       time.Time
 }
 
