@@ -123,6 +123,7 @@ type SinkConfig struct {
 	Stdout     StdoutSinkConfig       `mapstructure:"stdout"`
 	HTTP       HTTPSinkConfig         `mapstructure:"http"`
 	Feed       FeedSinkConfig         `mapstructure:"feed"`
+	Composite  CompositeSinkConfig    `mapstructure:"composite"`
 	Extra      map[string]interface{} `mapstructure:",remain"`
 }
 
@@ -188,6 +189,13 @@ type FeedStorePostgresConfig struct {
 	DSN   string           `mapstructure:"dsn"`
 	Table string           `mapstructure:"table"`
 	TLS   StatePGTLSConfig `mapstructure:"tls"`
+}
+
+// CompositeSinkConfig configures a composite sink: a transparent fan-out to a
+// list of other declared sinks by name. The composite has no retry or
+// dead_letter of its own; each child keeps its own.
+type CompositeSinkConfig struct {
+	Children []string `mapstructure:"children"`
 }
 
 type StdoutSinkConfig struct {

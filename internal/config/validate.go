@@ -27,14 +27,15 @@ var knownStateDrivers = map[string]struct{}{
 }
 
 var knownSinkDrivers = map[string]struct{}{
-	"postgres": {},
-	"kafka":    {},
-	"rabbitmq": {},
-	"sqs":      {},
-	"sns":      {},
-	"stdout":   {},
-	"http":     {},
-	"feed":     {},
+	"postgres":  {},
+	"kafka":     {},
+	"rabbitmq":  {},
+	"sqs":       {},
+	"sns":       {},
+	"stdout":    {},
+	"http":      {},
+	"feed":      {},
+	"composite": {},
 }
 
 var knownFeedStoreDrivers = map[string]struct{}{

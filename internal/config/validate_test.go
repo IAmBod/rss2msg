@@ -922,6 +922,19 @@ func TestValidate_FeedCannotBeDeadLetter(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsComposite(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name:      "fanout",
+		Driver:    "composite",
+		Composite: CompositeSinkConfig{Children: []string{"pg-main", "dlq-main"}},
+	})
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
 func TestValidate_FeedMultiInstanceWarning(t *testing.T) {
 	c := feedSinkBase()
 	c.Coordination = CoordinationConfig{Driver: "redis", Redis: CoordinationRedisConfig{URL: "redis://localhost:6379"}}
