@@ -852,3 +852,73 @@ func TestValidate_NoWarningsForSingleInstance(t *testing.T) {
 		t.Fatalf("expected no warnings, got %v", warnings)
 	}
 }
+
+func feedSinkBase() Config {
+	c := Defaults()
+	c.State = StateConfig{Driver: "sqlite", SQLite: SQLiteStateConfig{Path: "/tmp/s.db"}}
+	c.Feeds = []FeedConfig{{URL: "https://example.com/f.xml", Interval: 5 * time.Minute, Sinks: []string{"out"}}}
+	c.Sinks = []SinkConfig{{Name: "out", Driver: "feed", Feed: FeedSinkConfig{
+		Listen: ":8088", Link: "https://example.com/", MaxItems: 10,
+		Store: FeedStoreConfig{Driver: "memory"},
+	}}}
+	return c
+}
+
+func TestValidate_FeedRequiresListen(t *testing.T) {
+	c := feedSinkBase()
+	c.Sinks[0].Feed.Listen = ""
+	if _, err := Validate(c); err == nil {
+		t.Fatal("expected error for missing listen")
+	}
+}
+
+func TestValidate_FeedRejectsBadStoreDriver(t *testing.T) {
+	c := feedSinkBase()
+	c.Sinks[0].Feed.Store.Driver = "redis"
+	if _, err := Validate(c); err == nil {
+		t.Fatal("expected error for unknown store driver")
+	}
+}
+
+func TestValidate_FeedSqliteRequiresPath(t *testing.T) {
+	c := feedSinkBase()
+	c.Sinks[0].Feed.Store = FeedStoreConfig{Driver: "sqlite"}
+	if _, err := Validate(c); err == nil {
+		t.Fatal("expected error for missing sqlite path")
+	}
+}
+
+func TestValidate_FeedAuthExactlyOne(t *testing.T) {
+	c := feedSinkBase()
+	c.Sinks[0].Feed.Auth = FeedAuthConfig{Basic: FeedBasicAuthConfig{Username: "u", Password: "p"}, BearerToken: "t"}
+	if _, err := Validate(c); err == nil {
+		t.Fatal("expected error for both basic and bearer set")
+	}
+}
+
+func TestValidate_FeedCannotBeDeadLetter(t *testing.T) {
+	c := feedSinkBase()
+	c.Sinks = append(c.Sinks, SinkConfig{Name: "p", Driver: "stdout",
+		Stdout: StdoutSinkConfig{Target: "stdout", Format: "json"}, DeadLetter: "out"})
+	if _, err := Validate(c); err == nil {
+		t.Fatal("expected error: feed sink used as dead_letter")
+	}
+}
+
+func TestValidate_FeedMultiInstanceWarning(t *testing.T) {
+	c := feedSinkBase()
+	c.Coordination = CoordinationConfig{Driver: "redis", Redis: CoordinationRedisConfig{URL: "redis://localhost:6379"}}
+	warnings, err := Validate(c)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "out") && strings.Contains(w, "partial") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected multi-instance partial-feed warning, got %v", warnings)
+	}
+}
