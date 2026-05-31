@@ -17,3 +17,6 @@ coverage.txt
 
 # Claude+Obsidian tooling state — generated per-machine (absolute paths), not source
 .vault-meta/
+
+# Local working config (copy from config.example.yaml or config.example.full.yaml)
+/config.yaml
