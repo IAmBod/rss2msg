@@ -6,11 +6,18 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
+	"net"
+	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
 	goredis "github.com/redis/go-redis/v9"
+	"github.com/testcontainers/testcontainers-go"
 	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
+	"github.com/testcontainers/testcontainers-go/network"
+	"github.com/testcontainers/testcontainers-go/wait"
 
 	coordredis "github.com/iambod/rss2msg/internal/coord/redis"
 )
@@ -217,4 +224,201 @@ func TestCanceledReleaseCtxStillFreesLease(t *testing.T) {
 		t.Fatalf("B acquire after canceled release: ok=%v err=%v", okB, err)
 	}
 	_ = relB(ctx)
+}
+
+// startRedisSentinel brings up a single Redis master plus one Sentinel and
+// returns the master name ("mymaster") and the host:port the test should hand
+// to coordredis as a Sentinel address.
+//
+// The single-node modules/redis helper can't model a Sentinel topology, so we
+// drive raw GenericContainer requests here. As with the other helpers in this
+// file the test is gated behind the `integration` build tag; on ANY container
+// or network failure (most importantly: no Docker daemon) we Skipf so the
+// suite stays green in environments without Docker and only runs for real in
+// CI/Docker.
+//
+// Reachability is the subtle part. A go-redis FailoverClient connects to the
+// Sentinel, asks it for the master address, and then dials THAT address
+// directly. So the address Sentinel advertises must be reachable both from the
+// Sentinel container (to monitor the master) and from the host process running
+// the test (to dial the master). A container-internal alias satisfies only the
+// former. We bridge the two vantage points through the Docker bridge gateway IP
+// (typically 172.17.0.1): the master exposes 6379, testcontainers publishes it
+// to an ephemeral host port, and that published port is reachable as
+// gatewayIP:<hostPort> both from the host (the gateway is a local interface)
+// and from the Sentinel container (the gateway is its default route). Sentinel
+// is configured to monitor exactly that gatewayIP:<hostPort>, so it advertises
+// a host-reachable address back to the client.
+func startRedisSentinel(t *testing.T) (masterName string, sentinelAddrs []string) {
+	t.Helper()
+	ctx := context.Background()
+
+	const master = "mymaster"
+
+	// Bridge gateway IP, reachable from both the host and bridge containers.
+	gatewayIP := dockerBridgeGateway(t)
+
+	net, err := network.New(ctx, network.WithAttachable())
+	if err != nil {
+		t.Skipf("skipping: cannot create docker network: %v", err)
+	}
+	t.Cleanup(func() { _ = net.Remove(ctx) })
+
+	// Master: expose 6379; testcontainers publishes it to an ephemeral host
+	// port, which we then read back and feed to the Sentinel config.
+	masterC, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Image:        "redis:7-alpine",
+			ExposedPorts: []string{"6379/tcp"},
+			Networks:     []string{net.Name},
+			WaitingFor: wait.ForListeningPort("6379/tcp").
+				WithStartupTimeout(30 * time.Second),
+		},
+		Started: true,
+	})
+	if err != nil {
+		t.Skipf("skipping: cannot start redis master container: %v", err)
+	}
+	t.Cleanup(func() { _ = testcontainers.TerminateContainer(masterC) })
+
+	masterHostPort, err := masterC.MappedPort(ctx, "6379/tcp")
+	if err != nil {
+		t.Skipf("skipping: cannot resolve master mapped port: %v", err)
+	}
+
+	// Sentinel. The config is generated in-container via a small sh entrypoint
+	// so the file is written next to where redis-sentinel reads it; this avoids
+	// having to bake a file mount and keeps the helper hermetic. Monitoring by
+	// the gateway IP means Sentinel advertises that same host-reachable IP:port
+	// back to the FailoverClient.
+	sentinelConf := strings.Join([]string{
+		"port 26379",
+		fmt.Sprintf("sentinel monitor %s %s %s 1", master, gatewayIP, masterHostPort.Port()),
+		fmt.Sprintf("sentinel down-after-milliseconds %s 1000", master),
+		fmt.Sprintf("sentinel failover-timeout %s 5000", master),
+	}, "\\n")
+
+	sentinelC, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Image:        "redis:7-alpine",
+			ExposedPorts: []string{"26379/tcp"},
+			Networks:     []string{net.Name},
+			Entrypoint:   []string{"sh", "-c"},
+			Cmd: []string{
+				fmt.Sprintf("printf '%s\\n' > /etc/sentinel.conf && "+
+					"redis-sentinel /etc/sentinel.conf", sentinelConf),
+			},
+			WaitingFor: wait.ForListeningPort("26379/tcp").
+				WithStartupTimeout(30 * time.Second),
+		},
+		Started: true,
+	})
+	if err != nil {
+		t.Skipf("skipping: cannot start redis sentinel container: %v", err)
+	}
+	t.Cleanup(func() { _ = testcontainers.TerminateContainer(sentinelC) })
+
+	host, err := sentinelC.Host(ctx)
+	if err != nil {
+		t.Skipf("skipping: cannot resolve sentinel host: %v", err)
+	}
+	port, err := sentinelC.MappedPort(ctx, "26379/tcp")
+	if err != nil {
+		t.Skipf("skipping: cannot resolve sentinel mapped port: %v", err)
+	}
+
+	return master, []string{fmt.Sprintf("%s:%s", host, port.Port())}
+}
+
+// dockerBridgeGateway returns the gateway IP of the default Docker bridge
+// network, which is reachable from both the host (it's a local interface) and
+// from bridge-attached containers (it's their default gateway). It Skipf's the
+// test if the value can't be determined. Resolved via the docker CLI to avoid
+// pulling the Docker SDK into the test's import surface.
+func dockerBridgeGateway(t *testing.T) string {
+	t.Helper()
+	out, err := exec.Command(
+		"docker", "network", "inspect", "bridge",
+		"--format", "{{range .IPAM.Config}}{{.Gateway}}{{end}}",
+	).Output()
+	if err != nil {
+		t.Skipf("skipping: cannot inspect docker bridge network: %v", err)
+	}
+	gw := strings.TrimSpace(string(out))
+	if gw == "" {
+		t.Skip("skipping: docker bridge network has no gateway IP")
+	}
+	return gw
+}
+
+// freeTCPPort asks the kernel for an unused TCP port. There is an inherent
+// (small) TOCTOU window between closing the listener and Docker binding the
+// port; acceptable for a single-shot integration test.
+func freeTCPPort() (int, error) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = l.Close() }()
+	return l.Addr().(*net.TCPAddr).Port, nil
+}
+
+// TestCoordinator_Sentinel_AcquireRenewRelease exercises the full lease
+// lifecycle (acquire, blocked second acquire, renewal-keeps-it-held across a
+// TTL, release, re-acquire) against a real Sentinel-fronted master, proving
+// the FailoverClient path in coordredis works end to end.
+func TestCoordinator_Sentinel_AcquireRenewRelease(t *testing.T) {
+	masterName, sentinelAddrs := startRedisSentinel(t)
+	ctx := context.Background()
+
+	const feed = "https://example.com/feed.xml"
+
+	newSentinelCoord := func() *coordredis.Coordinator {
+		c, err := coordredis.New(ctx, coordredis.Options{
+			Mode:    "sentinel",
+			LockTTL: 2 * time.Second, // comfortably exceeds one renewal (TTL/3)
+			Sentinel: coordredis.SentinelOptions{
+				MasterName: masterName,
+				Addrs:      sentinelAddrs,
+			},
+		})
+		if err != nil {
+			t.Fatalf("sentinel coordinator New: %v", err)
+		}
+		return c
+	}
+
+	c := newSentinelCoord()
+	t.Cleanup(func() { _ = c.Close() })
+
+	rel, ok, err := c.TryAcquire(ctx, feed)
+	if err != nil || !ok {
+		t.Fatalf("c acquire: ok=%v err=%v", ok, err)
+	}
+
+	c2 := newSentinelCoord()
+	t.Cleanup(func() { _ = c2.Close() })
+
+	if _, ok2, _ := c2.TryAcquire(ctx, feed); ok2 {
+		t.Fatal("c2 should not acquire while c holds the lease")
+	}
+
+	// Sleep past one TTL; the renewal goroutine must keep c's lease alive.
+	time.Sleep(3 * time.Second)
+
+	if _, ok2, _ := c2.TryAcquire(ctx, feed); ok2 {
+		t.Fatal("c2 should still be locked out after renewal extended the lease")
+	}
+
+	if err := rel(ctx); err != nil {
+		t.Fatalf("c release: %v", err)
+	}
+
+	rel2, ok2, err := c2.TryAcquire(ctx, feed)
+	if err != nil || !ok2 {
+		t.Fatalf("c2 acquire after c release: ok=%v err=%v", ok2, err)
+	}
+	if err := rel2(ctx); err != nil {
+		t.Fatalf("c2 release: %v", err)
+	}
 }

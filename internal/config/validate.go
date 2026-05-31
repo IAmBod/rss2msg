@@ -140,23 +140,66 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 	}
 	if c.Coordination.Driver == "redis" {
-		raw := strings.TrimSpace(c.Coordination.Redis.URL)
-		if raw == "" {
-			return *warnings, fmt.Errorf("coordination.redis.url is required when coordination.driver=redis")
+		r := c.Coordination.Redis
+		mode := r.Mode
+		if mode == "" {
+			mode = "single"
 		}
-		if _, err := redisparseURL(raw); err != nil {
-			// Best-effort redact credentials before embedding the URL in the error.
-			safe := raw
-			if u, perr := url.Parse(raw); perr == nil {
-				safe = u.Redacted()
+		sentinelSet := r.Sentinel.MasterName != "" || len(r.Sentinel.Addrs) > 0
+		clusterSet := len(r.Cluster.Addrs) > 0
+
+		switch mode {
+		case "single":
+			if sentinelSet {
+				return *warnings, fmt.Errorf("coordination.redis.sentinel must not be set when mode=single")
 			}
-			return *warnings, fmt.Errorf("coordination.redis.url %q is not parseable: %w", safe, err)
+			if clusterSet {
+				return *warnings, fmt.Errorf("coordination.redis.cluster must not be set when mode=single")
+			}
+			raw := strings.TrimSpace(r.URL)
+			if raw == "" {
+				return *warnings, fmt.Errorf("coordination.redis.url is required when coordination.driver=redis and mode=single")
+			}
+			if _, err := redisparseURL(raw); err != nil {
+				safe := raw
+				if u, perr := url.Parse(raw); perr == nil {
+					safe = u.Redacted()
+				}
+				return *warnings, fmt.Errorf("coordination.redis.url %q is not parseable: %w", safe, err)
+			}
+		case "sentinel":
+			if strings.TrimSpace(r.URL) != "" {
+				return *warnings, fmt.Errorf("coordination.redis.url must not be set when mode=sentinel (use sentinel.addrs)")
+			}
+			if clusterSet {
+				return *warnings, fmt.Errorf("coordination.redis.cluster must not be set when mode=sentinel")
+			}
+			if strings.TrimSpace(r.Sentinel.MasterName) == "" {
+				return *warnings, fmt.Errorf("coordination.redis.sentinel.master_name is required when mode=sentinel")
+			}
+			if len(r.Sentinel.Addrs) == 0 {
+				return *warnings, fmt.Errorf("coordination.redis.sentinel.addrs is required when mode=sentinel")
+			}
+		case "cluster":
+			if strings.TrimSpace(r.URL) != "" {
+				return *warnings, fmt.Errorf("coordination.redis.url must not be set when mode=cluster (use cluster.addrs)")
+			}
+			if sentinelSet {
+				return *warnings, fmt.Errorf("coordination.redis.sentinel must not be set when mode=cluster")
+			}
+			if len(r.Cluster.Addrs) == 0 {
+				return *warnings, fmt.Errorf("coordination.redis.cluster.addrs is required when mode=cluster")
+			}
+		default:
+			return *warnings, fmt.Errorf("coordination.redis.mode %q is not supported (want single, sentinel, or cluster)", r.Mode)
 		}
-		if ttl := c.Coordination.Redis.LockTTL; ttl != 0 && ttl < time.Second {
+
+		// Shared TTL / renewal checks.
+		if ttl := r.LockTTL; ttl != 0 && ttl < time.Second {
 			return *warnings, fmt.Errorf("coordination.redis.lock_ttl %v is below the 1s minimum", ttl)
 		}
-		if ri := c.Coordination.Redis.RenewalInterval; ri != 0 {
-			ttl := c.Coordination.Redis.LockTTL
+		if ri := r.RenewalInterval; ri != 0 {
+			ttl := r.LockTTL
 			if ttl == 0 {
 				ttl = 30 * time.Second
 			}
@@ -164,11 +207,13 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 				return *warnings, fmt.Errorf("coordination.redis.renewal_interval %v must be less than lock_ttl %v", ri, ttl)
 			}
 		}
-		tls := c.Coordination.Redis.TLS
+
+		// Shared TLS checks.
+		tls := r.TLS
 		tlsConfigured := tls.CAFile != "" || tls.CertFile != "" || tls.KeyFile != "" ||
 			tls.ServerName != "" || tls.InsecureSkipVerify
-		if tlsConfigured {
-			u, _ := url.Parse(strings.TrimSpace(c.Coordination.Redis.URL))
+		if tlsConfigured && mode == "single" {
+			u, _ := url.Parse(strings.TrimSpace(r.URL))
 			if u == nil || u.Scheme != "rediss" {
 				return *warnings, fmt.Errorf("coordination.redis.tls is only valid when coordination.redis.url uses the rediss:// scheme")
 			}
