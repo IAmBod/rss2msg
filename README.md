@@ -7,21 +7,7 @@ long-lived daemon (`serve`) or as a single-shot job (`run-once`), and it can
 scale to multiple instances behind a shared coordinator (Postgres advisory
 locks or Redis lease) without leader election.
 
-```
-┌──────────┐   poll    ┌──────────┐   classify    ┌──────────┐   publish   ┌──────────┐
-│  feeds   │──────────▶│  feed    │──────────────▶│  state   │────────────▶│  sinks   │
-│ (RSS/    │  HTTP +   │ fetcher  │  new/updated  │  store   │  per-feed   │ pg/kafka │
-│  Atom/   │  cache    │          │  vs seen      │ (pgxpool)│  fan-out    │ sqs/sns  │
-│  JSON)   │  headers  │ detector │  + content    │          │  + retry +  │          │
-└──────────┘           └──────────┘  hash         └──────────┘  DLQ        └──────────┘
-                                                                     │
-                                              ┌──────────────────────┘
-                                              ▼
-                                      ┌──────────────┐
-                                      │ coordinator  │  memory | postgres | redis
-                                      │ (multi-inst) │  gates poll cycles
-                                      └──────────────┘
-```
+> **Architecture:** `feeds → fetcher/detector → state store → sinks`, with a coordinator gating poll cycles across instances. See the interactive [pipeline canvas](./docs/explanation/architecture.canvas) (opens in Obsidian).
 
 ---
 
