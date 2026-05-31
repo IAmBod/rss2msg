@@ -1,0 +1,100 @@
+---
+title: Deploy in Production
+type: how-to
+tags: [rss2msg/docs, operations, deployment]
+summary: Configure, validate, run, and observe rss2msg in production — config resolution, secrets, daemon vs job, and monitoring.
+updated: 2026-05-31
+---
+
+# Deploy in Production
+
+This page ties together the operational surface for running rss2msg as a service.
+For the behavioral guarantees behind these knobs (delivery semantics, DLQs,
+crash recovery), see [Operational Notes](../explanation/operations.md).
+
+## 1. Provide configuration
+
+rss2msg resolves its config file in this order (see [CLI](../reference/cli.md)):
+
+1. `--config <path>` if given,
+2. else `./config.yaml`,
+3. else `/etc/rss2msg/config.yaml`.
+
+Override individual fields with `RSS2MSG_`-prefixed environment variables (`.` →
+`__`), and inject secrets with `${VAR}` substitution inside string values — keep
+DSNs and tokens out of the file itself:
+
+```yaml
+state:
+  postgres:
+    dsn: ${POSTGRES_DSN}
+```
+
+The full field surface is the [Configuration Reference](../reference/configuration.md).
+
+## 2. Validate before rollout
+
+`validate-config` parses the config and dials the state store and every sink,
+exiting non-zero on any failure. Run it in CI or as a pre-start gate:
+
+```bash
+rss2msg validate-config --config /etc/rss2msg/config.yaml
+```
+
+## 3. Run it
+
+- **Daemon** — `rss2msg serve`: one goroutine per feed, polling on each feed's
+  `interval`. It drains in-flight publishes for up to `runtime.shutdown_drain_timeout`
+  on `SIGINT`/`SIGTERM`, then exits. Use this under systemd, a container
+  supervisor, or Kubernetes.
+- **Scheduled job** — `rss2msg run-once`: polls every feed once and exits (bounded
+  by `runtime.run_once_concurrency`). Use this from cron or a Kubernetes CronJob
+  when you don't want a long-lived process.
+
+### Container image (example)
+
+There is no Dockerfile in the repo; a minimal one looks like this — adjust the
+base image and registry to your environment:
+
+```dockerfile
+FROM golang:1.25 AS build
+WORKDIR /src
+COPY . .
+RUN go build -o /rss2msg ./cmd/rss2msg
+
+FROM gcr.io/distroless/base-debian12
+COPY --from=build /rss2msg /rss2msg
+COPY config.yaml /etc/rss2msg/config.yaml
+ENTRYPOINT ["/rss2msg", "serve"]
+```
+
+## 4. Scale out
+
+Running more than one instance? Point them all at a shared coordinator so they
+don't double-poll — see [Run Multiple Instances](run-multiple-instances.md). There
+is no leader election; losers skip a cycle silently.
+
+## 5. Secure connections
+
+Use TLS for the Postgres state store and the Postgres/Redis coordinators — see
+[Secure Connections (TLS)](secure-connections-tls.md). Sink credentials (AWS, AMQP,
+webhook tokens) follow each driver's mechanism in [Choose a Sink](choose-a-sink.md).
+
+## 6. Observe it
+
+- **OTLP** — set `OTEL_EXPORTER_OTLP_ENDPOINT` (and optional
+  `OTEL_EXPORTER_OTLP_HEADERS`) to export traces and metrics. Without an endpoint
+  the providers are wired but no-op.
+- **Prometheus** — set `telemetry.prometheus.enabled: true` to expose `/metrics`
+  on `telemetry.prometheus.listen` (default `:9090`).
+
+The instruments to watch (fetch counts/durations, change counts, skipped polls,
+sink publish failures/durations) are listed in [Telemetry](../reference/telemetry.md).
+
+## Related
+
+- [Operational Notes](../explanation/operations.md) — delivery semantics, DLQs, shutdown.
+- [Run Multiple Instances](run-multiple-instances.md) — coordinator setup.
+- [Secure Connections (TLS)](secure-connections-tls.md) — transport security.
+- [Telemetry](../reference/telemetry.md) — what to monitor.
+- [CLI](../reference/cli.md) — commands and flags.
