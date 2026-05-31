@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func goodCfg() Config {
@@ -937,5 +939,70 @@ func TestValidate_FeedMultiInstanceWarning(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("expected multi-instance partial-feed warning, got %v", warnings)
+	}
+}
+
+// base returns a minimal valid Config with Coordination.Driver="redis",
+// one valid sink named "default", and one valid feed referencing it.
+func base() Config {
+	c := Defaults()
+	c.State = StateConfig{Driver: "sqlite", SQLite: SQLiteStateConfig{Path: "/tmp/s.db"}}
+	c.Sinks = []SinkConfig{{Name: "default", Driver: "stdout"}}
+	c.Feeds = []FeedConfig{{URL: "https://example.com/f.xml", Interval: 5 * time.Minute}}
+	c.Coordination = CoordinationConfig{Driver: "redis"}
+	return c
+}
+
+func TestValidateRedisCoordinationModes(t *testing.T) {
+	rc := func(mut func(*CoordinationRedisConfig)) Config {
+		c := base()
+		mut(&c.Coordination.Redis)
+		return c
+	}
+	cases := []struct {
+		name    string
+		cfg     Config
+		wantErr string // "" => no error
+	}{
+		{"single ok", rc(func(r *CoordinationRedisConfig) { r.Mode = "single"; r.URL = "redis://h:6379" }), ""},
+		{"empty mode legacy ok", rc(func(r *CoordinationRedisConfig) { r.URL = "redis://h:6379" }), ""},
+		{"single missing url", rc(func(r *CoordinationRedisConfig) { r.Mode = "single" }), "url is required"},
+		{"single rejects sentinel block", rc(func(r *CoordinationRedisConfig) {
+			r.Mode = "single"
+			r.URL = "redis://h:6379"
+			r.Sentinel.MasterName = "m"
+		}), "sentinel"},
+		{"sentinel ok", rc(func(r *CoordinationRedisConfig) {
+			r.Mode = "sentinel"
+			r.Sentinel.MasterName = "m"
+			r.Sentinel.Addrs = []string{"a:26379"}
+		}), ""},
+		{"sentinel missing master", rc(func(r *CoordinationRedisConfig) { r.Mode = "sentinel"; r.Sentinel.Addrs = []string{"a:26379"} }), "master_name"},
+		{"sentinel missing addrs", rc(func(r *CoordinationRedisConfig) { r.Mode = "sentinel"; r.Sentinel.MasterName = "m" }), "addrs"},
+		{"sentinel rejects url", rc(func(r *CoordinationRedisConfig) {
+			r.Mode = "sentinel"
+			r.Sentinel.MasterName = "m"
+			r.Sentinel.Addrs = []string{"a:26379"}
+			r.URL = "redis://h:6379"
+		}), "url"},
+		{"cluster ok", rc(func(r *CoordinationRedisConfig) { r.Mode = "cluster"; r.Cluster.Addrs = []string{"n:6379"} }), ""},
+		{"cluster missing addrs", rc(func(r *CoordinationRedisConfig) { r.Mode = "cluster" }), "addrs"},
+		{"bad mode", rc(func(r *CoordinationRedisConfig) { r.Mode = "galaxy" }), "mode"},
+		{"sentinel tls ok (no rediss)", rc(func(r *CoordinationRedisConfig) {
+			r.Mode = "sentinel"
+			r.Sentinel.MasterName = "m"
+			r.Sentinel.Addrs = []string{"a:26379"}
+			r.TLS.CAFile = "/tmp/ca.pem"
+		}), ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Validate(tc.cfg)
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tc.wantErr)
+			}
+		})
 	}
 }
