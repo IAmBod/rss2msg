@@ -30,3 +30,6 @@ Full documentation lives in [`docs/`](./docs/index.md). Start there, or jump in:
 
 **Understand it**
 - [How It Works](./docs/explanation/how-it-works.md) · [Operational Notes](./docs/explanation/operations.md)
+
+**Develop**
+- [Building and Testing](./docs/development/building-and-testing.md) · [Contributing](./docs/development/contributing.md) · [Releasing](./docs/development/releasing.md)

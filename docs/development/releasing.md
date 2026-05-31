@@ -1,0 +1,99 @@
+---
+title: Releasing
+type: how-to
+tags: [rss2msg/docs, development, release]
+summary: The release pipeline — golangci-lint in CI, git-cliff for the changelog and version bumps, and GoReleaser for multi-platform binaries and a multi-arch Docker image, all driven by a semver tag.
+updated: 2026-06-01
+---
+
+# Releasing
+
+rss2msg ships through a tag-driven pipeline built from three tools:
+
+| Tool | Config | Role |
+| --- | --- | --- |
+| [golangci-lint](https://golangci-lint.run) | [`.golangci.yml`](../../.golangci.yml) | Code-quality gate on every PR and push to `main`. |
+| [git-cliff](https://git-cliff.org) | [`cliff.toml`](../../cliff.toml) | Builds `CHANGELOG.md` and per-release notes from [Conventional Commits](https://www.conventionalcommits.org); derives the next semver. |
+| [GoReleaser](https://goreleaser.com) | [`.goreleaser.yaml`](../../.goreleaser.yaml) | Builds multi-platform binaries + a multi-arch Docker image and publishes the GitHub Release. |
+
+Two GitHub Actions workflows wire them together:
+
+- [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) — runs on PRs and pushes
+  to `main`: golangci-lint, `go vet`, unit tests (`-race`), `go build`, and `goreleaser check`.
+- [`.github/workflows/release.yml`](../../.github/workflows/release.yml) — runs on a
+  pushed `v*.*.*` tag: generates release notes with git-cliff, runs GoReleaser to build
+  and publish artifacts and the Docker image, then syncs the regenerated `CHANGELOG.md`
+  back to `main`.
+
+## Cut a release
+
+1. Make sure `main` is green (CI passing) and the commits since the last tag follow
+   [Conventional Commits](https://www.conventionalcommits.org) — git-cliff groups them
+   by `feat:` / `fix:` / `docs:` / etc., and unconventional commits (including merge
+   commits) are skipped.
+2. Pick the version. git-cliff can derive it from the commit history:
+   ```bash
+   git cliff --bumped-version      # e.g. prints v0.2.0
+   ```
+3. Refresh the changelog and review it:
+   ```bash
+   task changelog                  # regenerates CHANGELOG.md via git-cliff
+   ```
+4. Tag and push. The tag is what triggers the release workflow:
+   ```bash
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+The release workflow then:
+
+- builds binaries for linux/macOS/Windows on amd64/arm64 (Windows arm64 excluded),
+  with `version`, `commit`, and `date` stamped into the binary via `-ldflags`
+  (see [`builds:` in `.goreleaser.yaml`](../../.goreleaser.yaml));
+- writes `checksums.txt` and `.tar.gz` / `.zip` archives;
+- builds and pushes a multi-arch image to `ghcr.io/iambod/rss2msg:<version>` and
+  `:latest` from [`Dockerfile.goreleaser`](../../Dockerfile.goreleaser);
+- publishes a GitHub Release whose notes are the git-cliff section for that tag.
+
+## Version metadata
+
+The binary's build metadata comes from `-ldflags -X main.version=… -X main.commit=…
+-X main.date=…`. Check it at runtime:
+
+```bash
+rss2msg version
+```
+
+A plain `go build` (no ldflags) reports `dev` / `none` / `unknown`; release builds
+carry the real tag, commit, and timestamp. `goreleaser build --snapshot` stamps a
+`-next` pseudo-version so you can verify injection locally.
+
+## Dry-run locally
+
+You need `golangci-lint` (v2), `git-cliff`, and `goreleaser` installed (plus Docker for
+the image build). All are wrapped as `task` targets:
+
+```bash
+task lint               # golangci-lint run ./...
+task changelog          # regenerate CHANGELOG.md
+task release-check      # goreleaser check — validate .goreleaser.yaml
+task release-snapshot   # full dry-run into ./dist, nothing published
+```
+
+`./dist/` is git-ignored.
+
+## Prerequisites for publishing
+
+- The release job uses the built-in `GITHUB_TOKEN`; the workflow requests
+  `contents: write` (create the Release, push `CHANGELOG.md`) and `packages: write`
+  (push to GHCR). No extra secrets are required.
+- If `main` is protected such that the Actions bot cannot push, the `CHANGELOG.md`
+  sync step will fail; either allow the bot to push or run `task changelog` and commit
+  the file manually before tagging.
+
+## Related
+
+- [Contributing](contributing.md) — branch, commit, and PR conventions (Conventional Commits).
+- [Building and Testing](building-and-testing.md) — the local build and test commands CI mirrors.
+- [Run with Docker](../how-to/run-with-docker.md) — the hand-written Dockerfile for local/dev use.
+- [CLI](../reference/cli.md) — the `version` command this pipeline feeds.
