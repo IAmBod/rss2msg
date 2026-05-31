@@ -73,10 +73,29 @@ type CoordinationPGTLSConfig struct {
 }
 
 type CoordinationRedisConfig struct {
-	URL             string                     `mapstructure:"url"`
-	LockTTL         time.Duration              `mapstructure:"lock_ttl"`
-	RenewalInterval time.Duration              `mapstructure:"renewal_interval"`
-	TLS             CoordinationRedisTLSConfig `mapstructure:"tls"`
+	Mode            string                          `mapstructure:"mode"` // single|sentinel|cluster (default single)
+	URL             string                          `mapstructure:"url"`  // single mode
+	LockTTL         time.Duration                   `mapstructure:"lock_ttl"`
+	RenewalInterval time.Duration                   `mapstructure:"renewal_interval"`
+	TLS             CoordinationRedisTLSConfig      `mapstructure:"tls"`
+	Sentinel        CoordinationRedisSentinelConfig `mapstructure:"sentinel"`
+	Cluster         CoordinationRedisClusterConfig  `mapstructure:"cluster"`
+}
+
+type CoordinationRedisSentinelConfig struct {
+	MasterName       string   `mapstructure:"master_name"`
+	Addrs            []string `mapstructure:"addrs"`
+	Username         string   `mapstructure:"username"`
+	Password         string   `mapstructure:"password"`
+	SentinelUsername string   `mapstructure:"sentinel_username"`
+	SentinelPassword string   `mapstructure:"sentinel_password"`
+	DB               int      `mapstructure:"db"`
+}
+
+type CoordinationRedisClusterConfig struct {
+	Addrs    []string `mapstructure:"addrs"`
+	Username string   `mapstructure:"username"`
+	Password string   `mapstructure:"password"`
 }
 
 type CoordinationRedisTLSConfig struct {
