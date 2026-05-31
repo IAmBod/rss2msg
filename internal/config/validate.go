@@ -223,6 +223,32 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 	}
 
+	if c.Health.Enabled {
+		if strings.TrimSpace(c.Health.Listen) == "" {
+			return *warnings, fmt.Errorf("health.listen is required when health.enabled=true")
+		}
+		paths := map[string]string{
+			"health.liveness_path":  c.Health.LivenessPath,
+			"health.readiness_path": c.Health.ReadinessPath,
+			"health.startup_path":   c.Health.StartupPath,
+		}
+		for key, p := range paths {
+			if p == "" || p[0] != '/' {
+				return *warnings, fmt.Errorf("%s %q must start with /", key, p)
+			}
+		}
+		seen := make(map[string]struct{}, len(paths))
+		for _, p := range []string{c.Health.LivenessPath, c.Health.ReadinessPath, c.Health.StartupPath} {
+			if _, dup := seen[p]; dup {
+				return *warnings, fmt.Errorf("health probe paths must be distinct (%q is reused)", p)
+			}
+			seen[p] = struct{}{}
+		}
+		if c.Telemetry.Prometheus.Enabled && c.Health.Listen == c.Telemetry.Prometheus.Listen {
+			*warnings = append(*warnings, fmt.Sprintf("health.listen %q is the same as telemetry.prometheus.listen; one server will fail to bind", c.Health.Listen))
+		}
+	}
+
 	if len(c.Sinks) == 0 {
 		return *warnings, fmt.Errorf("at least one sink must be declared")
 	}

@@ -69,6 +69,11 @@ func applyDefaults(v *viper.Viper, d Config) {
 	v.SetDefault("runtime.shutdown_drain_timeout", d.Runtime.ShutdownDrainTimeout)
 	v.SetDefault("runtime.run_once_concurrency", d.Runtime.RunOnceConcurrency)
 	v.SetDefault("coordination.driver", d.Coordination.Driver)
+	v.SetDefault("health.enabled", d.Health.Enabled)
+	v.SetDefault("health.listen", d.Health.Listen)
+	v.SetDefault("health.liveness_path", d.Health.LivenessPath)
+	v.SetDefault("health.readiness_path", d.Health.ReadinessPath)
+	v.SetDefault("health.startup_path", d.Health.StartupPath)
 }
 
 // expandEnvHook returns a mapstructure DecodeHookFunc that substitutes
