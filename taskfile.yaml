@@ -3,6 +3,7 @@ version: '3'
 vars:
   GO: '{{.GO | default "go"}}'
   BIN: rss2msg
+  IMAGE: '{{.IMAGE | default "rss2msg"}}'
 
 tasks:
   default:
@@ -46,3 +47,23 @@ tasks:
     desc: Remove the built binary
     cmds:
       - rm -f {{.BIN}}
+
+  docker-build:
+    desc: Build the production container image ({{.IMAGE}}:latest)
+    cmds:
+      - docker build --target production -t {{.IMAGE}}:latest .
+
+  docker-build-dev:
+    desc: Build the development container image with hot reload ({{.IMAGE}}:dev)
+    cmds:
+      - docker build --target development -t {{.IMAGE}}:dev .
+
+  docker-up:
+    desc: Run the dev stack (hot reload) via Docker Compose
+    cmds:
+      - docker compose up --build
+
+  docker-down:
+    desc: Stop and remove the Docker Compose dev stack
+    cmds:
+      - docker compose down

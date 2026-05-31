@@ -1,0 +1,18 @@
+# air (https://github.com/air-verse/air) config for the `development` Docker stage.
+# Rebuilds and restarts rss2msg whenever a watched source file changes.
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/rss2msg ./cmd/rss2msg"
+  bin = "./tmp/rss2msg"
+  # Run as the daemon; config is resolved from ./config.yaml in the mounted source.
+  args_bin = ["serve"]
+  include_ext = ["go", "yaml", "yml", "toml"]
+  exclude_dir = ["tmp", "docs", "test", ".git", ".worktrees", ".claude", ".obsidian", ".task"]
+  exclude_regex = ["_test\\.go"]
+  delay = 1000
+  stop_on_error = true
+
+[misc]
+  clean_on_exit = true

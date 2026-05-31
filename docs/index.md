@@ -21,6 +21,7 @@ Start here. Pages are grouped the way you use them.
 - [Choose a Sink](how-to/choose-a-sink.md)
 - [Connect Zapier and n8n](how-to/connect-zapier-and-n8n.md)
 - [Deploy in Production](how-to/deploy.md)
+- [Run with Docker](how-to/run-with-docker.md)
 - [Run Multiple Instances](how-to/run-multiple-instances.md)
 - [Secure Connections (TLS)](how-to/secure-connections-tls.md)
 

@@ -1,0 +1,58 @@
+# Local development stack for rss2msg.
+#
+#   docker compose up --build              # app only (hot reload)
+#   docker compose --profile full up       # app + Postgres + Redis
+#
+# The app reads ./config.yaml from the mounted source tree. Create one first:
+#   cp config.example.yaml config.yaml
+#
+# See docs/how-to/run-with-docker.md for details.
+
+services:
+  rss2msg:
+    build:
+      context: .
+      target: development
+    # Live-mount the source so air rebuilds on change. The named volume keeps the
+    # module cache (and the tmp build dir) off the host bind mount.
+    volumes:
+      - .:/src
+      - go-mod-cache:/go/pkg/mod
+      - build-tmp:/src/tmp
+    ports:
+      - "8080:8080" # feed-sink HTTP (when a feed sink is configured)
+      - "9090:9090" # Prometheus /metrics (when telemetry.prometheus.enabled)
+    environment:
+      # Human-readable logs for local dev (overrides log.format via RSS2MSG_*).
+      RSS2MSG_LOG__FORMAT: console
+    restart: unless-stopped
+
+  # Optional backing services for exercising the Postgres/Redis drivers locally.
+  # Enabled only with: docker compose --profile full up
+  postgres:
+    image: postgres:17-alpine
+    profiles: [full]
+    environment:
+      POSTGRES_USER: rss2msg
+      POSTGRES_PASSWORD: rss2msg
+      POSTGRES_DB: rss2msg
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rss2msg"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    profiles: [full]
+    ports:
+      - "6379:6379"
+
+volumes:
+  go-mod-cache:
+  build-tmp:
+  pgdata:
