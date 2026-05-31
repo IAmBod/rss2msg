@@ -17,7 +17,7 @@ Common fields on every sink:
 | field         | required | notes |
 | ------------- | -------- | ----- |
 | `name`        | yes      | Unique per config. Referenced by `feeds[].sinks` and `dead_letter`. |
-| `driver`      | yes      | One of `postgres`, `kafka`, `rabbitmq`, `sqs`, `sns`, `stdout`, `http`. |
+| `driver`      | yes      | One of `postgres`, `kafka`, `rabbitmq`, `sqs`, `sns`, `stdout`, `http`, `feed`. |
 | `dead_letter` | no       | Name of another declared sink. On retry exhaustion the change is delivered there once, with `dlq_from_sink`, `dlq_error`, and `dlq_attempts` annotations. A sink cannot be its own DLQ. |
 
 ## Drivers
@@ -31,6 +31,7 @@ Common fields on every sink:
 | rabbitmq | AMQP routing (topic/direct/fanout) | [rabbitmq](sinks/rabbitmq.md) |
 | stdout | local dev, debugging, ad-hoc pipelines | [stdout](sinks/stdout.md) |
 | http | webhooks (Slack, Discord, custom receivers) | [http](sinks/http.md) |
+| feed | serve detected changes as an RSS/Atom feed over HTTP (store: memory / sqlite / postgres) | [feed](sinks/feed.md) |
 
 ## Related
 

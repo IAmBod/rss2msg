@@ -126,7 +126,11 @@ func newValidateConfigCmd(opts *rootOpts) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := config.Validate(cfg); err != nil {
+			warnings, err := config.Validate(cfg)
+			for _, w := range warnings {
+				fmt.Fprintln(os.Stderr, "warning:", w)
+			}
+			if err != nil {
 				return err
 			}
 			tel, err := telemetry.Setup(ctx, cfg, os.Stderr)
@@ -154,7 +158,11 @@ func bootstrap(ctx context.Context, opts *rootOpts) (config.Config, *telemetry.T
 	if err != nil {
 		return config.Config{}, nil, nil, err
 	}
-	if err := config.Validate(cfg); err != nil {
+	warnings, err := config.Validate(cfg)
+	for _, w := range warnings {
+		fmt.Fprintln(os.Stderr, "warning:", w)
+	}
+	if err != nil {
 		return config.Config{}, nil, nil, err
 	}
 	tel, err := telemetry.Setup(ctx, cfg, os.Stderr)
