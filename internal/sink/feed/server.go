@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -19,6 +20,7 @@ type handlerConfig struct {
 	atomPath        string
 	renderCacheTTL  time.Duration
 	cacheControlTTL time.Duration
+	auth            *authConfig
 	startedAt       time.Time
 }
 
@@ -54,12 +56,16 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	// NOTE (Task 10 will add): auth check + Cache-Control header here.
+	if !h.authOK(r) {
+		h.writeUnauthorized(w)
+		return
+	}
 	doc, err := h.document(r.Context(), path)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+	h.setCacheHeaders(w)
 	w.Header().Set("Content-Type", doc.ct)
 	w.Header().Set("ETag", doc.etag)
 	w.Header().Set("Last-Modified", doc.modified.UTC().Format(http.TimeFormat))
@@ -134,4 +140,16 @@ func (h *handler) lastModified(changes []model.Change) time.Time {
 		}
 	}
 	return mod
+}
+
+func (h *handler) setCacheHeaders(w http.ResponseWriter) {
+	scope := "public"
+	if h.cfg.auth != nil {
+		scope = "private"
+	}
+	if h.cfg.cacheControlTTL > 0 {
+		w.Header().Set("Cache-Control", scope+", max-age="+strconv.Itoa(int(h.cfg.cacheControlTTL.Seconds())))
+	} else {
+		w.Header().Set("Cache-Control", scope+", no-cache")
+	}
 }
