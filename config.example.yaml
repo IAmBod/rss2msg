@@ -35,10 +35,29 @@ coordination:
   #     server_name: pg.internal             # SNI / cert-verify hostname override
   #     insecure_skip_verify: false          # true = disable cert verification (test only)
   # redis:
-  #   url: ${REDIS_URL}      # e.g. redis://localhost:6379/0 or rediss://...
+  #   mode: single           # single (default) | sentinel | cluster
   #   lock_ttl: 30s          # optional, default 30s
   #   renewal_interval: 10s  # optional, default = lock_ttl / 3
-  #   tls:                   # only with rediss://; defaults to system roots + SNI from URL
+  #   # --- single mode (default) ---
+  #   url: ${REDIS_URL}      # e.g. redis://localhost:6379/0 or rediss://...
+  #   # --- sentinel mode (tested / supported HA path) ---
+  #   sentinel:
+  #     master_name: mymaster
+  #     addrs: [sentinel-a:26379, sentinel-b:26379]
+  #     username: redisuser           # data-node credentials (master/replicas)
+  #     password: ${REDIS_PASSWORD}   # data-node credentials (master/replicas)
+  #     sentinel_username: sentuser           # sentinel-node credentials
+  #     sentinel_password: ${SENTINEL_PASSWORD} # sentinel-node credentials
+  #     db: 0
+  #   # --- cluster mode (best-effort; not covered by CI integration tests) ---
+  #   cluster:
+  #     addrs: [node-a:6379, node-b:6379]
+  #     username: redisuser
+  #     password: ${REDIS_PASSWORD}
+  #   # --- shared TLS block (applies to all modes) ---
+  #   # For single, requires rediss:// URL. For sentinel/cluster, set server_name —
+  #   # there is no URL to derive the SNI hostname from.
+  #   tls:
   #     ca_file: /etc/ssl/redis-ca.pem
   #     cert_file: /etc/ssl/redis-client.pem   # mTLS: both cert_file and key_file or neither
   #     key_file:  /etc/ssl/redis-client.key
