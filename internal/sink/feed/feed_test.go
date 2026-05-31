@@ -50,7 +50,10 @@ func TestPublisher_SkipsDLQAnnotated(t *testing.T) {
 	if err := p.Publish(ctx, model.Change{FeedURL: "f", ItemID: "1", DLQFromSink: "other", DetectedAt: time.Unix(1, 0)}); err != nil {
 		t.Fatalf("dlq-annotated publish should be a no-op, got %v", err)
 	}
-	resp, _ := http.Get("http://" + p.Addr() + "/atom")
+	resp, err := http.Get("http://" + p.Addr() + "/atom")
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if strings.Contains(string(body), "<entry") {
@@ -83,7 +86,10 @@ func TestPublisher_SelfLinkUsesPublicURL(t *testing.T) {
 	}
 	defer p.Close()
 	_ = p.Publish(ctx, model.Change{FeedURL: "f", ItemID: "1", Title: "Hi", DetectedAt: time.Unix(1, 0)})
-	resp, _ := http.Get("http://" + p.Addr() + "/atom")
+	resp, err := http.Get("http://" + p.Addr() + "/atom")
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if !strings.Contains(string(body), `rel="self"`) || !strings.Contains(string(body), "https://feeds.example/atom") {
