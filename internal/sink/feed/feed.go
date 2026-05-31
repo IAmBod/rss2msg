@@ -9,6 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/iambod/rss2msg/internal/model"
 	"github.com/iambod/rss2msg/internal/sink"
 )
@@ -38,6 +41,9 @@ type Options struct {
 	PostgresDSN string
 	Table       string // table name for sqlite/postgres backends (default feed_output)
 	PostgresTLS *PGTLSOptions
+
+	Meter  metric.Meter   // optional; nil => no metrics
+	Logger zerolog.Logger // optional; zero value => no server logging
 }
 
 type Timeouts struct {
@@ -71,6 +77,7 @@ type Publisher struct {
 	shutdown time.Duration
 	tlsCert  string
 	tlsKey   string
+	logger   zerolog.Logger
 }
 
 func New(ctx context.Context, o Options) (*Publisher, error) {
@@ -103,6 +110,15 @@ func New(ctx context.Context, o Options) (*Publisher, error) {
 		auth: o.Auth, startedAt: time.Now(),
 	})
 
+	if o.Meter != nil {
+		instr, err := newInstruments(o.Meter)
+		if err != nil {
+			_ = store.Close()
+			return nil, fmt.Errorf("feed sink %q: instruments: %w", o.Name, err)
+		}
+		h.instr = instr
+	}
+
 	to := o.Timeouts.withDefaults()
 	ln, err := net.Listen("tcp", o.Listen)
 	if err != nil {
@@ -116,12 +132,13 @@ func New(ctx context.Context, o Options) (*Publisher, error) {
 		WriteTimeout:      to.Write,
 		IdleTimeout:       to.Idle,
 	}
-	p := &Publisher{name: o.Name, store: store, server: srv, ln: ln, shutdown: to.Shutdown, tlsCert: o.TLSCertFile, tlsKey: o.TLSKeyFile}
+	p := &Publisher{name: o.Name, store: store, server: srv, ln: ln, shutdown: to.Shutdown, tlsCert: o.TLSCertFile, tlsKey: o.TLSKeyFile, logger: o.Logger}
 	go p.serve()
 	return p, nil
 }
 
 func (p *Publisher) serve() {
+	p.logger.Info().Str("sink", p.name).Str("addr", p.ln.Addr().String()).Msg("feed sink listening")
 	var err error
 	if p.tlsCert != "" && p.tlsKey != "" {
 		err = p.server.ServeTLS(p.ln, p.tlsCert, p.tlsKey)
@@ -129,7 +146,7 @@ func (p *Publisher) serve() {
 		err = p.server.Serve(p.ln)
 	}
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
-		_ = err // server logging hook added in the telemetry task
+		p.logger.Error().Err(err).Str("sink", p.name).Msg("feed sink server stopped")
 	}
 }
 
