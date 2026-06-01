@@ -57,7 +57,78 @@ archives:
       - README.md
       - LICENSE*
       - CHANGELOG.md
-      - config.example.yaml
+      - examples/config.example.yaml
+
+# Linux distro packages (.deb / .rpm / .apk) built from the same binaries as the
+# archives, via GoReleaser's built-in nFPM integration — https://nfpm.goreleaser.com
+nfpms:
+  - id: rss2msg
+    ids:
+      - rss2msg
+    package_name: rss2msg
+    vendor: IAmBod
+    homepage: https://github.com/IAmBod/rss2msg
+    maintainer: Bödei Károly <boodeikaroly@gmail.com>
+    license: BUSL-1.1
+    description: |-
+      RSS/Atom/JSON feed-to-message bridge.
+      Polls feeds, detects new and updated items, and publishes a canonical change
+      envelope to one or more sinks (Postgres, Kafka, RabbitMQ, SQS, SNS).
+    section: net
+    formats:
+      - deb
+      - rpm
+      - apk
+    # The binary lands at /usr/bin/rss2msg.
+    bindir: /usr/bin
+    contents:
+      # Ship the same reference material the archives bundle. config.example.yaml is
+      # a reference, not an active config, so it goes under /etc as a documented sample
+      # rather than a live /etc/rss2msg/config.yaml the service would read.
+      - src: ./examples/config.example.yaml
+        dst: /etc/rss2msg/config.example.yaml
+      - src: ./README.md
+        dst: /usr/share/doc/rss2msg/README.md
+      - src: ./CHANGELOG.md
+        dst: /usr/share/doc/rss2msg/CHANGELOG.md
+
+# Homebrew cask, published to the project's tap on each stable release. Install
+# with:  brew install IAmBod/tap/rss2msg  (macOS — Homebrew Cask is macOS-only;
+# Linux users get the .deb/.rpm/.apk above or the container image).
+#
+# Uses homebrew_casks rather than the deprecated `brews` formula section
+# (https://goreleaser.com/deprecations#brews). GoReleaser ships the prebuilt
+# binary in the cask and adds a postflight to clear the quarantine attribute,
+# since the binary isn't notarized. The cask name defaults to the binary name
+# (rss2msg), so no `binaries:` override is needed.
+#
+# Prerequisites (one-time, maintainer side):
+#   1. Create a public repo `IAmBod/homebrew-tap` (the `homebrew-` prefix lets
+#      `brew install IAmBod/tap/...` resolve it).
+#   2. Add a repo/org secret `TAP_GITHUB_TOKEN` — a fine-grained PAT with
+#      `contents: write` on that tap repo. The default GITHUB_TOKEN can't push
+#      to a *different* repository, so a separate token is required. The release
+#      workflow passes it through as $TAP_GITHUB_TOKEN.
+homebrew_casks:
+  - name: rss2msg
+    ids:
+      - rss2msg
+    repository:
+      owner: IAmBod
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    directory: Casks
+    homepage: https://github.com/IAmBod/rss2msg
+    description: Poll RSS/Atom/JSON feeds and publish changes to message sinks
+    license: BUSL-1.1
+    # Don't push prerelease tags (e.g. v1.0.0-rc.1) onto the tap; mirrors the
+    # `prerelease: auto` policy used for the GitHub release below.
+    skip_upload: auto
+    commit_author:
+      name: github-actions[bot]
+      email: 41898282+github-actions[bot]@users.noreply.github.com
+    commit_msg_template: "chore: brew cask update for {{ .ProjectName }} {{ .Tag }}"
 
 checksum:
   name_template: checksums.txt
@@ -75,7 +146,9 @@ changelog:
 # the older dockers/docker_manifests pair).
 dockers_v2:
   - id: rss2msg
-    dockerfile: Dockerfile.goreleaser
+    # Reuse the multi-stage Dockerfile; its final stage (production) packages the
+    # prebuilt binary, so buildx targets it by default.
+    dockerfile: Dockerfile
     images:
       - ghcr.io/iambod/rss2msg
     tags:

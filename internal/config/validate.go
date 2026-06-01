@@ -466,6 +466,27 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 	}
 
+	// Client-TLS blocks (postgres/kafka/rabbitmq/http sinks) require cert_file
+	// and key_file to be set together for mutual-TLS.
+	for i, s := range c.Sinks {
+		var stls SinkTLSConfig
+		switch s.Driver {
+		case "postgres":
+			stls = s.Postgres.TLS
+		case "kafka":
+			stls = s.Kafka.TLS
+		case "rabbitmq":
+			stls = s.RabbitMQ.TLS
+		case "http":
+			stls = s.HTTP.TLS
+		default:
+			continue
+		}
+		if (stls.CertFile == "") != (stls.KeyFile == "") {
+			return *warnings, fmt.Errorf("sinks[%d] (%s %q): tls.cert_file and key_file must both be set or both empty", i, s.Driver, s.Name)
+		}
+	}
+
 	hasDefault := false
 	if _, ok := names["default"]; ok {
 		hasDefault = true

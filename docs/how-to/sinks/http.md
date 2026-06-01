@@ -32,6 +32,7 @@ custom HTTP receivers, etc.
 | `headers`       | no       | (none)                 | Static request headers. Useful for auth tokens, custom routing keys, etc. Per-record canonical headers (see below) cannot be overridden. |
 | `timeout`       | no       | `30s`                  | Per-request timeout (Go `time.Duration`). |
 | `success_codes` | no       | `[200, 201, 202, 204]` | HTTP status codes treated as success; everything else surfaces as a publish error. |
+| `tls`           | no       | (off)                  | Structured client TLS (custom CA / mTLS / verification) for `https://` targets. See [Secure Connections (TLS)](../secure-connections-tls.md#sinks). |
 
 Request layout:
 - Body: JSON `Change` envelope.
@@ -42,6 +43,7 @@ Request layout:
 ## Related
 
 - [Choose a Sink](../choose-a-sink.md) — all drivers and the decision table.
+- [Secure Connections (TLS)](../secure-connections-tls.md#sinks) — custom CA / mTLS for this sink.
 - [Sink Wire Formats](../../reference/wire-formats.md) — on-the-wire layout.
 - [Change Envelope](../../reference/change-envelope.md) — the payload body.
 - [Connect Zapier and n8n](../connect-zapier-and-n8n.md) — drive automation platforms with this sink.

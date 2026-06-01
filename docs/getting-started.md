@@ -8,6 +8,32 @@ updated: 2026-05-30
 
 # Getting Started
 
+## Install
+
+If you just want to run rss2msg, install a pre-built binary instead of building
+from source.
+
+**Homebrew** (macOS):
+
+```bash
+brew install IAmBod/tap/rss2msg
+rss2msg version
+```
+
+This pulls the cask from the project's [Homebrew tap](https://github.com/IAmBod/homebrew-tap),
+which the [release pipeline](development/releasing.md) updates on every stable tag.
+(Homebrew Cask is macOS-only; on Linux use a package or the image below.)
+
+**Linux packages:** download a `.deb` / `.rpm` / `.apk` for your architecture from the
+[GitHub Releases](https://github.com/IAmBod/rss2msg/releases) page and install it with
+your package manager (e.g. `sudo dpkg -i rss2msg_*_amd64.deb`).
+
+**Other options:** download a raw `.tar.gz` / `.zip` binary from the same
+[Releases](https://github.com/IAmBod/rss2msg/releases) page, or run the container
+image — see [Run with Docker](how-to/run-with-docker.md).
+
+To build from source instead, read on.
+
 ## Build
 
 ```bash
@@ -35,13 +61,13 @@ docker run -d --name kafka -p 9092:9092 confluentinc/cp-kafka:7.6.0
 export POSTGRES_DSN="postgres://postgres:test@localhost:5432/postgres?sslmode=disable"
 
 # 4. One-shot: poll every feed once, publish, exit
-./rss2msg run-once --config config.example.yaml
+./rss2msg run-once --config examples/config.example.yaml
 
 # 5. Inspect what landed in Postgres
 psql "$POSTGRES_DSN" -c 'SELECT feed_url, item_id, kind, detected_at FROM feed_changes;'
 
 # 6. Or run as a daemon
-./rss2msg serve --config config.example.yaml
+./rss2msg serve --config examples/config.example.yaml
 ```
 
 For SQS/SNS try LocalStack:

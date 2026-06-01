@@ -33,3 +33,16 @@ Full documentation lives in [`docs/`](./docs/index.md). Start there, or jump in:
 
 **Develop**
 - [Building and Testing](./docs/development/building-and-testing.md) · [Contributing](./docs/development/contributing.md) · [Releasing](./docs/development/releasing.md)
+
+---
+
+## License
+
+rss2msg is licensed under the [Business Source License 1.1](./LICENSE).
+
+You may use, modify, and redistribute it freely, **including for commercial
+purposes** — the one exception is that you may not offer rss2msg to third parties
+as a hosted or managed "Feed-to-Message Service" without a separate commercial
+license. Each released version converts to the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+on its Change Date (four years after release). See [`LICENSE`](./LICENSE) for the
+exact terms; for commercial-licensing questions, contact boodeikaroly@gmail.com.

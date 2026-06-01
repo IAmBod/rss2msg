@@ -2,10 +2,14 @@ package kafka
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 
+	"github.com/rs/zerolog/log"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -25,6 +29,28 @@ type Options struct {
 	Topic       string
 	Acks        string // "all" (default) | "leader" | "none"
 	Compression string // "none" | "snappy" | "lz4" | "zstd" | "gzip"
+
+	// TLS, if non-nil, enables TLS to the brokers using the given options.
+	// Kafka has no URL scheme to imply TLS, so this is the only switch.
+	TLS *TLSOptions
+}
+
+// TLSOptions configures TLS to the Kafka brokers. Same shape as the other
+// sinks so operators have a consistent surface. ServerName is left empty by
+// default so franz-go applies per-broker SNI.
+type TLSOptions struct {
+	// CAFile is a PEM-encoded CA bundle to trust instead of the system roots.
+	CAFile string
+	// CertFile and KeyFile together enable client-certificate (mTLS) auth.
+	// Either both or neither must be set.
+	CertFile string
+	KeyFile  string
+	// ServerName overrides the SNI / certificate verification hostname.
+	// Empty leaves per-broker SNI to franz-go.
+	ServerName string
+	// InsecureSkipVerify disables server certificate verification. For
+	// local/test only — logged at warn.
+	InsecureSkipVerify bool
 }
 
 func New(opts Options) (*Publisher, error) {
@@ -58,6 +84,19 @@ func New(opts Options) (*Publisher, error) {
 		}
 		kopts = append(kopts, kgo.ProducerBatchCompression(c))
 	}
+	if opts.TLS != nil {
+		tc, err := buildTLSConfig(*opts.TLS)
+		if err != nil {
+			return nil, fmt.Errorf("kafka sink %q: build TLS config: %w", opts.Name, err)
+		}
+		kopts = append(kopts, kgo.DialTLSConfig(tc))
+		if opts.TLS.InsecureSkipVerify {
+			log.Warn().
+				Str("sink", opts.Name).
+				Str("sink_driver", "kafka").
+				Msg("kafka sink: TLS verification disabled (insecure_skip_verify=true)")
+		}
+	}
 
 	client, err := kgo.NewClient(kopts...)
 	if err != nil {
@@ -72,6 +111,39 @@ var compressionMap = map[string]kgo.CompressionCodec{
 	"lz4":    kgo.Lz4Compression(),
 	"zstd":   kgo.ZstdCompression(),
 	"gzip":   kgo.GzipCompression(),
+}
+
+// buildTLSConfig translates TLSOptions into a *tls.Config. ServerName is left
+// empty unless overridden so franz-go applies per-broker SNI.
+func buildTLSConfig(opts TLSOptions) (*tls.Config, error) {
+	tc := &tls.Config{
+		InsecureSkipVerify: opts.InsecureSkipVerify, //nolint:gosec // opt-in, logged at warn
+	}
+	if opts.ServerName != "" {
+		tc.ServerName = opts.ServerName
+	}
+	if opts.CAFile != "" {
+		pem, err := os.ReadFile(opts.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("ca_file: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, fmt.Errorf("ca_file %q: no PEM certificates parsed", opts.CAFile)
+		}
+		tc.RootCAs = pool
+	}
+	if opts.CertFile != "" || opts.KeyFile != "" {
+		if opts.CertFile == "" || opts.KeyFile == "" {
+			return nil, fmt.Errorf("cert_file and key_file must both be set or both empty")
+		}
+		cert, err := tls.LoadX509KeyPair(opts.CertFile, opts.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("client cert: %w", err)
+		}
+		tc.Certificates = []tls.Certificate{cert}
+	}
+	return tc, nil
 }
 
 func (p *Publisher) Name() string { return p.name }

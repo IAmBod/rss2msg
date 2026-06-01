@@ -108,6 +108,8 @@ sinks:
   #   postgres:
   #     dsn: ${POSTGRES_DSN}
   #     table: feed_changes
+  #     tls:                                        # custom CA / mTLS — see docs/how-to/secure-connections-tls.md#sinks
+  #       ca_file: /etc/ssl/certs/db-ca.pem
   # - name: kafka-main
   #   driver: kafka
   #   kafka:
@@ -115,6 +117,9 @@ sinks:
   #     topic: feed.changes
   #     acks: all
   #     compression: snappy
+  #     tls:                                        # kafka has no URL scheme — set enabled to turn TLS on
+  #       enabled: true
+  #       ca_file: /etc/ssl/certs/kafka-ca.pem
   #   dead_letter: dlq-main
   # - name: dlq-main
   #   driver: postgres
@@ -145,6 +150,8 @@ sinks:
   #     routing_key: feed.changes
   #     declare: true                               # declare the exchange at startup
   #     durable: true                               # only meaningful when declare=true
+  #     tls:                                        # use an amqps:// url above; adds custom CA / mTLS
+  #       ca_file: /etc/ssl/certs/rabbit-ca.pem
   #   dead_letter: dlq-main
   # - name: asb-main
   #   driver: azureservicebus
@@ -163,6 +170,8 @@ sinks:
   #       Authorization: "Bearer ${HOOK_TOKEN}"
   #     timeout: 10s
   #     success_codes: [200, 201, 202, 204]
+  #     tls:                                        # for https:// targets with a private CA / mTLS
+  #       ca_file: /etc/ssl/certs/internal-ca.pem
 
 feeds:
   - url: https://example.com/blog/rss.xml
