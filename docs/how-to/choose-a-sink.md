@@ -17,7 +17,7 @@ Common fields on every sink:
 | field         | required | notes |
 | ------------- | -------- | ----- |
 | `name`        | yes      | Unique per config. Referenced by `feeds[].sinks` and `dead_letter`. |
-| `driver`      | yes      | One of `postgres`, `kafka`, `rabbitmq`, `sqs`, `sns`, `azureservicebus`, `stdout`, `http`, `feed`, `composite`. |
+| `driver`      | yes      | One of `postgres`, `kafka`, `rabbitmq`, `sqs`, `sns`, `gcp_pubsub`, `azureservicebus`, `stdout`, `http`, `feed`, `composite`. |
 | `dead_letter` | no       | Name of another declared sink. On retry exhaustion the change is delivered there once, with `dlq_from_sink`, `dlq_error`, and `dlq_attempts` annotations. A sink cannot be its own DLQ. |
 
 ## Drivers
@@ -28,6 +28,7 @@ Common fields on every sink:
 | kafka     | high-throughput streaming, co-partition by item                                          | [kafka](sinks/kafka.md)         |
 | sqs       | AWS queue, optional FIFO ordering                                                        | [sqs](sinks/sqs.md)             |
 | sns       | AWS pub/sub fan-out, optional FIFO                                                       | [sns](sinks/sns.md)             |
+| gcp_pubsub | GCP-native pub/sub, optional ordered delivery                                           | [gcp_pubsub](sinks/gcp-pubsub.md) |
 | rabbitmq  | AMQP routing (topic/direct/fanout)                                                       | [rabbitmq](sinks/rabbitmq.md)   |
 | azureservicebus | Azure queue/topic, SAS or Azure AD auth                                            | [azureservicebus](sinks/azureservicebus.md) |
 | stdout    | local dev, debugging, ad-hoc pipelines                                                   | [stdout](sinks/stdout.md)       |
