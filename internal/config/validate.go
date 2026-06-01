@@ -407,6 +407,9 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 				return *warnings, fmt.Errorf("sinks[%d] (http %q): http.url %q is not a valid http(s) URL", i, s.Name, raw)
 			}
+			if s.HTTP.HTTP3 && u.Scheme != "https" {
+				return *warnings, fmt.Errorf("sinks[%d] (http %q): http3 requires an https:// url (HTTP/3 is TLS-only)", i, s.Name)
+			}
 			if _, ok := knownHTTPSinkMethods[s.HTTP.Method]; !ok {
 				return *warnings, fmt.Errorf("sinks[%d] (http %q): unknown method %q (want POST or PUT)", i, s.Name, s.HTTP.Method)
 			}
@@ -496,6 +499,9 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			}
 			if (f.TLS.CertFile == "") != (f.TLS.KeyFile == "") {
 				return *warnings, fmt.Errorf("sinks[%d] (feed %q): tls.cert_file and key_file must both be set or both empty", i, s.Name)
+			}
+			if f.HTTP3 && (f.TLS.CertFile == "" || f.TLS.KeyFile == "") {
+				return *warnings, fmt.Errorf("sinks[%d] (feed %q): http3 requires tls.cert_file and key_file (HTTP/3 is TLS-only)", i, s.Name)
 			}
 			hasBasic := f.Auth.Basic.Username != "" || f.Auth.Basic.Password != ""
 			if hasBasic && f.Auth.BearerToken != "" {

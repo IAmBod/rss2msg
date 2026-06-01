@@ -209,6 +209,7 @@ type HTTPSinkConfig struct {
 	Timeout      time.Duration     `mapstructure:"timeout"`       // 0 -> 30s
 	SuccessCodes []int             `mapstructure:"success_codes"` // empty -> {200,201,202,204}
 	TLS          SinkTLSConfig     `mapstructure:"tls"`
+	HTTP3        bool              `mapstructure:"http3"` // dial over HTTP/3 (QUIC); requires https url
 }
 
 // SinkTLSConfig is the canonical client-TLS surface shared by the postgres,
@@ -248,6 +249,7 @@ type FeedSinkConfig struct {
 	CacheControlTTL time.Duration      `mapstructure:"cache_control_ttl"`
 	Timeouts        FeedTimeoutsConfig `mapstructure:"timeouts"`
 	TLS             FeedTLSConfig      `mapstructure:"tls"`
+	HTTP3           bool               `mapstructure:"http3"` // serve HTTP/3 (QUIC) alongside TCP; requires tls
 	Auth            FeedAuthConfig     `mapstructure:"auth"`
 	Store           FeedStoreConfig    `mapstructure:"store"`
 }

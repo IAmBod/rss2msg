@@ -3,7 +3,7 @@ title: Secure Connections (TLS)
 type: how-to
 tags: [rss2msg/docs, tls, security]
 summary: Structured TLS config for the Postgres (state + coordination) and Redis (coordination) backends and for the network message sinks.
-updated: 2026-06-01
+updated: 2026-06-02
 ---
 
 # Secure Connections (TLS)
@@ -112,13 +112,14 @@ A sink's `tls:` block is **active** when `enabled: true` or any field is set. Wh
 - **postgres** — applies the TLS config to the pool and clears pgx's plaintext fallbacks (no silent downgrade).
 - **kafka** — dials the brokers over TLS. Use `enabled: true` to turn it on with the system roots.
 - **rabbitmq** — dials with TLS; use an `amqps://` URL.
-- **http** — applies the TLS config to the webhook client transport; use an `https://` URL.
+- **http** — applies the TLS config to the webhook client transport; use an `https://` URL. Set `http3: true` to dial over HTTP/3 (QUIC); HTTP/3 is TLS-only, so the URL must be `https://`.
 
 The **sqs** and **sns** sinks talk to AWS over HTTPS via the AWS SDK, which manages TLS
 automatically — there is no `tls:` block to configure. The **feed** sink is a *server*:
 configure its certificate with `feed.tls.cert_file` / `feed.tls.key_file` (see
-[the feed sink how-to](sinks/feed.md)); a Postgres store backend takes the same five
-client knobs under `feed.store.postgres.tls`.
+[the feed sink how-to](sinks/feed.md)); set `feed.http3: true` to also serve
+HTTP/3 (QUIC), which requires that certificate. A Postgres store backend takes
+the same five client knobs under `feed.store.postgres.tls`.
 
 ## Related
 
