@@ -127,6 +127,24 @@ func TestCloudWatchMetricsExportsHistogramAsStatisticSet(t *testing.T) {
 	}
 }
 
+func TestCloudWatchMetricsSkipsZeroCountHistogram(t *testing.T) {
+	t.Parallel()
+	f := &fakeCWMetrics{}
+	// CloudWatch rejects a StatisticSet with SampleCount==0, which would fail
+	// the entire PutMetricData batch; such points must be dropped.
+	exportMetric(t, f, "rss2msg", metricdata.Metrics{
+		Name: "feed.fetch.duration",
+		Data: metricdata.Histogram[float64]{
+			DataPoints: []metricdata.HistogramDataPoint[float64]{{Count: 0, Sum: 0, Time: cwFixedTime}},
+		},
+	})
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.calls) != 0 {
+		t.Fatalf("expected no PutMetricData call for a zero-count histogram, got %d", len(f.calls))
+	}
+}
+
 func TestCloudWatchMetricsFoldsAttributesAsDimensions(t *testing.T) {
 	t.Parallel()
 	f := &fakeCWMetrics{}

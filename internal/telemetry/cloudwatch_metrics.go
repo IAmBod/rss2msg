@@ -140,6 +140,11 @@ func appendNum[N int64 | float64](data []cwtypes.MetricDatum, name string, dps [
 
 func appendHist[N int64 | float64](data []cwtypes.MetricDatum, name string, dps []metricdata.HistogramDataPoint[N]) []cwtypes.MetricDatum {
 	for _, dp := range dps {
+		// CloudWatch rejects a StatisticSet with SampleCount==0, which would
+		// fail the whole PutMetricData batch; skip empty histogram points.
+		if dp.Count == 0 {
+			continue
+		}
 		stat := cwtypes.StatisticSet{
 			SampleCount: aws.Float64(float64(dp.Count)),
 			Sum:         aws.Float64(float64(dp.Sum)),
