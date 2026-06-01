@@ -186,6 +186,18 @@ func newMeterProvider(ctx context.Context, cfg config.Config, res *resource.Reso
 		}
 	}
 
+	if cfg.Telemetry.Graphite.Enabled {
+		exp, err := newGraphiteExporter(cfg.Telemetry.Graphite)
+		if err != nil {
+			return nil, nil, fmt.Errorf("graphite exporter: %w", err)
+		}
+		var ropts []sdkmetric.PeriodicReaderOption
+		if cfg.Telemetry.Graphite.Interval > 0 {
+			ropts = append(ropts, sdkmetric.WithInterval(cfg.Telemetry.Graphite.Interval))
+		}
+		opts = append(opts, sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exp, ropts...)))
+	}
+
 	mp := sdkmetric.NewMeterProvider(opts...)
 	shutdown := func(ctx context.Context) error {
 		errs := []error{mp.Shutdown(ctx)}

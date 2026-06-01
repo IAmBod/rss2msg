@@ -20,8 +20,10 @@ updated: 2026-05-30
 
 - **OTEL exporters need an OTLP endpoint.** Without
   `OTEL_EXPORTER_OTLP_ENDPOINT` (or the per-signal variants), the providers
-  are wired but no-op. The Prometheus exporter is a separate flag
-  (`telemetry.prometheus.enabled`).
+  are wired but no-op. The Prometheus scrape endpoint
+  (`telemetry.prometheus.enabled`) and the Graphite/Carbon push exporter
+  (`telemetry.graphite.enabled`) are separate flags that work without an OTLP
+  endpoint.
 - **Dead-letter queues.** Any sink may declare
   `dead_letter: <other-sink-name>`. On retry exhaustion the change is
   handed to the DLQ *once*, annotated with `dlq_from_sink`, `dlq_error`,

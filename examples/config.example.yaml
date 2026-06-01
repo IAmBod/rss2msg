@@ -10,6 +10,11 @@ telemetry:
   prometheus:
     enabled: false
     listen: ":9090"
+  graphite:                       # push metrics to a Carbon (Graphite) endpoint
+    enabled: false
+    address: "localhost:2003"     # Carbon plaintext TCP endpoint (host:port)
+    prefix: "rss2msg"             # metric-path prefix prepended to every metric
+    interval: 10s                 # push cadence (0 uses the SDK default)
 
 http:
   user_agent: "rss2msg/0.1 (+https://example.com)"

@@ -10,6 +10,11 @@ telemetry:
   prometheus:
     enabled: false
     listen: ":9090"
+  graphite:                       # push metrics to a Carbon (Graphite) endpoint
+    enabled: false
+    address: "localhost:2003"     # Carbon plaintext TCP endpoint (host:port)
+    prefix: "rss2msg"             # metric-path prefix prepended to every metric
+    interval: 10s                 # push cadence (0 uses the SDK default)
 
 http:
   user_agent: "rss2msg/0.1 (+https://example.com)"
@@ -160,6 +165,14 @@ sinks:
   #     durable: true                               # only meaningful when declare=true
   #     tls:                                        # use an amqps:// url above; adds custom CA / mTLS
   #       ca_file: /etc/ssl/certs/rabbit-ca.pem
+  #   dead_letter: dlq-main
+  # - name: asb-main
+  #   driver: azureservicebus
+  #   azureservicebus:
+  #     connection_string: ${AZURE_SERVICEBUS_CONNECTION_STRING}  # SAS auth; or use namespace:
+  #     # namespace: my-bus.servicebus.windows.net                # Azure AD (DefaultAzureCredential)
+  #     queue: feed-changes                          # set exactly one of queue / topic
+  #     # topic: feed-changes
   #   dead_letter: dlq-main
   # - name: webhook
   #   driver: http
