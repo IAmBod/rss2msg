@@ -24,8 +24,12 @@ sinks:
       link: "https://example.com/"    # the website this feed is about (RSS channel link / Atom rel=alternate)
       description: "Aggregated feed changes from rss2msg"
       max_items: 50                   # rolling window size (default 50)
-      rss_path: /rss                  # default /rss
-      atom_path: /atom                # default /atom
+      rss:                            # RSS 2.0 output surface (default enabled at /rss)
+        enabled: true
+        path: /rss
+      atom:                           # Atom 1.0 output surface (default enabled at /atom)
+        enabled: true
+        path: /atom
       render_cache_ttl: 10s           # optional; in-memory server-side render cache, pure TTL (default off)
       cache_control_ttl: 5m           # optional; Cache-Control: public, max-age=<this> (default off -> no-cache)
       timeouts:                       # optional; safe non-zero defaults applied when unset
@@ -58,8 +62,8 @@ sinks:
 | `link`              | no       | (none)        | The website this feed is about (RSS channel link / Atom `rel=alternate`). Must be an absolute URL when set. |
 | `description`       | no       | (none)        | Feed / channel description. |
 | `max_items`         | no       | `50`          | Rolling window size. Must be `>= 1`. |
-| `rss_path`          | no       | `/rss`        | Must start with `/` and differ from `atom_path`. |
-| `atom_path`         | no       | `/atom`       | Must start with `/` and differ from `rss_path`. |
+| `rss`               | no       | enabled `/rss`  | RSS 2.0 surface: `{ enabled, path }`. `path` must start with `/` and differ from other enabled surfaces. |
+| `atom`              | no       | enabled `/atom` | Atom 1.0 surface: `{ enabled, path }`. `path` must start with `/` and differ from other enabled surfaces. |
 | `render_cache_ttl`  | no       | off           | In-memory server-side render cache (pure TTL); see [HTTP caching](#http-caching). |
 | `cache_control_ttl` | no       | off           | Client-facing `max-age`; see [HTTP caching](#http-caching). |
 | `timeouts`          | no       | (see below)   | HTTP server timeouts. |
@@ -77,8 +81,8 @@ delivered via DLQ routing) are never surfaced in the public feed.
 
 | request                  | response |
 | ------------------------ | -------- |
-| `GET <rss_path>`         | `200`, `Content-Type: application/rss+xml` (RSS 2.0). |
-| `GET <atom_path>`        | `200`, `Content-Type: application/atom+xml` (Atom 1.0). |
+| `GET <rss.path>`         | `200`, `Content-Type: application/rss+xml` (RSS 2.0). |
+| `GET <atom.path>`        | `200`, `Content-Type: application/atom+xml` (Atom 1.0). |
 | `HEAD` on either path    | `200` with headers, no body. |
 | any other method         | `405`, `Allow: GET, HEAD`. |
 | any other path           | `404`. |

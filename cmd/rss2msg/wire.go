@@ -463,7 +463,7 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 		return feedsink.New(ctx, feedsink.Options{
 			Name: sc.Name, Listen: f.Listen, PublicURL: f.PublicURL,
 			Meta:     feedsink.FeedMeta{Title: title, Link: f.Link, Description: f.Description},
-			MaxItems: max, RSSPath: f.RSSPath, AtomPath: f.AtomPath,
+			MaxItems: max, RSSPath: f.RSS.PathOr("/rss"), AtomPath: f.Atom.PathOr("/atom"),
 			RenderCacheTTL: f.RenderCacheTTL, CacheControlTTL: f.CacheControlTTL,
 			Timeouts: feedsink.Timeouts{
 				ReadHeader: f.Timeouts.ReadHeader, Read: f.Timeouts.Read,

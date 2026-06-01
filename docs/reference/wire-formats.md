@@ -30,7 +30,7 @@ document their publish layout on their own pages.
 
 The [feed](../how-to/sinks/feed.md) sink does not emit one message per change.
 It serves a rolling window of recent changes as a single document over HTTP:
-RSS 2.0 at `rss_path` and Atom 1.0 at `atom_path`.
+RSS 2.0 at `rss.path` and Atom 1.0 at `atom.path`.
 
 Each feed entry id is a synthetic, globally-unique URN derived from the change's
 `(feed_url, item_id)`: `urn:rss2msg:<sha256(feed_url + "\n" + item_id)>`. RSS
