@@ -204,6 +204,15 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// Report unrecovered panics to Sentry (if enabled by config) before the
+	// process dies, then re-panic so the default crash behaviour is unchanged.
+	defer func() {
+		if r := recover(); r != nil {
+			reportPanic(r)
+			panic(r)
+		}
+	}()
+
 	if err := newRootCmd().ExecuteContext(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
