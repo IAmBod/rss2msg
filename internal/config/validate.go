@@ -26,6 +26,19 @@ var knownStateDrivers = map[string]struct{}{
 	"sqlite":   {},
 }
 
+// knownZerologLevels is the set of level names zerolog.ParseLevel accepts; used
+// to validate telemetry.sentry.level without coupling config to zerolog.
+var knownZerologLevels = map[string]struct{}{
+	"trace":    {},
+	"debug":    {},
+	"info":     {},
+	"warn":     {},
+	"error":    {},
+	"fatal":    {},
+	"panic":    {},
+	"disabled": {},
+}
+
 var knownSinkDrivers = map[string]struct{}{
 	"postgres":        {},
 	"kafka":           {},
@@ -228,6 +241,20 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 		if (tls.CertFile == "") != (tls.KeyFile == "") {
 			return *warnings, fmt.Errorf("coordination.redis.tls.cert_file and key_file must both be set or both empty")
+		}
+	}
+
+	if s := c.Telemetry.Sentry; s.Enabled {
+		if s.SampleRate < 0 || s.SampleRate > 1 {
+			return *warnings, fmt.Errorf("telemetry.sentry.sample_rate %v must be within [0.0, 1.0]", s.SampleRate)
+		}
+		if s.TracesSampleRate < 0 || s.TracesSampleRate > 1 {
+			return *warnings, fmt.Errorf("telemetry.sentry.traces_sample_rate %v must be within [0.0, 1.0]", s.TracesSampleRate)
+		}
+		if lvl := strings.TrimSpace(s.Level); lvl != "" {
+			if _, ok := knownZerologLevels[strings.ToLower(lvl)]; !ok {
+				return *warnings, fmt.Errorf("telemetry.sentry.level %q is not a valid level (want one of trace, debug, info, warn, error, fatal, panic, disabled)", s.Level)
+			}
 		}
 	}
 
