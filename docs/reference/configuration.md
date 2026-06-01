@@ -83,6 +83,20 @@ telemetry:
     sample_rate: 1.0
     traces_sample_rate: 0.0
     debug: false
+  cloudwatch:
+    enabled: false
+    # region: us-east-1
+    # endpoint_url: ""
+    logs:
+      enabled: false
+      # log_group: /rss2msg/app
+      level: info
+      batch_interval: 5s
+      create_group: false
+    metrics:
+      enabled: false
+      namespace: rss2msg
+      interval: 60s
 ```
 
 | field | default | notes |
@@ -166,6 +180,57 @@ capture event.
 
 > Only the log message, level, and trace tags reach PostHog — zerolog hooks do not
 > expose structured fields or the underlying `err` object.
+
+### `telemetry.cloudwatch`
+
+Optional [AWS CloudWatch](https://aws.amazon.com/cloudwatch/) telemetry, disabled
+by default. Two surfaces toggle independently: **Logs** ships log events to a
+CloudWatch Logs group/stream, and **Metrics** pushes the OTEL instruments to
+CloudWatch Metrics. `region` and `endpoint_url` are shared by both; AWS
+credentials are resolved through the default SDK chain (environment, shared
+config, IAM role), like the SQS/SNS sinks.
+
+| field          | default     | notes |
+| -------------- | ----------- | ----- |
+| `enabled`      | `false`     | Master switch for the block. |
+| `region`       | `""`        | AWS region; empty uses the default SDK chain. |
+| `endpoint_url` | `""`        | Optional endpoint override (e.g. LocalStack). |
+
+**Logs** (`telemetry.cloudwatch.logs`):
+
+| field            | default  | notes |
+| ---------------- | -------- | ----- |
+| `enabled`        | `false`  | Ship log events to CloudWatch Logs. |
+| `log_group`      | `""`     | Log group name. **Required** when logs are enabled. |
+| `log_stream`     | hostname | Log stream name; defaults to the hostname. |
+| `level`          | `info`   | Minimum zerolog level forwarded (`trace`..`panic`). |
+| `batch_interval` | `5s`     | Flush cadence; `0` uses the default. |
+| `create_group`   | `false`  | Auto-create the group/stream if missing (needs `logs:CreateLogGroup`/`CreateLogStream`). |
+
+Events are batched on a buffered channel and flushed by a background goroutine
+via `PutLogEvents` (sorted chronologically, chunked at the API limit), so the
+logging path never blocks on network I/O. If the buffer fills, events are
+dropped and the count is reported. An OTEL span context adds `trace_id`/`span_id`
+to the message. The buffer flushes on shutdown. Shipment is best-effort:
+`PutLogEvents` failures are logged but never abort the application.
+
+**Metrics** (`telemetry.cloudwatch.metrics`):
+
+| field       | default   | notes |
+| ----------- | --------- | ----- |
+| `enabled`   | `false`   | Push metrics to CloudWatch Metrics. |
+| `namespace` | `rss2msg` | CloudWatch namespace for every datum. |
+| `interval`  | `60s`     | Push cadence; `0` uses the OTEL SDK default. |
+
+An OTEL `PeriodicReader` collects metrics on `interval` and pushes them via
+`PutMetricData`. Sums and gauges map to a datum `Value`; histograms map to a
+`StatisticSet` (count/sum/min/max). Metric **attributes** fold into CloudWatch
+`Dimensions` (sorted by key, capped at the 30-dimension limit), and datums are
+chunked into 1000-per-call requests. Requires `telemetry.metrics.enabled=true`;
+needs the `cloudwatch:PutMetricData` IAM permission.
+
+> Only the log message, level, and trace context reach CloudWatch Logs — zerolog
+> hooks do not expose structured fields or the underlying `err` object.
 
 ## `http`
 
