@@ -27,15 +27,16 @@ var knownStateDrivers = map[string]struct{}{
 }
 
 var knownSinkDrivers = map[string]struct{}{
-	"postgres":  {},
-	"kafka":     {},
-	"rabbitmq":  {},
-	"sqs":       {},
-	"sns":       {},
-	"stdout":    {},
-	"http":      {},
-	"feed":      {},
-	"composite": {},
+	"postgres":        {},
+	"kafka":           {},
+	"rabbitmq":        {},
+	"sqs":             {},
+	"sns":             {},
+	"stdout":          {},
+	"http":            {},
+	"feed":            {},
+	"composite":       {},
+	"azureservicebus": {},
 }
 
 var knownFeedStoreDrivers = map[string]struct{}{
@@ -356,6 +357,24 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			}
 			if s.RabbitMQ.Declare && strings.TrimSpace(s.RabbitMQ.Exchange) == "" {
 				return *warnings, fmt.Errorf("sinks[%d] (rabbitmq %q): declare=true requires a non-empty exchange (the default exchange cannot be declared)", i, s.Name)
+			}
+		case "azureservicebus":
+			a := s.AzureServiceBus
+			hasConn := strings.TrimSpace(a.ConnectionString) != ""
+			hasNS := strings.TrimSpace(a.Namespace) != ""
+			switch {
+			case !hasConn && !hasNS:
+				return *warnings, fmt.Errorf("sinks[%d] (azureservicebus %q): one of connection_string or namespace is required", i, s.Name)
+			case hasConn && hasNS:
+				return *warnings, fmt.Errorf("sinks[%d] (azureservicebus %q): connection_string and namespace are mutually exclusive", i, s.Name)
+			}
+			hasQueue := strings.TrimSpace(a.Queue) != ""
+			hasTopic := strings.TrimSpace(a.Topic) != ""
+			switch {
+			case !hasQueue && !hasTopic:
+				return *warnings, fmt.Errorf("sinks[%d] (azureservicebus %q): one of queue or topic is required", i, s.Name)
+			case hasQueue && hasTopic:
+				return *warnings, fmt.Errorf("sinks[%d] (azureservicebus %q): queue and topic are mutually exclusive", i, s.Name)
 			}
 		case "composite":
 			if len(s.Composite.Children) == 0 {

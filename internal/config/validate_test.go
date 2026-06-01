@@ -1165,3 +1165,95 @@ func TestValidateHealthDisabledSkipsChecks(t *testing.T) {
 		t.Fatalf("expected nil, got %v", err)
 	}
 }
+
+func TestValidateAcceptsAzureServiceBusSink(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "asb-x", Driver: "azureservicebus",
+		AzureServiceBus: AzureServiceBusSinkConfig{
+			ConnectionString: "Endpoint=sb://x/;SharedAccessKeyName=k;SharedAccessKey=v",
+			Queue:            "feed-changes",
+		},
+	})
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateAcceptsAzureServiceBusNamespaceTopic(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "asb-x", Driver: "azureservicebus",
+		AzureServiceBus: AzureServiceBusSinkConfig{
+			Namespace: "my-bus.servicebus.windows.net",
+			Topic:     "feed-changes",
+		},
+	})
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsAzureServiceBusMissingAuth(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "asb-x", Driver: "azureservicebus",
+		AzureServiceBus: AzureServiceBusSinkConfig{Queue: "feed-changes"},
+	})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "connection_string or namespace") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsAzureServiceBusBothAuth(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "asb-x", Driver: "azureservicebus",
+		AzureServiceBus: AzureServiceBusSinkConfig{
+			ConnectionString: "Endpoint=sb://x/;SharedAccessKeyName=k;SharedAccessKey=v",
+			Namespace:        "my-bus.servicebus.windows.net",
+			Queue:            "feed-changes",
+		},
+	})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsAzureServiceBusMissingEntity(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "asb-x", Driver: "azureservicebus",
+		AzureServiceBus: AzureServiceBusSinkConfig{
+			ConnectionString: "Endpoint=sb://x/;SharedAccessKeyName=k;SharedAccessKey=v",
+		},
+	})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "queue or topic") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsAzureServiceBusBothEntities(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "asb-x", Driver: "azureservicebus",
+		AzureServiceBus: AzureServiceBusSinkConfig{
+			ConnectionString: "Endpoint=sb://x/;SharedAccessKeyName=k;SharedAccessKey=v",
+			Queue:            "q",
+			Topic:            "t",
+		},
+	})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "queue and topic are mutually exclusive") {
+		t.Fatalf("got %v", err)
+	}
+}
