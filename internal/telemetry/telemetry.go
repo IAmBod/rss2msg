@@ -51,26 +51,41 @@ func (t *Telemetry) Shutdown(ctx context.Context) error {
 func Setup(ctx context.Context, cfg config.Config, out io.Writer) (*Telemetry, error) {
 	t := &Telemetry{}
 
-	// Resolve Sentry first so its hook can be attached to the logger we build
-	// below. A missing DSN is non-fatal: warn (once the logger exists) and skip.
-	var sentryHooks []zerolog.Hook
-	sentryDSNMissing := false
+	// Resolve log-forwarding sinks (Sentry, PostHog) first so their hooks can be
+	// attached to the logger we build below. A missing credential is non-fatal:
+	// warn (once the logger exists) and skip.
+	var logHooks []zerolog.Hook
+	var setupWarnings []string
+
 	if cfg.Telemetry.Sentry.Enabled {
 		hook, shutdown, err := setupSentry(cfg.Telemetry.Sentry)
 		switch {
 		case errors.Is(err, errNoSentryDSN):
-			sentryDSNMissing = true
+			setupWarnings = append(setupWarnings, "telemetry.sentry.enabled=true but no DSN resolved (set telemetry.sentry.dsn or SENTRY_DSN); Sentry disabled")
 		case err != nil:
 			return nil, err
 		default:
-			sentryHooks = append(sentryHooks, hook)
+			logHooks = append(logHooks, hook)
 			t.shutdownFns = append(t.shutdownFns, shutdown)
 		}
 	}
 
-	t.Logger = buildLogger(cfg.Log, out, sentryHooks...)
-	if sentryDSNMissing {
-		t.Logger.Warn().Msg("telemetry.sentry.enabled=true but no DSN resolved (set telemetry.sentry.dsn or SENTRY_DSN); Sentry disabled")
+	if cfg.Telemetry.PostHog.Enabled {
+		hook, shutdown, err := setupPostHog(cfg.Telemetry.PostHog)
+		switch {
+		case errors.Is(err, errNoPostHogAPIKey):
+			setupWarnings = append(setupWarnings, "telemetry.posthog.enabled=true but no API key resolved (set telemetry.posthog.api_key or POSTHOG_API_KEY); PostHog disabled")
+		case err != nil:
+			return nil, err
+		default:
+			logHooks = append(logHooks, hook)
+			t.shutdownFns = append(t.shutdownFns, shutdown)
+		}
+	}
+
+	t.Logger = buildLogger(cfg.Log, out, logHooks...)
+	for _, w := range setupWarnings {
+		t.Logger.Warn().Msg(w)
 	}
 
 	// Install the W3C TraceContext + Baggage propagator so that span context

@@ -3,7 +3,7 @@ title: Configuration Reference
 type: reference
 tags: [rss2msg/docs, configuration]
 summary: Loading order, environment variables, and every config field except sinks, coordination, and feeds.
-updated: 2026-06-01
+updated: 2026-06-02
 ---
 
 # Configuration Reference
@@ -145,6 +145,26 @@ and unrecovered panics are reported before the process exits.
 | `debug`              | `false` | Sentry SDK debug logging to stdout. |
 
 > Only the log message, level, and trace tags reach Sentry — zerolog hooks do not
+> expose structured fields or the underlying `err` object.
+
+### `telemetry.posthog`
+
+Optional [PostHog](https://posthog.com) telemetry, disabled by default. When
+enabled, log events at or above `level` are forwarded to PostHog: events at
+`error` and above are sent as `$exception` events (PostHog Error Tracking), and
+lower levels (reachable only when `level` is lowered) are sent as a `log`
+capture event.
+
+| field            | default                    | notes |
+| ---------------- | -------------------------- | ----- |
+| `enabled`        | `false`                    | Master switch. |
+| `api_key`        | `""`                       | PostHog **project** API key; falls back to the `POSTHOG_API_KEY` env var when empty. If neither resolves while enabled, PostHog is skipped with a warning (startup is not aborted). |
+| `endpoint`       | `https://us.i.posthog.com` | Ingestion host; falls back to `POSTHOG_ENDPOINT`. Use `https://eu.i.posthog.com` for EU Cloud. |
+| `distinct_id`    | service name / hostname    | Distinct ID attached to every event. |
+| `level`          | `error`                    | Minimum zerolog level forwarded (`trace`..`panic`). Events carry `level` and `message` properties; an OTEL span context adds `trace_id`/`span_id`. |
+| `flush_interval` | `0`                        | Batch flush cadence (e.g. `10s`); `0` uses the SDK default. Buffered events also flush on shutdown. |
+
+> Only the log message, level, and trace tags reach PostHog — zerolog hooks do not
 > expose structured fields or the underlying `err` object.
 
 ## `http`

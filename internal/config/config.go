@@ -29,6 +29,22 @@ type TelemetryConfig struct {
 	Prometheus  TelemetryPrometheusConfig `mapstructure:"prometheus"`
 	Graphite    TelemetryGraphiteConfig   `mapstructure:"graphite"`
 	Sentry      TelemetrySentryConfig     `mapstructure:"sentry"`
+	PostHog     TelemetryPostHogConfig    `mapstructure:"posthog"`
+}
+
+// TelemetryPostHogConfig configures optional PostHog telemetry. It is disabled
+// by default; when Enabled, a project API key must be resolvable from APIKey or
+// the POSTHOG_API_KEY environment variable (checked at telemetry.Setup, not
+// validation). Log events at or above Level are forwarded to PostHog: error and
+// above as $exception (Error Tracking) events, lower levels as "log" capture
+// events.
+type TelemetryPostHogConfig struct {
+	Enabled       bool          `mapstructure:"enabled"`
+	APIKey        string        `mapstructure:"api_key"`        // project API key; falls back to POSTHOG_API_KEY
+	Endpoint      string        `mapstructure:"endpoint"`       // ingestion host; falls back to POSTHOG_ENDPOINT
+	DistinctID    string        `mapstructure:"distinct_id"`    // distinct id attached to events; defaults to service name/host
+	Level         string        `mapstructure:"level"`          // min zerolog level forwarded (default "error")
+	FlushInterval time.Duration `mapstructure:"flush_interval"` // batch flush cadence; 0 uses the SDK default
 }
 
 // TelemetrySentryConfig configures optional Sentry error/crash reporting. It is
@@ -384,6 +400,11 @@ func Defaults() Config {
 				Level:            "error",
 				SampleRate:       1.0,
 				TracesSampleRate: 0.0,
+			},
+			PostHog: TelemetryPostHogConfig{
+				Enabled:  false,
+				Endpoint: "https://us.i.posthog.com",
+				Level:    "error",
 			},
 		},
 		HTTP:         HTTPConfig{UserAgent: "rss2msg/0.1", Timeout: 30 * time.Second},

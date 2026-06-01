@@ -25,6 +25,13 @@ telemetry:
     sample_rate: 1.0               # error-event sampling, [0.0, 1.0]
     traces_sample_rate: 0.0        # performance/transaction sampling, [0.0, 1.0]
     debug: false                   # Sentry SDK debug logging
+  posthog:                         # optional PostHog telemetry (disabled by default)
+    enabled: false
+    # api_key: ${POSTHOG_API_KEY}  # project API key; required when enabled, falls back to POSTHOG_API_KEY
+    endpoint: "https://us.i.posthog.com"  # ingestion host; falls back to POSTHOG_ENDPOINT (EU: https://eu.i.posthog.com)
+    # distinct_id: ""              # distinct id attached to events; defaults to service name/host
+    level: error                   # min log level forwarded; error+ becomes a $exception (Error Tracking) event
+    flush_interval: 0s             # batch flush cadence (0 uses the SDK default)
 
 http:
   user_agent: "rss2msg/0.1 (+https://example.com)"
