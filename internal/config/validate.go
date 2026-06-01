@@ -475,16 +475,10 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			if f.MaxItems < 0 {
 				return *warnings, fmt.Errorf("sinks[%d] (feed %q): feed.max_items must not be negative", i, s.Name)
 			}
-			rss := f.RSSPath
-			if rss == "" {
-				rss = "/rss"
-			}
-			atom := f.AtomPath
-			if atom == "" {
-				atom = "/atom"
-			}
+			rss := f.RSS.PathOr("/rss")
+			atom := f.Atom.PathOr("/atom")
 			if rss[0] != '/' || atom[0] != '/' || rss == atom {
-				return *warnings, fmt.Errorf("sinks[%d] (feed %q): rss_path/atom_path must start with / and differ", i, s.Name)
+				return *warnings, fmt.Errorf("sinks[%d] (feed %q): rss/atom path must start with / and differ", i, s.Name)
 			}
 			for _, raw := range []string{f.Link, f.PublicURL} {
 				if raw == "" {
