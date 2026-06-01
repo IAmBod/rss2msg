@@ -57,7 +57,9 @@ The release workflow then:
   binary to `/usr/bin/rss2msg`, a sample config to `/etc/rss2msg/config.example.yaml`,
   and docs to `/usr/share/doc/rss2msg/`;
 - builds and pushes a multi-arch image to `ghcr.io/iambod/rss2msg:<version>` and
-  `:latest` from [`Dockerfile.goreleaser`](../../Dockerfile.goreleaser);
+  `:latest` — the `production` (final) stage of the single
+  [`Dockerfile`](../../Dockerfile), which packages the cross-compiled binary GoReleaser
+  stages per platform (`COPY $TARGETPLATFORM/rss2msg`);
 - publishes a GitHub Release whose notes are the git-cliff section for that tag.
 
 ## Version metadata
@@ -100,5 +102,5 @@ task release-snapshot   # full dry-run into ./dist, nothing published
 
 - [Contributing](contributing.md) — branch, commit, and PR conventions (Conventional Commits).
 - [Building and Testing](building-and-testing.md) — the local build and test commands CI mirrors.
-- [Run with Docker](../how-to/run-with-docker.md) — the hand-written Dockerfile for local/dev use.
+- [Run with Docker](../how-to/run-with-docker.md) — the development image and running the published production image.
 - [CLI](../reference/cli.md) — the `version` command this pipeline feeds.
