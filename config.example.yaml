@@ -146,6 +146,14 @@ sinks:
   #     declare: true                               # declare the exchange at startup
   #     durable: true                               # only meaningful when declare=true
   #   dead_letter: dlq-main
+  # - name: asb-main
+  #   driver: azureservicebus
+  #   azureservicebus:
+  #     connection_string: ${AZURE_SERVICEBUS_CONNECTION_STRING}  # SAS auth; or use namespace:
+  #     # namespace: my-bus.servicebus.windows.net                # Azure AD (DefaultAzureCredential)
+  #     queue: feed-changes                          # set exactly one of queue / topic
+  #     # topic: feed-changes
+  #   dead_letter: dlq-main
   # - name: webhook
   #   driver: http
   #   http:

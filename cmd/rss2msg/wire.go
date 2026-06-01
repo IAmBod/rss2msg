@@ -13,6 +13,7 @@ import (
 	"github.com/iambod/rss2msg/internal/retry"
 	"github.com/iambod/rss2msg/internal/scheduler"
 	"github.com/iambod/rss2msg/internal/sink"
+	sinkasb "github.com/iambod/rss2msg/internal/sink/azureservicebus"
 	compositesink "github.com/iambod/rss2msg/internal/sink/composite"
 	feedsink "github.com/iambod/rss2msg/internal/sink/feed"
 	sinkhttp "github.com/iambod/rss2msg/internal/sink/http"
@@ -405,6 +406,14 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 			StoreDriver: f.Store.Driver, SQLitePath: f.Store.SQLite.Path,
 			PostgresDSN: f.Store.Postgres.DSN, Table: f.Store.Postgres.Table, PostgresTLS: pgTLS,
 			Meter: tel.Meter, Logger: tel.Logger,
+		})
+	case "azureservicebus":
+		return sinkasb.New(sinkasb.Options{
+			Name:             sc.Name,
+			ConnectionString: sc.AzureServiceBus.ConnectionString,
+			Namespace:        sc.AzureServiceBus.Namespace,
+			Queue:            sc.AzureServiceBus.Queue,
+			Topic:            sc.AzureServiceBus.Topic,
 		})
 	case "composite":
 		return compositesink.New(compositesink.Options{

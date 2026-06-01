@@ -14,14 +14,16 @@ updated: 2026-05-30
 | kafka    | `Key = item_id`          | JSON `Change` value | Headers: `feed_url`, `kind`, `schema_version`, `traceparent?`, `tracestate?`, `dlq_*?`. |
 | sqs      | n/a                      | JSON `Change` body  | MessageAttributes: same as Kafka headers.                         |
 | sns      | n/a                      | JSON `Change` body  | MessageAttributes: same as Kafka headers.                         |
+| azureservicebus | `MessageID = item_id` | JSON `Change` body | ApplicationProperties: same keys as Kafka headers; `ContentType: application/json`. |
 | feed     | entry id `urn:rss2msg:<sha256>` | RSS 2.0 / Atom 1.0 document (windowed) | Served over HTTP; per-entry mapping below. |
 
 Postgres `payload` is the full envelope — everything else is extractable
 from it; the columns are for indexing and basic SQL filtering.
 
-The [rabbitmq](../how-to/sinks/rabbitmq.md), [stdout](../how-to/sinks/stdout.md),
-and [http](../how-to/sinks/http.md) sinks document their publish layout on their
-own pages.
+The [rabbitmq](../how-to/sinks/rabbitmq.md),
+[azureservicebus](../how-to/sinks/azureservicebus.md),
+[stdout](../how-to/sinks/stdout.md), and [http](../how-to/sinks/http.md) sinks
+document their publish layout on their own pages.
 
 ## Feed sink (RSS 2.0 / Atom 1.0)
 
