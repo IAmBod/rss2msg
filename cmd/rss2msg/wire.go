@@ -243,6 +243,66 @@ func statePGTLSFromConfig(t config.StatePGTLSConfig) *statepg.TLSOptions {
 	}
 }
 
+// sinkPGTLSFromConfig maps the canonical sink TLS block to the postgres sink's
+// TLS options, returning nil when the block is inactive.
+func sinkPGTLSFromConfig(t config.SinkTLSConfig) *sinkpg.TLSOptions {
+	if !t.Active() {
+		return nil
+	}
+	return &sinkpg.TLSOptions{
+		CAFile:             t.CAFile,
+		CertFile:           t.CertFile,
+		KeyFile:            t.KeyFile,
+		ServerName:         t.ServerName,
+		InsecureSkipVerify: t.InsecureSkipVerify,
+	}
+}
+
+// sinkKafkaTLSFromConfig maps the canonical sink TLS block to the kafka sink's
+// TLS options, returning nil when the block is inactive.
+func sinkKafkaTLSFromConfig(t config.SinkTLSConfig) *sinkkafka.TLSOptions {
+	if !t.Active() {
+		return nil
+	}
+	return &sinkkafka.TLSOptions{
+		CAFile:             t.CAFile,
+		CertFile:           t.CertFile,
+		KeyFile:            t.KeyFile,
+		ServerName:         t.ServerName,
+		InsecureSkipVerify: t.InsecureSkipVerify,
+	}
+}
+
+// sinkRabbitMQTLSFromConfig maps the canonical sink TLS block to the rabbitmq
+// sink's TLS options, returning nil when the block is inactive.
+func sinkRabbitMQTLSFromConfig(t config.SinkTLSConfig) *sinkrabbitmq.TLSOptions {
+	if !t.Active() {
+		return nil
+	}
+	return &sinkrabbitmq.TLSOptions{
+		CAFile:             t.CAFile,
+		CertFile:           t.CertFile,
+		KeyFile:            t.KeyFile,
+		ServerName:         t.ServerName,
+		InsecureSkipVerify: t.InsecureSkipVerify,
+	}
+}
+
+// sinkHTTPTLSFromConfig maps the canonical sink TLS block to the http sink's
+// TLS options, returning nil when the block is inactive.
+func sinkHTTPTLSFromConfig(t config.SinkTLSConfig) *sinkhttp.TLSOptions {
+	if !t.Active() {
+		return nil
+	}
+	return &sinkhttp.TLSOptions{
+		CAFile:             t.CAFile,
+		CertFile:           t.CertFile,
+		KeyFile:            t.KeyFile,
+		ServerName:         t.ServerName,
+		InsecureSkipVerify: t.InsecureSkipVerify,
+	}
+}
+
 // coordPGTLSFromConfig returns nil when no TLS field is set so the postgres
 // coordinator leaves pgx's DSN-derived TLS config in place.
 func coordPGTLSFromConfig(t config.CoordinationPGTLSConfig) *coordpg.TLSOptions {
