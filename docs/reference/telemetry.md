@@ -3,7 +3,7 @@ title: Telemetry
 type: reference
 tags: [rss2msg/docs, observability]
 summary: OTEL instruments, their attributes, and trace/log correlation.
-updated: 2026-06-01
+updated: 2026-06-02
 ---
 
 # Telemetry
@@ -35,6 +35,19 @@ Optional error/crash reporting (disabled by default). When
 are captured before the process exits. Events inside a span carry `trace_id` /
 `span_id` tags, cross-linking Sentry issues to traces. See the
 [`telemetry.sentry` config block](configuration.md#telemetrysentry) for all
+fields.
+
+## PostHog
+
+Optional [PostHog](https://posthog.com) telemetry (disabled by default). When
+`telemetry.posthog.enabled` is set and a project API key resolves (from config
+or `POSTHOG_API_KEY`), a zerolog hook forwards log events at or above
+`telemetry.posthog.level` (default `error`) to PostHog. Events at `error` and
+above are sent as `$exception` events (PostHog Error Tracking); lower levels are
+sent as a `log` capture event. Events inside a span carry `trace_id` / `span_id`
+properties, cross-linking PostHog events to traces. Buffered events flush on
+shutdown. See the
+[`telemetry.posthog` config block](configuration.md#telemetryposthog) for all
 fields.
 
 ## Related
