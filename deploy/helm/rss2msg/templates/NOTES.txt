@@ -1,0 +1,43 @@
+{{ .Chart.Name }} {{ .Chart.AppVersion }} has been deployed as release "{{ .Release.Name }}".
+
+Mode: {{ .Values.mode }}
+
+{{- if eq .Values.mode "deployment" }}
+
+A long-running `serve` Deployment is running with {{ .Values.deployment.replicaCount }} replica(s).
+
+{{- if gt (int .Values.deployment.replicaCount) 1 }}
+
+WARNING: replicaCount > 1 and rss2msg has no leader election. Every replica will
+poll every feed unless `config` points all of them at a shared Postgres/Redis
+coordinator. See docs/how-to/run-multiple-instances.md.
+{{- end }}
+
+Check status:
+  kubectl get deploy -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl logs -l app.kubernetes.io/instance={{ .Release.Name }} -f
+
+{{- if .Values.metricsService.enabled }}
+
+Prometheus metrics are exposed on the {{ include "rss2msg.fullname" . }}-metrics
+Service (port {{ .Values.metricsService.port }}, path /metrics). They are only
+produced when `config.telemetry.prometheus.enabled` is true (default).
+{{- end }}
+{{- else }}
+
+A `run-once` CronJob is scheduled at "{{ .Values.cronjob.schedule }}".
+
+Check status:
+  kubectl get cronjob {{ include "rss2msg.fullname" . }}
+  kubectl get jobs -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Trigger an immediate run:
+  kubectl create job --from=cronjob/{{ include "rss2msg.fullname" . }} {{ include "rss2msg.fullname" . }}-manual
+{{- end }}
+
+{{- if not .Values.existingConfigMap }}
+
+Config is rendered from `.Values.config` into ConfigMap {{ include "rss2msg.fullname" . }}
+and mounted at /etc/rss2msg/config.yaml. Override it with `-f my-values.yaml` or
+point at your own ConfigMap via `existingConfigMap`.
+{{- end }}

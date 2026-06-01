@@ -1,0 +1,20 @@
+apiVersion: v2
+name: rss2msg
+description: Poll RSS/Atom feeds, detect changes, and publish items to message sinks.
+type: application
+# version is the chart version; bump on any chart change (SemVer).
+version: 0.1.0
+# appVersion tracks the rss2msg image tag this chart was validated against.
+appVersion: "0.0.2"
+home: https://github.com/IAmBod/rss2msg
+sources:
+  - https://github.com/IAmBod/rss2msg
+keywords:
+  - rss
+  - atom
+  - feeds
+  - messaging
+  - webhook
+maintainers:
+  - name: IAmBod
+    url: https://github.com/IAmBod

@@ -173,6 +173,7 @@ replicas at a shared Postgres/Redis coordinator — see
 
 ## Related
 
+- [Deploy with the Helm chart](helm.md) — these manifests packaged as a templated, versioned chart.
 - [Kubernetes Health Probes](../kubernetes-health-probes.md) — endpoint semantics and probe tuning.
 - [Deploy in Production](../deploy.md) — config resolution, secrets, observability.
 - [Run Multiple Instances](../run-multiple-instances.md) — shared coordinator for multiple replicas.

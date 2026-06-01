@@ -53,6 +53,15 @@ tasks:
     cmds:
       - golangci-lint run ./...
 
+  helm-lint:
+    desc: Lint the Helm chart and render both ci/ value sets (requires helm v3)
+    vars:
+      CHART: deploy/helm/rss2msg
+    cmds:
+      - helm lint {{.CHART}}
+      - helm template rss2msg {{.CHART}} -f {{.CHART}}/ci/deployment-values.yaml >/dev/null
+      - helm template rss2msg {{.CHART}} -f {{.CHART}}/ci/cronjob-values.yaml >/dev/null
+
   changelog:
     desc: Regenerate CHANGELOG.md from conventional commits (requires git-cliff)
     cmds:

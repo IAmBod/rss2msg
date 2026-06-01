@@ -1,0 +1,73 @@
+{{- if eq .Values.mode "cronjob" }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "rss2msg.fullname" . }}
+  labels:
+    {{- include "rss2msg.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.cronjob.schedule | quote }}
+  concurrencyPolicy: {{ .Values.cronjob.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.cronjob.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.cronjob.failedJobsHistoryLimit }}
+  {{- with .Values.cronjob.startingDeadlineSeconds }}
+  startingDeadlineSeconds: {{ . }}
+  {{- end }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.cronjob.backoffLimit }}
+      template:
+        metadata:
+          {{- if or (not .Values.existingConfigMap) .Values.podAnnotations }}
+          annotations:
+            {{- if not .Values.existingConfigMap }}
+            checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+            {{- end }}
+            {{- with .Values.podAnnotations }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          labels:
+            {{- include "rss2msg.selectorLabels" . | nindent 12 }}
+            {{- with .Values.podLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        spec:
+          restartPolicy: {{ .Values.cronjob.restartPolicy }}
+          serviceAccountName: {{ include "rss2msg.serviceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          containers:
+            - name: {{ .Chart.Name }}
+              image: {{ include "rss2msg.image" . | quote }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              args:
+                {{- include "rss2msg.args" . | nindent 16 }}
+              securityContext:
+                {{- toYaml .Values.securityContext | nindent 16 }}
+              {{- include "rss2msg.env" . | nindent 14 }}
+              {{- include "rss2msg.envFrom" . | nindent 14 }}
+              {{- with .Values.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- include "rss2msg.volumeMounts" . | nindent 14 }}
+          {{- include "rss2msg.volumes" . | nindent 10 }}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

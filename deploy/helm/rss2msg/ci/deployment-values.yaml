@@ -1,0 +1,32 @@
+# Deployment mode with secrets, persistence, ServiceMonitor, and Postgres state.
+mode: deployment
+deployment:
+  replicaCount: 1
+persistence:
+  enabled: true
+serviceMonitor:
+  enabled: true
+secrets:
+  POSTGRES_DSN: postgres://rss2msg:change-me@postgres:5432/rss2msg?sslmode=require
+extraEnv:
+  - name: TZ
+    value: UTC
+config:
+  state:
+    driver: postgres
+    postgres:
+      dsn: ${POSTGRES_DSN}
+  health:
+    enabled: true
+    listen: ":8080"
+  telemetry:
+    prometheus:
+      enabled: true
+      listen: ":9090"
+  feeds:
+    - url: https://example.com/feed.xml
+      interval: 5m
+      sinks: [out]
+  sinks:
+    - name: out
+      driver: stdout
