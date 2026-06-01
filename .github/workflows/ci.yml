@@ -60,3 +60,18 @@ jobs:
         with:
           version: "~> v2"
           args: check
+
+  helm:
+    name: helm chart
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.21.0
+      - name: helm lint
+        run: helm lint deploy/helm/rss2msg
+      - name: helm template (deployment)
+        run: helm template rss2msg deploy/helm/rss2msg -f deploy/helm/rss2msg/ci/deployment-values.yaml
+      - name: helm template (cronjob)
+        run: helm template rss2msg deploy/helm/rss2msg -f deploy/helm/rss2msg/ci/cronjob-values.yaml
