@@ -27,6 +27,22 @@ type TelemetryConfig struct {
 	Metrics     TelemetrySignalConfig     `mapstructure:"metrics"`
 	Logs        TelemetrySignalConfig     `mapstructure:"logs"`
 	Prometheus  TelemetryPrometheusConfig `mapstructure:"prometheus"`
+	Sentry      TelemetrySentryConfig     `mapstructure:"sentry"`
+}
+
+// TelemetrySentryConfig configures optional Sentry error/crash reporting. It is
+// disabled by default; when Enabled, a DSN must be resolvable from DSN or the
+// SENTRY_DSN environment variable (checked at telemetry.Setup, not validation).
+type TelemetrySentryConfig struct {
+	Enabled          bool    `mapstructure:"enabled"`
+	DSN              string  `mapstructure:"dsn"`                // falls back to SENTRY_DSN
+	Environment      string  `mapstructure:"environment"`        // falls back to SENTRY_ENVIRONMENT
+	Release          string  `mapstructure:"release"`            // falls back to SENTRY_RELEASE
+	ServerName       string  `mapstructure:"server_name"`        // optional host/instance label
+	Level            string  `mapstructure:"level"`              // min zerolog level forwarded (default "error")
+	SampleRate       float64 `mapstructure:"sample_rate"`        // error-event sampling, [0.0, 1.0]
+	TracesSampleRate float64 `mapstructure:"traces_sample_rate"` // performance sampling, [0.0, 1.0]
+	Debug            bool    `mapstructure:"debug"`              // Sentry SDK debug logging
 }
 
 type TelemetrySignalConfig struct {
@@ -351,6 +367,12 @@ func Defaults() Config {
 			Metrics:     TelemetrySignalConfig{Enabled: true},
 			Logs:        TelemetrySignalConfig{Enabled: false},
 			Prometheus:  TelemetryPrometheusConfig{Enabled: false, Listen: ":9090"},
+			Sentry: TelemetrySentryConfig{
+				Enabled:          false,
+				Level:            "error",
+				SampleRate:       1.0,
+				TracesSampleRate: 0.0,
+			},
 		},
 		HTTP:         HTTPConfig{UserAgent: "rss2msg/0.1", Timeout: 30 * time.Second},
 		Retry:        RetryConfig{MaxAttempts: 3, BaseDelay: 500 * time.Millisecond, MaxDelay: 10 * time.Second},
