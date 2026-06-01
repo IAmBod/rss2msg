@@ -54,7 +54,7 @@ docker pull ghcr.io/iambod/rss2msg:latest
 the source tree bind-mounted, so `air` rebuilds and restarts on every change.
 
 ```bash
-cp config.example.yaml config.yaml   # the app reads ./config.yaml from the mount
+cp examples/config.example.yaml config.yaml   # the app reads ./config.yaml from the mount
 docker compose up --build            # or: task docker-up
 ```
 

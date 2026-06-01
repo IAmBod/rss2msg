@@ -57,7 +57,7 @@ archives:
       - README.md
       - LICENSE*
       - CHANGELOG.md
-      - config.example.yaml
+      - examples/config.example.yaml
 
 # Linux distro packages (.deb / .rpm / .apk) built from the same binaries as the
 # archives, via GoReleaser's built-in nFPM integration — https://nfpm.goreleaser.com
@@ -84,7 +84,7 @@ nfpms:
       # Ship the same reference material the archives bundle. config.example.yaml is
       # a reference, not an active config, so it goes under /etc as a documented sample
       # rather than a live /etc/rss2msg/config.yaml the service would read.
-      - src: ./config.example.yaml
+      - src: ./examples/config.example.yaml
         dst: /etc/rss2msg/config.example.yaml
       - src: ./README.md
         dst: /usr/share/doc/rss2msg/README.md

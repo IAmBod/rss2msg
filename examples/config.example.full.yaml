@@ -4,10 +4,10 @@
 # NDJSON stdout sink, wired to a large real-world set of feeds. Copy to
 # config.yaml and adjust to taste:
 #
-#   cp config.example.full.yaml config.yaml && ./rss2msg run-once
+#   cp examples/config.example.full.yaml config.yaml && ./rss2msg run-once
 #
 # For the minimal, fully annotated reference of every field, see
-# config.example.yaml and docs/reference/configuration.md.
+# examples/config.example.yaml and docs/reference/configuration.md.
 
 log:
   level: info

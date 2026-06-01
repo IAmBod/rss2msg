@@ -35,13 +35,13 @@ docker run -d --name kafka -p 9092:9092 confluentinc/cp-kafka:7.6.0
 export POSTGRES_DSN="postgres://postgres:test@localhost:5432/postgres?sslmode=disable"
 
 # 4. One-shot: poll every feed once, publish, exit
-./rss2msg run-once --config config.example.yaml
+./rss2msg run-once --config examples/config.example.yaml
 
 # 5. Inspect what landed in Postgres
 psql "$POSTGRES_DSN" -c 'SELECT feed_url, item_id, kind, detected_at FROM feed_changes;'
 
 # 6. Or run as a daemon
-./rss2msg serve --config config.example.yaml
+./rss2msg serve --config examples/config.example.yaml
 ```
 
 For SQS/SNS try LocalStack:
