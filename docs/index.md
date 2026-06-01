@@ -17,6 +17,7 @@ Start here. Pages are grouped the way you use them.
 ## How-to guides
 
 - [Configure Feeds](how-to/configure-feeds.md)
+- [Feeds from CMS Platforms](how-to/feeds-from-cms-platforms.md)
 - [Dynamic Feed Sources](how-to/dynamic-feed-sources.md)
 - [Choose a Sink](how-to/choose-a-sink.md)
 - [Connect Zapier and n8n](how-to/connect-zapier-and-n8n.md)
