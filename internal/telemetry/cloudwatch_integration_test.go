@@ -66,7 +66,7 @@ func TestCloudWatchLogsRoundTripAgainstLocalStack(t *testing.T) {
 		t.Fatalf("shipper reported error: %v", shipErr)
 	}
 
-	client := cloudwatchlogs.NewFromConfig(mustAWSConfig(t, ctx), func(o *cloudwatchlogs.Options) {
+	client := cloudwatchlogs.NewFromConfig(mustAWSConfig(ctx, t), func(o *cloudwatchlogs.Options) {
 		o.BaseEndpoint = aws.String(endpoint)
 	})
 	deadline := time.Now().Add(15 * time.Second)
@@ -92,7 +92,7 @@ func TestCloudWatchMetricsRoundTripAgainstLocalStack(t *testing.T) {
 	endpoint := cwLocalStack(t)
 	ctx := context.Background()
 
-	client := cloudwatch.NewFromConfig(mustAWSConfig(t, ctx), func(o *cloudwatch.Options) {
+	client := cloudwatch.NewFromConfig(mustAWSConfig(ctx, t), func(o *cloudwatch.Options) {
 		o.BaseEndpoint = aws.String(endpoint)
 	})
 	exp := newCloudWatchMetricsExporter(client, "rss2msg-itest")
@@ -140,7 +140,7 @@ func isLocalStackMetricsUnsupported(err error) bool {
 	return strings.Contains(s, "smithy-protocol") || strings.Contains(s, "StatusCode: 500")
 }
 
-func mustAWSConfig(t *testing.T, ctx context.Context) aws.Config {
+func mustAWSConfig(ctx context.Context, t *testing.T) aws.Config {
 	t.Helper()
 	cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(cwRegion))
 	if err != nil {
