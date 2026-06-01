@@ -1322,3 +1322,55 @@ func TestValidateRejectsAzureServiceBusBothEntities(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestValidateRejectsGraphiteWithoutAddress(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Telemetry.Graphite.Enabled = true
+	c.Telemetry.Graphite.Address = ""
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "telemetry.graphite.address is required") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsNegativeGraphiteInterval(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Telemetry.Graphite.Enabled = true
+	c.Telemetry.Graphite.Address = "localhost:2003"
+	c.Telemetry.Graphite.Interval = -1 * time.Second
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "interval must not be negative") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateWarnsGraphiteEnabledWithoutMetrics(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Telemetry.Graphite.Enabled = true
+	c.Telemetry.Graphite.Address = "localhost:2003"
+	c.Telemetry.Metrics.Enabled = false
+	warnings, err := Validate(c)
+	require.NoError(t, err)
+	var found bool
+	for _, w := range warnings {
+		if strings.Contains(w, "telemetry.graphite is enabled but telemetry.metrics.enabled=false") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected metrics-disabled warning, got %v", warnings)
+	}
+}
+
+func TestValidateAcceptsGraphiteEnabled(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Telemetry.Graphite.Enabled = true
+	c.Telemetry.Graphite.Address = "localhost:2003"
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}

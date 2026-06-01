@@ -27,6 +27,7 @@ type TelemetryConfig struct {
 	Metrics     TelemetrySignalConfig     `mapstructure:"metrics"`
 	Logs        TelemetrySignalConfig     `mapstructure:"logs"`
 	Prometheus  TelemetryPrometheusConfig `mapstructure:"prometheus"`
+	Graphite    TelemetryGraphiteConfig   `mapstructure:"graphite"`
 	Sentry      TelemetrySentryConfig     `mapstructure:"sentry"`
 }
 
@@ -52,6 +53,16 @@ type TelemetrySignalConfig struct {
 type TelemetryPrometheusConfig struct {
 	Enabled bool   `mapstructure:"enabled"`
 	Listen  string `mapstructure:"listen"`
+}
+
+// TelemetryGraphiteConfig configures the native Carbon (Graphite plaintext)
+// metric exporter. When Enabled, metrics are pushed to Address on the configured
+// Interval via an OTEL PeriodicReader.
+type TelemetryGraphiteConfig struct {
+	Enabled  bool          `mapstructure:"enabled"`
+	Address  string        `mapstructure:"address"`  // Carbon plaintext TCP endpoint (host:port)
+	Prefix   string        `mapstructure:"prefix"`   // metric-path prefix prepended to every metric
+	Interval time.Duration `mapstructure:"interval"` // push cadence; 0 uses the SDK default
 }
 
 type HTTPConfig struct {
@@ -367,6 +378,7 @@ func Defaults() Config {
 			Metrics:     TelemetrySignalConfig{Enabled: true},
 			Logs:        TelemetrySignalConfig{Enabled: false},
 			Prometheus:  TelemetryPrometheusConfig{Enabled: false, Listen: ":9090"},
+			Graphite:    TelemetryGraphiteConfig{Enabled: false, Address: "localhost:2003", Prefix: "rss2msg", Interval: 10 * time.Second},
 			Sentry: TelemetrySentryConfig{
 				Enabled:          false,
 				Level:            "error",
