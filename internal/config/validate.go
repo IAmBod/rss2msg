@@ -257,6 +257,18 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 	}
 
+	if c.Telemetry.Graphite.Enabled {
+		if strings.TrimSpace(c.Telemetry.Graphite.Address) == "" {
+			return *warnings, fmt.Errorf("telemetry.graphite.address is required when telemetry.graphite.enabled=true")
+		}
+		if c.Telemetry.Graphite.Interval < 0 {
+			return *warnings, fmt.Errorf("telemetry.graphite.interval must not be negative")
+		}
+		if !c.Telemetry.Metrics.Enabled {
+			*warnings = append(*warnings, "telemetry.graphite is enabled but telemetry.metrics.enabled=false; no metrics will be pushed")
+		}
+	}
+
 	if len(c.Sinks) == 0 {
 		return *warnings, fmt.Errorf("at least one sink must be declared")
 	}

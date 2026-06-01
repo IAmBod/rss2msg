@@ -71,6 +71,11 @@ telemetry:
   prometheus:
     enabled: false
     listen: ":9090"
+  graphite:
+    enabled: false
+    address: "localhost:2003"
+    prefix: "rss2msg"
+    interval: 10s
 ```
 
 | field | default | notes |
@@ -81,6 +86,29 @@ telemetry:
 | `logs.enabled`        | `false`   | Reserved for future OTEL logs bridge. |
 | `prometheus.enabled`  | `false`   | When true, exposes a Prometheus scrape endpoint at `prometheus.listen` + `/metrics`. |
 | `prometheus.listen`   | `:9090`   | TCP listen address for the Prometheus exporter. |
+| `graphite.enabled`    | `false`   | When true, pushes metrics to a Carbon (Graphite) endpoint over the plaintext protocol. |
+| `graphite.address`    | `localhost:2003` | Carbon plaintext TCP endpoint (`host:port`). Required when enabled. |
+| `graphite.prefix`     | `rss2msg` | Metric-path prefix prepended to every metric (e.g. `rss2msg.feed.fetches`). |
+| `graphite.interval`   | `10s`     | Push cadence. `0` uses the OTEL SDK default. |
+
+### Graphite (Carbon) export
+
+When `graphite.enabled` is true, an OTEL `PeriodicReader` collects metrics on
+`graphite.interval` and pushes them to `graphite.address` using the Carbon
+**plaintext protocol** — one `"<path> <value> <unix-seconds>"` line per data
+point — over a short-lived TCP connection per push. No external OTEL Collector
+is required.
+
+- OTEL metric names already use dots (`feed.fetches`), which map onto Carbon's
+  dotted hierarchy; the configured `prefix` is prepended.
+- Metric **attributes** fold into Graphite tags: `path;key=value;…` (sorted by
+  key; spaces and `;`/`=` are sanitized to `_`).
+- **Histograms** are emitted as `.count`, `.sum`, and `.min`/`.max` series.
+- Values use cumulative temporality; apply `nonNegativeDerivative` in Graphite
+  to recover rates.
+
+`graphite` and `prometheus` can be enabled together; both read from the same
+meter provider.
 
 OTLP transport is configured by the standard OTEL env vars — set
 `OTEL_EXPORTER_OTLP_ENDPOINT=https://collector:4317` (and optional
