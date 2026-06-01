@@ -166,6 +166,31 @@ type HTTPSinkConfig struct {
 	Headers      map[string]string `mapstructure:"headers"`       // static request headers
 	Timeout      time.Duration     `mapstructure:"timeout"`       // 0 -> 30s
 	SuccessCodes []int             `mapstructure:"success_codes"` // empty -> {200,201,202,204}
+	TLS          SinkTLSConfig     `mapstructure:"tls"`
+}
+
+// SinkTLSConfig is the canonical client-TLS surface shared by the postgres,
+// kafka, rabbitmq, and http sinks. It mirrors the coordinator / state-store TLS
+// options. The block is "active" when Enabled is true or any field is set.
+type SinkTLSConfig struct {
+	// Enabled forces TLS even when no custom files are given (system roots).
+	// Mainly for sinks with no URL scheme to imply TLS, e.g. kafka.
+	Enabled            bool   `mapstructure:"enabled"`
+	CAFile             string `mapstructure:"ca_file"`
+	CertFile           string `mapstructure:"cert_file"`
+	KeyFile            string `mapstructure:"key_file"`
+	ServerName         string `mapstructure:"server_name"`
+	InsecureSkipVerify bool   `mapstructure:"insecure_skip_verify"`
+}
+
+// Active reports whether the TLS block should be applied to the sink.
+func (t SinkTLSConfig) Active() bool {
+	return t.Enabled ||
+		t.CAFile != "" ||
+		t.CertFile != "" ||
+		t.KeyFile != "" ||
+		t.ServerName != "" ||
+		t.InsecureSkipVerify
 }
 
 type FeedSinkConfig struct {
@@ -237,25 +262,28 @@ type StdoutSinkConfig struct {
 }
 
 type RabbitMQSinkConfig struct {
-	URL          string `mapstructure:"url"`
-	Exchange     string `mapstructure:"exchange"`
-	ExchangeType string `mapstructure:"exchange_type"` // direct (default) | topic | fanout | headers
-	RoutingKey   string `mapstructure:"routing_key"`
-	Declare      bool   `mapstructure:"declare"`
-	Durable      bool   `mapstructure:"durable"`
-	Mandatory    bool   `mapstructure:"mandatory"`
+	URL          string        `mapstructure:"url"`
+	Exchange     string        `mapstructure:"exchange"`
+	ExchangeType string        `mapstructure:"exchange_type"` // direct (default) | topic | fanout | headers
+	RoutingKey   string        `mapstructure:"routing_key"`
+	Declare      bool          `mapstructure:"declare"`
+	Durable      bool          `mapstructure:"durable"`
+	Mandatory    bool          `mapstructure:"mandatory"`
+	TLS          SinkTLSConfig `mapstructure:"tls"`
 }
 
 type PostgresSinkConfig struct {
-	DSN   string `mapstructure:"dsn"`
-	Table string `mapstructure:"table"`
+	DSN   string        `mapstructure:"dsn"`
+	Table string        `mapstructure:"table"`
+	TLS   SinkTLSConfig `mapstructure:"tls"`
 }
 
 type KafkaSinkConfig struct {
-	Brokers     []string `mapstructure:"brokers"`
-	Topic       string   `mapstructure:"topic"`
-	Acks        string   `mapstructure:"acks"`        // "all" | "leader" | "none"
-	Compression string   `mapstructure:"compression"` // "none" | "snappy" | "lz4" | "zstd" | "gzip"
+	Brokers     []string      `mapstructure:"brokers"`
+	Topic       string        `mapstructure:"topic"`
+	Acks        string        `mapstructure:"acks"`        // "all" | "leader" | "none"
+	Compression string        `mapstructure:"compression"` // "none" | "snappy" | "lz4" | "zstd" | "gzip"
+	TLS         SinkTLSConfig `mapstructure:"tls"`
 }
 
 type SQSSinkConfig struct {

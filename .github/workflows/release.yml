@@ -59,6 +59,13 @@ jobs:
           args: release --clean --release-notes RELEASE_NOTES.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Pushing the Homebrew formula to the separate IAmBod/homebrew-tap repo
+          # needs a token with write access there; the default GITHUB_TOKEN is
+          # scoped to this repo only. Set the TAP_GITHUB_TOKEN secret (a PAT with
+          # contents:write on the tap repo). If it's unset, the brews step fails
+          # but binaries/images/packages still publish — so the secret is only
+          # required once you actually want the tap updated.
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
 
   changelog:
     name: sync CHANGELOG.md to main

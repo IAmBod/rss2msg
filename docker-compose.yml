@@ -4,7 +4,7 @@
 #   docker compose --profile full up       # app + Postgres + Redis
 #
 # The app reads ./config.yaml from the mounted source tree. Create one first:
-#   cp config.example.yaml config.yaml
+#   cp examples/config.example.yaml config.yaml
 #
 # See docs/how-to/run-with-docker.md for details.
 
