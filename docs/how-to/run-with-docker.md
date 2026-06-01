@@ -2,40 +2,50 @@
 title: Run with Docker
 type: how-to
 tags: [rss2msg/docs, operations, docker]
-summary: Build and run rss2msg with the multi-stage Dockerfile — a hot-reload development image, a small distroless production image, and a Docker Compose dev stack.
+summary: Build and run rss2msg with the multi-stage Dockerfile — a hot-reload development image, the distroless production image published to GHCR by the release pipeline, and a Docker Compose dev stack.
 updated: 2026-06-01
 ---
 
 # Run with Docker
 
-The repo ships a multi-stage [`Dockerfile`](../../Dockerfile) with two targets:
+The repo ships a single multi-stage [`Dockerfile`](../../Dockerfile) with two stages
+you use directly:
 
-| Target | Base | Use it for |
+| Stage | Base | Use it for |
 | --- | --- | --- |
-| `development` | `golang:1.25-bookworm` + [`air`](https://github.com/air-verse/air) | Local development with hot reload. |
-| `production` | `gcr.io/distroless/static-debian12:nonroot` | A small, rootless runtime image for deployment. |
+| `development` | `golang:1.25-bookworm` + [`air`](https://github.com/air-verse/air) | Local development with hot reload — built from source. |
+| `production` (final stage) | `gcr.io/distroless/static-debian12:nonroot` | The small, rootless runtime image. Published to GHCR by the [release pipeline](../development/releasing.md). |
 
 Because rss2msg uses a pure-Go SQLite driver, the binary builds with `CGO_ENABLED=0`
 and needs no libc at runtime — the production image is just the static binary on a
 distroless base.
 
+The `production` stage does **not** compile from source: it packages a binary that
+GoReleaser cross-compiles and stages in the build context (`COPY $TARGETPLATFORM/rss2msg`).
+So a plain `docker build --target production .` won't work — there's no prebuilt binary
+in a bare build context. Build a production image locally through GoReleaser instead.
+
 ## Build the images
 
-Pick a target explicitly with `--target`:
+The **development** image builds from source, so a plain `docker build` works:
 
 ```bash
-# Production: static binary on distroless
-docker build --target production -t rss2msg:latest .
-
-# Development: full toolchain + hot reload
-docker build --target development -t rss2msg:dev .
+docker build --target development -t rss2msg:dev .   # or: task docker-build-dev
 ```
 
-Or use the task shortcuts:
+The **production** image is built by GoReleaser (it supplies the prebuilt binary). For
+a local one, run a GoReleaser snapshot — it produces per-arch images tagged
+`ghcr.io/iambod/rss2msg:<version>-next-<arch>`:
 
 ```bash
-task docker-build       # rss2msg:latest (production)
-task docker-build-dev   # rss2msg:dev    (development)
+task docker-build       # goreleaser release --snapshot --skip=publish
+```
+
+The released production image is published to GHCR on every version tag — see
+[Releasing](../development/releasing.md). To just pull and run it, skip the build:
+
+```bash
+docker pull ghcr.io/iambod/rss2msg:latest
 ```
 
 ## Develop with hot reload (Docker Compose)
@@ -92,17 +102,17 @@ where the binary will find it:
 docker run --rm \
   -v "$PWD/config.yaml:/etc/rss2msg/config.yaml:ro" \
   -p 9090:9090 \
-  rss2msg:latest serve
+  ghcr.io/iambod/rss2msg:latest serve
 ```
 
 Override the command for one-shot or validation runs:
 
 ```bash
 # Poll every feed once and exit
-docker run --rm -v "$PWD/config.yaml:/etc/rss2msg/config.yaml:ro" rss2msg:latest run-once
+docker run --rm -v "$PWD/config.yaml:/etc/rss2msg/config.yaml:ro" ghcr.io/iambod/rss2msg:latest run-once
 
 # Validate config and reachability, then exit non-zero on failure
-docker run --rm -v "$PWD/config.yaml:/etc/rss2msg/config.yaml:ro" rss2msg:latest validate-config
+docker run --rm -v "$PWD/config.yaml:/etc/rss2msg/config.yaml:ro" ghcr.io/iambod/rss2msg:latest validate-config
 ```
 
 Inject secrets as environment variables rather than baking them into the image —
@@ -113,7 +123,7 @@ overrides (see [Deploy in Production](deploy.md)):
 docker run --rm \
   -e POSTGRES_DSN \
   -v "$PWD/config.yaml:/etc/rss2msg/config.yaml:ro" \
-  rss2msg:latest serve
+  ghcr.io/iambod/rss2msg:latest serve
 ```
 
 The image runs as the `nonroot` user. It contains no shell or package manager, so
