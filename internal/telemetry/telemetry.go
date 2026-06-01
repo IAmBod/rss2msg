@@ -83,6 +83,21 @@ func Setup(ctx context.Context, cfg config.Config, out io.Writer) (*Telemetry, e
 		}
 	}
 
+	if cfg.Telemetry.CloudWatch.Enabled && cfg.Telemetry.CloudWatch.Logs.Enabled {
+		// Report shipment failures through a hookless logger on `out` so an
+		// error never re-enters the CloudWatch hook and recurses.
+		errLogger := zerolog.New(out).With().Timestamp().Logger()
+		onErr := func(err error) {
+			errLogger.Warn().Err(err).Msg("cloudwatch logs shipment failed")
+		}
+		hook, shutdown, err := setupCloudWatchLogs(ctx, cfg.Telemetry.CloudWatch, onErr)
+		if err != nil {
+			return nil, err
+		}
+		logHooks = append(logHooks, hook)
+		t.shutdownFns = append(t.shutdownFns, shutdown)
+	}
+
 	t.Logger = buildLogger(cfg.Log, out, logHooks...)
 	for _, w := range setupWarnings {
 		t.Logger.Warn().Msg(w)
