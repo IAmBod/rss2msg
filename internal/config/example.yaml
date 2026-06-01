@@ -10,6 +10,16 @@ telemetry:
   prometheus:
     enabled: false
     listen: ":9090"
+  sentry:                          # optional error/crash reporting (disabled by default)
+    enabled: false
+    # dsn: ${SENTRY_DSN}           # required when enabled; falls back to SENTRY_DSN env
+    # environment: production      # falls back to SENTRY_ENVIRONMENT
+    # release: ${SENTRY_RELEASE}   # falls back to SENTRY_RELEASE
+    # server_name: ""              # optional host/instance label
+    level: error                   # min log level forwarded (trace|debug|info|warn|error|fatal|panic)
+    sample_rate: 1.0               # error-event sampling, [0.0, 1.0]
+    traces_sample_rate: 0.0        # performance/transaction sampling, [0.0, 1.0]
+    debug: false                   # Sentry SDK debug logging
 
 http:
   user_agent: "rss2msg/0.1 (+https://example.com)"
@@ -160,6 +170,14 @@ sinks:
   #     durable: true                               # only meaningful when declare=true
   #     tls:                                        # use an amqps:// url above; adds custom CA / mTLS
   #       ca_file: /etc/ssl/certs/rabbit-ca.pem
+  #   dead_letter: dlq-main
+  # - name: asb-main
+  #   driver: azureservicebus
+  #   azureservicebus:
+  #     connection_string: ${AZURE_SERVICEBUS_CONNECTION_STRING}  # SAS auth; or use namespace:
+  #     # namespace: my-bus.servicebus.windows.net                # Azure AD (DefaultAzureCredential)
+  #     queue: feed-changes                          # set exactly one of queue / topic
+  #     # topic: feed-changes
   #   dead_letter: dlq-main
   # - name: webhook
   #   driver: http
