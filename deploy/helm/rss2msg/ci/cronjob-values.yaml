@@ -1,0 +1,6 @@
+# CronJob mode using an externally-managed ConfigMap and Secret.
+mode: cronjob
+cronjob:
+  schedule: "0 * * * *"
+existingConfigMap: my-config
+existingSecret: my-secrets
