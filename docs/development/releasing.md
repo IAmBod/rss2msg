@@ -2,7 +2,7 @@
 title: Releasing
 type: how-to
 tags: [rss2msg/docs, development, release]
-summary: The release pipeline — golangci-lint in CI, git-cliff for the changelog and version bumps, and GoReleaser for multi-platform binaries and a multi-arch Docker image, all driven by a semver tag.
+summary: The release pipeline — golangci-lint in CI, git-cliff for the changelog and version bumps, and GoReleaser for multi-platform binaries, Linux packages (.deb/.rpm/.apk), and a multi-arch Docker image, all driven by a semver tag.
 updated: 2026-06-01
 ---
 
@@ -14,7 +14,7 @@ rss2msg ships through a tag-driven pipeline built from three tools:
 | --- | --- | --- |
 | [golangci-lint](https://golangci-lint.run) | [`.golangci.yml`](../../.golangci.yml) | Code-quality gate on every PR and push to `main`. |
 | [git-cliff](https://git-cliff.org) | [`cliff.toml`](../../cliff.toml) | Builds `CHANGELOG.md` and per-release notes from [Conventional Commits](https://www.conventionalcommits.org); derives the next semver. |
-| [GoReleaser](https://goreleaser.com) | [`.goreleaser.yaml`](../../.goreleaser.yaml) | Builds multi-platform binaries + a multi-arch Docker image and publishes the GitHub Release. |
+| [GoReleaser](https://goreleaser.com) | [`.goreleaser.yaml`](../../.goreleaser.yaml) | Builds multi-platform binaries, Linux packages (`.deb`/`.rpm`/`.apk`), and a multi-arch Docker image, and publishes the GitHub Release. |
 
 Two GitHub Actions workflows wire them together:
 
@@ -51,6 +51,11 @@ The release workflow then:
   with `version`, `commit`, and `date` stamped into the binary via `-ldflags`
   (see [`builds:` in `.goreleaser.yaml`](../../.goreleaser.yaml));
 - writes `checksums.txt` and `.tar.gz` / `.zip` archives;
+- builds Linux packages — `.deb`, `.rpm`, and `.apk` for amd64 and arm64 — from the
+  same binaries via GoReleaser's [nFPM](https://nfpm.goreleaser.com) integration
+  (see [`nfpms:` in `.goreleaser.yaml`](../../.goreleaser.yaml)); each installs the
+  binary to `/usr/bin/rss2msg`, a sample config to `/etc/rss2msg/config.example.yaml`,
+  and docs to `/usr/share/doc/rss2msg/`;
 - builds and pushes a multi-arch image to `ghcr.io/iambod/rss2msg:<version>` and
   `:latest` from [`Dockerfile.goreleaser`](../../Dockerfile.goreleaser);
 - publishes a GitHub Release whose notes are the git-cliff section for that tag.
