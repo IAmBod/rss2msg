@@ -56,6 +56,8 @@ Implementation notes:
 - Azure AD auth (`namespace`) uses `DefaultAzureCredential`, which resolves
   credentials from the environment, workload identity, or managed identity in
   that order — no secret needs to live in the config file.
+- The integration test (`-tags=integration`) runs against the official Azure
+  Service Bus emulator via testcontainers (requires Docker).
 
 ## Related
 
