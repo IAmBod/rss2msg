@@ -6,11 +6,15 @@ package rabbitmq
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 
@@ -49,6 +53,28 @@ type Options struct {
 	// drops unroutable messages with no warning. Set true only if you have
 	// a guaranteed binding.
 	Mandatory bool
+
+	// TLS, if non-nil, dials the broker with TLS (amqp.DialTLS) using the
+	// given options. The URL should use the amqps:// scheme.
+	TLS *TLSOptions
+}
+
+// TLSOptions configures TLS to the RabbitMQ broker. Same shape as the other
+// sinks so operators have a consistent surface. ServerName is left empty by
+// default so amqp091-go fills it from the URI host.
+type TLSOptions struct {
+	// CAFile is a PEM-encoded CA bundle to trust instead of the system roots.
+	CAFile string
+	// CertFile and KeyFile together enable client-certificate (mTLS) auth.
+	// Either both or neither must be set.
+	CertFile string
+	KeyFile  string
+	// ServerName overrides the SNI / certificate verification hostname.
+	// Empty lets amqp091-go derive it from the URI host.
+	ServerName string
+	// InsecureSkipVerify disables server certificate verification. For
+	// local/test only — logged at warn.
+	InsecureSkipVerify bool
 }
 
 var validExchangeTypes = map[string]struct{}{
@@ -89,9 +115,28 @@ func New(opts Options) (*Publisher, error) {
 		return nil, fmt.Errorf("rabbitmq sink %q: declare=true requires a non-empty exchange (the default exchange cannot be declared)", opts.Name)
 	}
 
-	conn, err := amqp.Dial(opts.URL)
-	if err != nil {
-		return nil, fmt.Errorf("rabbitmq sink %q: dial: %w", opts.Name, err)
+	var conn *amqp.Connection
+	if opts.TLS != nil {
+		tc, err := buildTLSConfig(*opts.TLS)
+		if err != nil {
+			return nil, fmt.Errorf("rabbitmq sink %q: build TLS config: %w", opts.Name, err)
+		}
+		if opts.TLS.InsecureSkipVerify {
+			log.Warn().
+				Str("sink", opts.Name).
+				Str("sink_driver", "rabbitmq").
+				Msg("rabbitmq sink: TLS verification disabled (insecure_skip_verify=true)")
+		}
+		conn, err = amqp.DialTLS(opts.URL, tc)
+		if err != nil {
+			return nil, fmt.Errorf("rabbitmq sink %q: dial: %w", opts.Name, err)
+		}
+	} else {
+		var err error
+		conn, err = amqp.Dial(opts.URL)
+		if err != nil {
+			return nil, fmt.Errorf("rabbitmq sink %q: dial: %w", opts.Name, err)
+		}
 	}
 	ch, err := conn.Channel()
 	if err != nil {
@@ -115,6 +160,39 @@ func New(opts Options) (*Publisher, error) {
 		routingKey: opts.RoutingKey,
 		mandatory:  opts.Mandatory,
 	}, nil
+}
+
+// buildTLSConfig translates TLSOptions into a *tls.Config. ServerName is left
+// empty unless overridden so amqp091-go derives it from the URI host.
+func buildTLSConfig(opts TLSOptions) (*tls.Config, error) {
+	tc := &tls.Config{
+		InsecureSkipVerify: opts.InsecureSkipVerify, //nolint:gosec // opt-in, logged at warn
+	}
+	if opts.ServerName != "" {
+		tc.ServerName = opts.ServerName
+	}
+	if opts.CAFile != "" {
+		pem, err := os.ReadFile(opts.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("ca_file: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, fmt.Errorf("ca_file %q: no PEM certificates parsed", opts.CAFile)
+		}
+		tc.RootCAs = pool
+	}
+	if opts.CertFile != "" || opts.KeyFile != "" {
+		if opts.CertFile == "" || opts.KeyFile == "" {
+			return nil, fmt.Errorf("cert_file and key_file must both be set or both empty")
+		}
+		cert, err := tls.LoadX509KeyPair(opts.CertFile, opts.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("client cert: %w", err)
+		}
+		tc.Certificates = []tls.Certificate{cert}
+	}
+	return tc, nil
 }
 
 func (p *Publisher) Name() string { return p.name }
