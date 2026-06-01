@@ -2,13 +2,13 @@
 title: Secure Connections (TLS)
 type: how-to
 tags: [rss2msg/docs, tls, security]
-summary: Structured TLS config for Postgres (state + coordination) and Redis (coordination).
-updated: 2026-05-31
+summary: Structured TLS config for the Postgres (state + coordination) and Redis (coordination) backends and for the network message sinks.
+updated: 2026-06-01
 ---
 
 # Secure Connections (TLS)
 
-TLS applies to the Postgres state store, the Postgres coordinator, and the Redis coordinator; the field surface is identical across them.
+TLS applies to the Postgres state store, the Postgres coordinator, the Redis coordinator, and the network message sinks (Postgres, Kafka, RabbitMQ, HTTP); the field surface is identical across them.
 
 > [!warning]
 > `insecure_skip_verify: true` disables server certificate verification. Test only — it is logged at `warn` on startup.
@@ -59,7 +59,69 @@ against most real certificates.
 | `server_name`          | URL host                 | (empty — must be set)      | Overrides the SNI / certificate verification hostname. |
 | `insecure_skip_verify` | `false`                  | `false`                    | Disables server cert verification. Test only — logged at warn on startup. |
 
+## Sinks
+
+The **postgres**, **kafka**, **rabbitmq**, and **http** sinks accept the same five
+knobs under a `tls:` block, plus an `enabled` flag:
+
+```yaml
+sinks:
+  - name: pg
+    driver: postgres
+    postgres:
+      dsn: "postgres://user:pass@db:5432/app"
+      tls:
+        ca_file: /etc/ssl/certs/db-ca.pem
+        cert_file: /etc/ssl/certs/db-client.pem   # optional mTLS (both or neither)
+        key_file: /etc/ssl/private/db-client.key
+
+  - name: events
+    driver: kafka
+    kafka:
+      brokers: ["broker:9093"]
+      topic: feed-changes
+      tls:
+        enabled: true                             # kafka has no URL scheme; opt in here
+        ca_file: /etc/ssl/certs/kafka-ca.pem
+
+  - name: bus
+    driver: rabbitmq
+    rabbitmq:
+      url: "amqps://user:pass@broker:5671/"       # amqps:// scheme
+      tls:
+        ca_file: /etc/ssl/certs/rabbit-ca.pem
+
+  - name: hook
+    driver: http
+    http:
+      url: "https://hooks.internal/feed"          # https:// scheme
+      tls:
+        ca_file: /etc/ssl/certs/internal-ca.pem
+```
+
+| field                  | default      | notes |
+| ---------------------- | ------------ | ----- |
+| `enabled`              | `false`      | Forces TLS even with no custom files (system roots). Use it for kafka, which has no URL scheme to imply TLS. |
+| `ca_file`              | system roots | PEM CA bundle to trust instead of system roots. |
+| `cert_file`, `key_file`| (none)       | PEM client cert + key for mTLS. Both or neither — validation rejects setting only one. |
+| `server_name`          | per-connection | Overrides the SNI / verification hostname. Empty leaves the library's default (broker address / URI host / request host). |
+| `insecure_skip_verify` | `false`      | Disables server cert verification. Test only — logged at warn on startup. |
+
+A sink's `tls:` block is **active** when `enabled: true` or any field is set. When active:
+
+- **postgres** — applies the TLS config to the pool and clears pgx's plaintext fallbacks (no silent downgrade).
+- **kafka** — dials the brokers over TLS. Use `enabled: true` to turn it on with the system roots.
+- **rabbitmq** — dials with TLS; use an `amqps://` URL.
+- **http** — applies the TLS config to the webhook client transport; use an `https://` URL.
+
+The **sqs** and **sns** sinks talk to AWS over HTTPS via the AWS SDK, which manages TLS
+automatically — there is no `tls:` block to configure. The **feed** sink is a *server*:
+configure its certificate with `feed.tls.cert_file` / `feed.tls.key_file` (see
+[the feed sink how-to](sinks/feed.md)); a Postgres store backend takes the same five
+client knobs under `feed.store.postgres.tls`.
+
 ## Related
 
 - [Run Multiple Instances](run-multiple-instances.md) — the coordinator backends these TLS blocks secure.
 - [Configuration Reference](../reference/configuration.md#state) — `state.postgres.tls` shares this field surface.
+- [Choose a Sink](choose-a-sink.md) — all sink drivers and the decision table.
