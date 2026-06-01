@@ -255,6 +255,14 @@ func newMeterProvider(ctx context.Context, cfg config.Config, res *resource.Reso
 		opts = append(opts, sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exp, ropts...)))
 	}
 
+	if cfg.Telemetry.CloudWatch.Enabled && cfg.Telemetry.CloudWatch.Metrics.Enabled {
+		readerOpt, err := setupCloudWatchMetrics(ctx, cfg.Telemetry.CloudWatch)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cloudwatch metrics exporter: %w", err)
+		}
+		opts = append(opts, readerOpt)
+	}
+
 	mp := sdkmetric.NewMeterProvider(opts...)
 	shutdown := func(ctx context.Context) error {
 		errs := []error{mp.Shutdown(ctx)}
