@@ -154,6 +154,7 @@ type SinkConfig struct {
 	HTTP       HTTPSinkConfig         `mapstructure:"http"`
 	Feed       FeedSinkConfig         `mapstructure:"feed"`
 	Composite  CompositeSinkConfig    `mapstructure:"composite"`
+	GCPPubSub  GCPPubSubSinkConfig    `mapstructure:"gcp_pubsub"`
 	Extra      map[string]interface{} `mapstructure:",remain"`
 }
 
@@ -267,6 +268,16 @@ type SNSSinkConfig struct {
 	Region       string `mapstructure:"region"`
 	EndpointURL  string `mapstructure:"endpoint_url"`
 	MessageGroup string `mapstructure:"message_group"` // FIFO only: feed_url (default) | item_id | sink
+}
+
+// GCPPubSubSinkConfig configures the Google Cloud Pub/Sub sink (driver
+// "gcp_pubsub"). Named for the provider so other pub/sub services (e.g. Azure
+// Service Bus) can take their own driver names without collision.
+type GCPPubSubSinkConfig struct {
+	ProjectID   string `mapstructure:"project_id"`   // required: GCP project that owns the topic
+	TopicID     string `mapstructure:"topic_id"`     // required: topic short name (must already exist)
+	Endpoint    string `mapstructure:"endpoint"`     // optional: Pub/Sub emulator host
+	OrderingKey string `mapstructure:"ordering_key"` // optional ordering: feed_url | item_id | sink (empty = disabled)
 }
 
 // FeedSourceConfig is one entry in the ordered feed_sources list. Order is
