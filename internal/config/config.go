@@ -142,20 +142,21 @@ type SQLiteStateConfig struct {
 }
 
 type SinkConfig struct {
-	Name       string                 `mapstructure:"name"`
-	Driver     string                 `mapstructure:"driver"`
-	DeadLetter string                 `mapstructure:"dead_letter"`
-	Postgres   PostgresSinkConfig     `mapstructure:"postgres"`
-	Kafka      KafkaSinkConfig        `mapstructure:"kafka"`
-	RabbitMQ   RabbitMQSinkConfig     `mapstructure:"rabbitmq"`
-	SQS        SQSSinkConfig          `mapstructure:"sqs"`
-	SNS        SNSSinkConfig          `mapstructure:"sns"`
-	Stdout     StdoutSinkConfig       `mapstructure:"stdout"`
-	HTTP       HTTPSinkConfig         `mapstructure:"http"`
-	Feed       FeedSinkConfig         `mapstructure:"feed"`
-	Composite  CompositeSinkConfig    `mapstructure:"composite"`
-	GCPPubSub  GCPPubSubSinkConfig    `mapstructure:"gcp_pubsub"`
-	Extra      map[string]interface{} `mapstructure:",remain"`
+	Name            string                    `mapstructure:"name"`
+	Driver          string                    `mapstructure:"driver"`
+	DeadLetter      string                    `mapstructure:"dead_letter"`
+	Postgres        PostgresSinkConfig        `mapstructure:"postgres"`
+	Kafka           KafkaSinkConfig           `mapstructure:"kafka"`
+	RabbitMQ        RabbitMQSinkConfig        `mapstructure:"rabbitmq"`
+	SQS             SQSSinkConfig             `mapstructure:"sqs"`
+	SNS             SNSSinkConfig             `mapstructure:"sns"`
+	Stdout          StdoutSinkConfig          `mapstructure:"stdout"`
+	HTTP            HTTPSinkConfig            `mapstructure:"http"`
+	Feed            FeedSinkConfig            `mapstructure:"feed"`
+	Composite       CompositeSinkConfig       `mapstructure:"composite"`
+	GCPPubSub       GCPPubSubSinkConfig       `mapstructure:"gcp_pubsub"`
+	AzureServiceBus AzureServiceBusSinkConfig `mapstructure:"azureservicebus"`
+	Extra           map[string]interface{}    `mapstructure:",remain"`
 }
 
 type HTTPSinkConfig struct {
@@ -306,6 +307,16 @@ type GCPPubSubSinkConfig struct {
 	TopicID     string `mapstructure:"topic_id"`     // required: topic short name (must already exist)
 	Endpoint    string `mapstructure:"endpoint"`     // optional: Pub/Sub emulator host
 	OrderingKey string `mapstructure:"ordering_key"` // optional ordering: feed_url | item_id | sink (empty = disabled)
+}
+
+// AzureServiceBusSinkConfig configures the Azure Service Bus sink. Exactly one
+// auth field (connection_string or namespace) and exactly one entity field
+// (queue or topic) must be set.
+type AzureServiceBusSinkConfig struct {
+	ConnectionString string `mapstructure:"connection_string"` // SAS auth
+	Namespace        string `mapstructure:"namespace"`         // Azure AD auth (DefaultAzureCredential)
+	Queue            string `mapstructure:"queue"`             // destination queue
+	Topic            string `mapstructure:"topic"`             // destination topic
 }
 
 // FeedSourceConfig is one entry in the ordered feed_sources list. Order is
