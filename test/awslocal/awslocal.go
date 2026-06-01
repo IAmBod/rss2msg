@@ -23,16 +23,27 @@ type LocalStack struct {
 // Run starts a LocalStack container with SQS and SNS enabled. The endpoint
 // URL is suitable for both services via the SDK's BaseEndpoint override.
 func Run(ctx context.Context, t *testing.T) *LocalStack {
+	return RunWithServices(ctx, t, "sqs,sns")
+}
+
+// RunWithServices starts a LocalStack container with the given comma-separated
+// LocalStack SERVICES enabled (e.g. "logs,cloudwatch"). The endpoint URL is
+// suitable for every enabled service via the SDK's BaseEndpoint override.
+func RunWithServices(ctx context.Context, t *testing.T, services string) *LocalStack {
 	t.Helper()
 	req := testcontainers.ContainerRequest{
 		Image:        "localstack/localstack:3.6",
 		ExposedPorts: []string{"4566/tcp"},
 		Env: map[string]string{
-			"SERVICES":             "sqs,sns",
+			"SERVICES":             services,
 			"DEBUG":                "0",
 			"AWS_DEFAULT_REGION":   "us-east-1",
 			"DISABLE_CORS_CHECKS":  "1",
 			"SKIP_INFRA_DOWNLOADS": "1",
+			// The v2 CloudWatch provider returns responses the smithy-go client
+			// rejects (missing protocol header); the v1 provider speaks the
+			// query protocol the SDK expects. No-op when cloudwatch isn't enabled.
+			"PROVIDER_OVERRIDE_CLOUDWATCH": "v1",
 		},
 		WaitingFor: wait.ForAll(
 			wait.ForListeningPort("4566/tcp"),
