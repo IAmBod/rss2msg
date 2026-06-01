@@ -70,6 +70,17 @@ psql "$POSTGRES_DSN" -c 'SELECT feed_url, item_id, kind, detected_at FROM feed_c
 ./rss2msg serve --config examples/config.example.yaml
 ```
 
+> **Tip:** to start from your own copy instead of editing the checked-in example,
+> generate the annotated reference config and edit it in place:
+>
+> ```bash
+> ./rss2msg generate-config > config.yaml   # or: generate-config -o config.yaml
+> ```
+>
+> The output is the same annotated reference as
+> [`examples/config.example.yaml`](../examples/config.example.yaml) and runs as-is.
+> See the [CLI reference](reference/cli.md) for `-o`/`--force`.
+
 For SQS/SNS try LocalStack:
 
 ```bash
