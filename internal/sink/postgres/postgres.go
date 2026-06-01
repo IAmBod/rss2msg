@@ -2,10 +2,14 @@ package postgres
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
 
 	"github.com/iambod/rss2msg/internal/model"
 )
@@ -20,6 +24,28 @@ type Options struct {
 	Name  string
 	DSN   string
 	Table string
+
+	// TLS, if non-nil, applies custom TLS to the pool and forces TLS by
+	// clearing pgx's plaintext fallbacks (so plaintext is never attempted),
+	// overriding whatever the DSN's sslmode produced.
+	TLS *TLSOptions
+}
+
+// TLSOptions configures custom TLS for the sink's Postgres pool. Same shape as
+// the coordinator / state-store options so operators have a consistent surface.
+type TLSOptions struct {
+	// CAFile is a PEM-encoded CA bundle to trust instead of the system roots.
+	CAFile string
+	// CertFile and KeyFile together enable client-certificate (mTLS) auth.
+	// Either both or neither must be set.
+	CertFile string
+	KeyFile  string
+	// ServerName overrides the SNI / certificate verification hostname.
+	// Defaults to the DSN host.
+	ServerName string
+	// InsecureSkipVerify disables server certificate verification. For
+	// local/test only — logged at warn.
+	InsecureSkipVerify bool
 }
 
 const defaultTable = "feed_changes"
@@ -38,7 +64,27 @@ func New(ctx context.Context, opts Options) (*Publisher, error) {
 	if !validIdentifier(table) {
 		return nil, fmt.Errorf("postgres sink %q: invalid table name %q", opts.Name, table)
 	}
-	pool, err := pgxpool.New(ctx, opts.DSN)
+	cfg, err := pgxpool.ParseConfig(opts.DSN)
+	if err != nil {
+		return nil, fmt.Errorf("postgres sink %q: parse dsn: %w", opts.Name, err)
+	}
+	if opts.TLS != nil {
+		tc, err := buildTLSConfig(*opts.TLS, cfg.ConnConfig.Host)
+		if err != nil {
+			return nil, fmt.Errorf("postgres sink %q: build TLS config: %w", opts.Name, err)
+		}
+		cfg.ConnConfig.TLSConfig = tc
+		// Drop any plaintext fallbacks pgx set up from the DSN's sslmode — the
+		// operator opted into TLS knobs, so plaintext must never be attempted.
+		cfg.ConnConfig.Fallbacks = nil
+		if opts.TLS.InsecureSkipVerify {
+			log.Warn().
+				Str("sink", opts.Name).
+				Str("sink_driver", "postgres").
+				Msg("postgres sink: TLS verification disabled (insecure_skip_verify=true)")
+		}
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("postgres sink %q: pgxpool: %w", opts.Name, err)
 	}
@@ -81,6 +127,41 @@ func (p *Publisher) migrate(ctx context.Context) error {
         );`, p.table)
 	_, err := p.pool.Exec(ctx, stmt)
 	return err
+}
+
+// buildTLSConfig translates TLSOptions into a *tls.Config. defaultServerName is
+// the host parsed out of the DSN; used as SNI when the caller did not override
+// it.
+func buildTLSConfig(opts TLSOptions, defaultServerName string) (*tls.Config, error) {
+	tc := &tls.Config{
+		ServerName:         defaultServerName,
+		InsecureSkipVerify: opts.InsecureSkipVerify, //nolint:gosec // opt-in, logged at warn
+	}
+	if opts.ServerName != "" {
+		tc.ServerName = opts.ServerName
+	}
+	if opts.CAFile != "" {
+		pem, err := os.ReadFile(opts.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("ca_file: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, fmt.Errorf("ca_file %q: no PEM certificates parsed", opts.CAFile)
+		}
+		tc.RootCAs = pool
+	}
+	if opts.CertFile != "" || opts.KeyFile != "" {
+		if opts.CertFile == "" || opts.KeyFile == "" {
+			return nil, fmt.Errorf("cert_file and key_file must both be set or both empty")
+		}
+		cert, err := tls.LoadX509KeyPair(opts.CertFile, opts.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("client cert: %w", err)
+		}
+		tc.Certificates = []tls.Certificate{cert}
+	}
+	return tc, nil
 }
 
 func validIdentifier(s string) bool {
