@@ -72,6 +72,7 @@ injecting secrets, health probes, and a scheduled `run-once` variant:
 
 - [Docker Compose](deploy/docker-compose.md) — the published image as a service.
 - [Kubernetes](deploy/kubernetes.md) — ConfigMap, Secret, Deployment, Service, CronJob.
+- [Helm chart](deploy/helm.md) — the same manifests as a templated, versioned chart.
 - [AWS ECS (Fargate)](deploy/aws-ecs.md) — task definition, Secrets Manager, task-role IAM.
 - [AWS Lambda](deploy/aws-lambda.md) — scheduled `run-once` as a container function.
 - [Azure Container Apps](deploy/azure-container-apps.md) — daemon app and scheduled job.

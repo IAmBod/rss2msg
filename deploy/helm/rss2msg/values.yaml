@@ -1,0 +1,182 @@
+# Default values for rss2msg.
+# This is a YAML-formatted file. Override values with `--set key=value` or `-f my-values.yaml`.
+
+# -- Workload to render: "deployment" (long-running `serve` daemon) or
+# "cronjob" (scheduled `run-once`). Only one workload is created.
+mode: deployment
+
+image:
+  repository: ghcr.io/iambod/rss2msg
+  # -- Image tag. Defaults to the chart appVersion when empty. Pin a version in production.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# -- Names of pre-existing image-pull secrets (created out of band).
+imagePullSecrets: []
+
+# -- Override the generated resource name prefix (`<release>-rss2msg`).
+nameOverride: ""
+# -- Override the full generated resource name.
+fullnameOverride: ""
+
+serviceAccount:
+  # -- Create a ServiceAccount for the workload.
+  create: true
+  # -- Use this name instead of a generated one (required when create=false).
+  name: ""
+  annotations: {}
+  # -- Mount the SA token into the pod. Disable if the workload needs no API access.
+  automount: false
+
+# Deployment-only settings (mode: deployment).
+deployment:
+  # -- Number of `serve` replicas. There is NO leader election: running >1 replica
+  # without a shared coordinator makes every replica poll every feed. Keep this at 1,
+  # or point all replicas at a shared Postgres/Redis coordinator in `config`.
+  replicaCount: 1
+  strategy:
+    type: Recreate
+
+# CronJob-only settings (mode: cronjob).
+cronjob:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  startingDeadlineSeconds: null
+  restartPolicy: Never
+  backoffLimit: 3
+
+# -- Container args. When empty, the chart picks a sensible default per `mode`
+# (`serve`/`run-once` against the mounted config). Set explicitly to override.
+args: []
+
+# Application config (config.yaml), rendered into a ConfigMap and mounted at
+# /etc/rss2msg/config.yaml. Reference secrets as ${VAR} so they stay out of the
+# ConfigMap — supply them via `secrets`/`existingSecret`. See the Configuration
+# Reference in the rss2msg docs for the full field surface.
+config:
+  state:
+    driver: sqlite
+    sqlite:
+      path: /var/lib/rss2msg/state.db
+  health:
+    enabled: true
+    listen: ":8080"
+  telemetry:
+    prometheus:
+      enabled: true
+      listen: ":9090"
+  feeds:
+    - url: https://example.com/feed.xml
+      interval: 5m
+      sinks: [out]
+  sinks:
+    - name: out
+      driver: stdout
+
+# -- Use an existing ConfigMap holding `config.yaml` instead of rendering `config`.
+existingConfigMap: ""
+
+# Secret values injected as environment variables (consumed by ${VAR} substitution
+# in `config`). Keys become env vars. Empty by default — populate with DSNs/tokens
+# or point at an externally-managed secret via `existingSecret`.
+secrets: {}
+  # POSTGRES_DSN: postgres://rss2msg:change-me@postgres:5432/rss2msg?sslmode=require
+
+# -- Use an existing Secret (its keys are injected via envFrom) instead of rendering `secrets`.
+existingSecret: ""
+
+# -- Extra environment variables (list of {name,value} or {name,valueFrom}).
+extraEnv: []
+# -- Extra envFrom sources (configMapRef/secretRef).
+extraEnvFrom: []
+
+# Container ports. `health` serves the probe endpoints; `metrics` serves Prometheus.
+ports:
+  health: 8080
+  metrics: 9090
+
+# Health probes. Paths/port match the rss2msg defaults (health.listen :8080,
+# /healthz, /readyz, /startupz). Require `config.health.enabled: true`.
+probes:
+  startup:
+    enabled: true
+    path: /startupz
+    failureThreshold: 30
+    periodSeconds: 2
+  liveness:
+    enabled: true
+    path: /healthz
+    periodSeconds: 10
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    path: /readyz
+    periodSeconds: 10
+    failureThreshold: 3
+
+# Prometheus metrics Service (deployment mode only). Requires
+# `config.telemetry.prometheus.enabled: true`.
+metricsService:
+  enabled: true
+  type: ClusterIP
+  port: 9090
+  annotations: {}
+  # Add Prometheus scrape hints, e.g.:
+  #   prometheus.io/scrape: "true"
+  #   prometheus.io/port: "9090"
+  #   prometheus.io/path: /metrics
+
+# Prometheus Operator ServiceMonitor (requires the monitoring.coreos.com CRD).
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  path: /metrics
+  labels: {}
+  relabelings: []
+  metricRelabelings: []
+
+# Persistence for the SQLite state store (deployment mode). Mounted at the parent
+# directory of `config.state.sqlite.path`. Not needed for Postgres-backed state.
+persistence:
+  enabled: false
+  existingClaim: ""
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 1Gi
+  # -- Mount path; should be the directory holding `config.state.sqlite.path`.
+  mountPath: /var/lib/rss2msg
+
+resources: {}
+  # limits:
+  #   cpu: 500m
+  #   memory: 256Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+# Pod- and container-level security. The published image is rootless and distroless;
+# these defaults harden it further and are safe to keep.
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+# -- Extra volumes added to the pod.
+extraVolumes: []
+# -- Extra volume mounts added to the container.
+extraVolumeMounts: []
