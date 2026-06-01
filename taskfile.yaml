@@ -69,9 +69,9 @@ tasks:
       - goreleaser release --snapshot --clean
 
   docker-build:
-    desc: Build the production container image ({{.IMAGE}}:latest)
+    desc: Build the production image locally via GoReleaser (needs goreleaser + Docker; the production stage packages a prebuilt binary, so a plain docker build can't produce it)
     cmds:
-      - docker build --target production -t {{.IMAGE}}:latest .
+      - goreleaser release --snapshot --clean --skip=publish
 
   docker-build-dev:
     desc: Build the development container image with hot reload ({{.IMAGE}}:dev)

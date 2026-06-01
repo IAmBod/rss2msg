@@ -30,6 +30,7 @@ updated: 2026-05-30
 | `declare`      | no       | `false`  | If true, declares the exchange at startup. Requires a non-empty `exchange`. |
 | `durable`      | no       | `false`  | Durability flag for the declared exchange. |
 | `mandatory`    | no       | `false`  | Publish with the AMQP mandatory flag. Returns from the broker for unroutable messages are not currently handled — turning this on without a guaranteed binding effectively drops them silently. |
+| `tls`          | no       | (off)    | Structured TLS (custom CA / mTLS / verification). When set, the sink dials with `amqp.DialTLS`; use an `amqps://` URL. See [Secure Connections (TLS)](../secure-connections-tls.md#sinks). |
 
 Publish layout:
 - Body: JSON `Change` envelope.
@@ -44,5 +45,6 @@ Implementation notes:
 ## Related
 
 - [Choose a Sink](../choose-a-sink.md) — all drivers and the decision table.
+- [Secure Connections (TLS)](../secure-connections-tls.md#sinks) — custom CA / mTLS for this sink.
 - [Sink Wire Formats](../../reference/wire-formats.md) — on-the-wire layout.
 - [Change Envelope](../../reference/change-envelope.md) — the payload body.

@@ -57,7 +57,39 @@ archives:
       - README.md
       - LICENSE*
       - CHANGELOG.md
-      - config.example.yaml
+      - examples/config.example.yaml
+
+# Linux distro packages (.deb / .rpm / .apk) built from the same binaries as the
+# archives, via GoReleaser's built-in nFPM integration — https://nfpm.goreleaser.com
+nfpms:
+  - id: rss2msg
+    ids:
+      - rss2msg
+    package_name: rss2msg
+    vendor: IAmBod
+    homepage: https://github.com/IAmBod/rss2msg
+    maintainer: Bödei Károly <boodeikaroly@gmail.com>
+    description: |-
+      RSS/Atom/JSON feed-to-message bridge.
+      Polls feeds, detects new and updated items, and publishes a canonical change
+      envelope to one or more sinks (Postgres, Kafka, RabbitMQ, SQS, SNS).
+    section: net
+    formats:
+      - deb
+      - rpm
+      - apk
+    # The binary lands at /usr/bin/rss2msg.
+    bindir: /usr/bin
+    contents:
+      # Ship the same reference material the archives bundle. config.example.yaml is
+      # a reference, not an active config, so it goes under /etc as a documented sample
+      # rather than a live /etc/rss2msg/config.yaml the service would read.
+      - src: ./examples/config.example.yaml
+        dst: /etc/rss2msg/config.example.yaml
+      - src: ./README.md
+        dst: /usr/share/doc/rss2msg/README.md
+      - src: ./CHANGELOG.md
+        dst: /usr/share/doc/rss2msg/CHANGELOG.md
 
 checksum:
   name_template: checksums.txt
@@ -75,7 +107,9 @@ changelog:
 # the older dockers/docker_manifests pair).
 dockers_v2:
   - id: rss2msg
-    dockerfile: Dockerfile.goreleaser
+    # Reuse the multi-stage Dockerfile; its final stage (production) packages the
+    # prebuilt binary, so buildx targets it by default.
+    dockerfile: Dockerfile
     images:
       - ghcr.io/iambod/rss2msg
     tags:

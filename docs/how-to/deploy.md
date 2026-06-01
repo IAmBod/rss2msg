@@ -53,16 +53,17 @@ rss2msg validate-config --config /etc/rss2msg/config.yaml
 
 ### Container image
 
-The repo ships a multi-stage [`Dockerfile`](../../Dockerfile) whose `production`
-target compiles a static binary onto a rootless distroless base:
+The release pipeline publishes a multi-arch, rootless distroless image to GHCR on
+every version tag (the `production` stage of the single [`Dockerfile`](../../Dockerfile)):
 
 ```bash
-docker build --target production -t rss2msg:latest .
-docker run --rm -v "$PWD/config.yaml:/etc/rss2msg/config.yaml:ro" rss2msg:latest serve
+docker pull ghcr.io/iambod/rss2msg:latest   # or pin a version, e.g. :v1.2.3
+docker run --rm -v "$PWD/config.yaml:/etc/rss2msg/config.yaml:ro" ghcr.io/iambod/rss2msg:latest serve
 ```
 
 See [Run with Docker](run-with-docker.md) for the hot-reload development image, the
-Docker Compose dev stack, and the full build/run reference.
+Docker Compose dev stack, and how to build a production image locally; see
+[Releasing](../development/releasing.md) for how the image is built and published.
 
 ## 4. Scale out
 

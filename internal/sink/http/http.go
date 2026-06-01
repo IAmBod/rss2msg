@@ -6,14 +6,18 @@ package http
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 
@@ -41,6 +45,28 @@ type Options struct {
 	// SuccessCodes are the HTTP status codes that count as a successful
 	// publish. Empty -> {200, 201, 202, 204}.
 	SuccessCodes []int
+
+	// TLS, if non-nil, applies custom TLS (CA / client cert / verification
+	// options) to the client transport. Only meaningful for https:// URLs.
+	TLS *TLSOptions
+}
+
+// TLSOptions configures custom TLS for the webhook client. Same shape as the
+// other sinks so operators have a consistent surface. ServerName is left empty
+// by default so net/http derives it from the request URL.
+type TLSOptions struct {
+	// CAFile is a PEM-encoded CA bundle to trust instead of the system roots.
+	CAFile string
+	// CertFile and KeyFile together enable client-certificate (mTLS) auth.
+	// Either both or neither must be set.
+	CertFile string
+	KeyFile  string
+	// ServerName overrides the SNI / certificate verification hostname.
+	// Empty lets net/http derive it from the request URL host.
+	ServerName string
+	// InsecureSkipVerify disables server certificate verification. For
+	// local/test only — logged at warn.
+	InsecureSkipVerify bool
 }
 
 type Publisher struct {
@@ -97,14 +123,62 @@ func New(opts Options) (*Publisher, error) {
 		}
 	}
 
+	client := &http.Client{Timeout: timeout}
+	if opts.TLS != nil {
+		tc, err := buildTLSConfig(*opts.TLS)
+		if err != nil {
+			return nil, fmt.Errorf("http sink %q: build TLS config: %w", opts.Name, err)
+		}
+		client.Transport = &http.Transport{TLSClientConfig: tc}
+		if opts.TLS.InsecureSkipVerify {
+			log.Warn().
+				Str("sink", opts.Name).
+				Str("sink_driver", "http").
+				Msg("http sink: TLS verification disabled (insecure_skip_verify=true)")
+		}
+	}
+
 	return &Publisher{
 		name:         opts.Name,
 		url:          opts.URL,
 		method:       method,
 		headers:      opts.Headers,
 		successCodes: codes,
-		client:       &http.Client{Timeout: timeout},
+		client:       client,
 	}, nil
+}
+
+// buildTLSConfig translates TLSOptions into a *tls.Config. ServerName is left
+// empty unless overridden so net/http derives it from the request URL host.
+func buildTLSConfig(opts TLSOptions) (*tls.Config, error) {
+	tc := &tls.Config{
+		InsecureSkipVerify: opts.InsecureSkipVerify, //nolint:gosec // opt-in, logged at warn
+	}
+	if opts.ServerName != "" {
+		tc.ServerName = opts.ServerName
+	}
+	if opts.CAFile != "" {
+		pem, err := os.ReadFile(opts.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("ca_file: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, fmt.Errorf("ca_file %q: no PEM certificates parsed", opts.CAFile)
+		}
+		tc.RootCAs = pool
+	}
+	if opts.CertFile != "" || opts.KeyFile != "" {
+		if opts.CertFile == "" || opts.KeyFile == "" {
+			return nil, fmt.Errorf("cert_file and key_file must both be set or both empty")
+		}
+		cert, err := tls.LoadX509KeyPair(opts.CertFile, opts.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("client cert: %w", err)
+		}
+		tc.Certificates = []tls.Certificate{cert}
+	}
+	return tc, nil
 }
 
 func (p *Publisher) Name() string { return p.name }
