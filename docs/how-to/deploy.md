@@ -65,6 +65,24 @@ See [Run with Docker](run-with-docker.md) for the hot-reload development image, 
 Docker Compose dev stack, and how to build a production image locally; see
 [Releasing](../development/releasing.md) for how the image is built and published.
 
+### Platform recipes
+
+Step-by-step guides for the common runtimes — each covers packaging config,
+injecting secrets, health probes, and a scheduled `run-once` variant:
+
+- [Docker Compose](deploy/docker-compose.md) — the published image as a service.
+- [Kubernetes](deploy/kubernetes.md) — ConfigMap, Secret, Deployment, Service, CronJob.
+- [AWS ECS (Fargate)](deploy/aws-ecs.md) — task definition, Secrets Manager, task-role IAM.
+- [AWS Lambda](deploy/aws-lambda.md) — scheduled `run-once` as a container function.
+- [Azure Container Apps](deploy/azure-container-apps.md) — daemon app and scheduled job.
+- [GCP Cloud Run](deploy/gcp-cloud-run.md) — always-on service and Cloud Scheduler job.
+
+They all start from the same model: keep secrets out of `config.yaml` (reference
+them as `${VAR}`), supply the file by baking a thin image (`FROM
+ghcr.io/iambod/rss2msg:latest` + `COPY config.yaml /etc/rss2msg/config.yaml`) or a
+platform-native volume/secret mount, and define health checks against the HTTP
+probe endpoints since the image has no shell.
+
 ## 4. Scale out
 
 Running more than one instance? Point them all at a shared coordinator so they
