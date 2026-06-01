@@ -87,4 +87,4 @@ available if a platform's feed needs authentication — see
 - [Configure Feeds](configure-feeds.md) — the `feeds[]` fields these URLs go into.
 - [Dynamic Feed Sources](dynamic-feed-sources.md) — load the feed list at runtime instead of hard-coding it.
 - [Getting Started](../getting-started.md) — your first feed end to end.
-- [`config.example.full.yaml`](../../config.example.full.yaml) — a runnable example with a large real-world feed list.
+- [`config.example.full.yaml`](../../examples/config.example.full.yaml) — a runnable example with a large real-world feed list.

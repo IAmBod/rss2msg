@@ -21,7 +21,7 @@ coverage.txt
 .envrc
 .env
 
-# Local working config (copy from config.example.yaml or config.example.full.yaml)
+# Local working config (copy from examples/config.example.yaml or examples/config.example.full.yaml)
 /config.yaml
 
 # Editors / build tooling state

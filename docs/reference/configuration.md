@@ -8,7 +8,7 @@ updated: 2026-05-30
 
 # Configuration Reference
 
-The full annotated example is in [`config.example.yaml`](../../config.example.yaml).
+The full annotated example is in [`config.example.yaml`](../../examples/config.example.yaml).
 The reference below documents every field — required, optional, default,
 acceptable values, and what the field controls.
 
