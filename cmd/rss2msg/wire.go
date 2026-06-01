@@ -15,6 +15,7 @@ import (
 	"github.com/iambod/rss2msg/internal/sink"
 	compositesink "github.com/iambod/rss2msg/internal/sink/composite"
 	feedsink "github.com/iambod/rss2msg/internal/sink/feed"
+	sinkgcppubsub "github.com/iambod/rss2msg/internal/sink/gcppubsub"
 	sinkhttp "github.com/iambod/rss2msg/internal/sink/http"
 	sinkkafka "github.com/iambod/rss2msg/internal/sink/kafka"
 	sinkpg "github.com/iambod/rss2msg/internal/sink/postgres"
@@ -471,6 +472,14 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 			StoreDriver: f.Store.Driver, SQLitePath: f.Store.SQLite.Path,
 			PostgresDSN: f.Store.Postgres.DSN, Table: f.Store.Postgres.Table, PostgresTLS: pgTLS,
 			Meter: tel.Meter, Logger: tel.Logger,
+		})
+	case "gcp_pubsub":
+		return sinkgcppubsub.New(ctx, sinkgcppubsub.Options{
+			Name:        sc.Name,
+			ProjectID:   sc.GCPPubSub.ProjectID,
+			TopicID:     sc.GCPPubSub.TopicID,
+			Endpoint:    sc.GCPPubSub.Endpoint,
+			OrderingKey: sc.GCPPubSub.OrderingKey,
 		})
 	case "composite":
 		return compositesink.New(compositesink.Options{

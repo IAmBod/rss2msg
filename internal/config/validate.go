@@ -27,15 +27,16 @@ var knownStateDrivers = map[string]struct{}{
 }
 
 var knownSinkDrivers = map[string]struct{}{
-	"postgres":  {},
-	"kafka":     {},
-	"rabbitmq":  {},
-	"sqs":       {},
-	"sns":       {},
-	"stdout":    {},
-	"http":      {},
-	"feed":      {},
-	"composite": {},
+	"postgres":   {},
+	"kafka":      {},
+	"rabbitmq":   {},
+	"sqs":        {},
+	"sns":        {},
+	"stdout":     {},
+	"http":       {},
+	"feed":       {},
+	"composite":  {},
+	"gcp_pubsub": {},
 }
 
 var knownFeedStoreDrivers = map[string]struct{}{
@@ -63,6 +64,12 @@ var knownStdoutFormats = map[string]struct{}{
 }
 
 var knownSQSMessageGroups = map[string]struct{}{
+	"feed_url": {},
+	"item_id":  {},
+	"sink":     {},
+}
+
+var knownGCPPubSubOrderingKeys = map[string]struct{}{
 	"feed_url": {},
 	"item_id":  {},
 	"sink":     {},
@@ -319,6 +326,18 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 				}
 				if !fifo {
 					return *warnings, fmt.Errorf("sinks[%d] (sns %q): message_group is only valid for FIFO topics (topic_arn must end with .fifo)", i, s.Name)
+				}
+			}
+		case "gcp_pubsub":
+			if strings.TrimSpace(s.GCPPubSub.ProjectID) == "" {
+				return *warnings, fmt.Errorf("sinks[%d] (gcp_pubsub %q): gcp_pubsub.project_id is required", i, s.Name)
+			}
+			if strings.TrimSpace(s.GCPPubSub.TopicID) == "" {
+				return *warnings, fmt.Errorf("sinks[%d] (gcp_pubsub %q): gcp_pubsub.topic_id is required", i, s.Name)
+			}
+			if ok := s.GCPPubSub.OrderingKey; ok != "" {
+				if _, found := knownGCPPubSubOrderingKeys[ok]; !found {
+					return *warnings, fmt.Errorf("sinks[%d] (gcp_pubsub %q): unknown ordering_key %q (want one of feed_url, item_id, sink)", i, s.Name, ok)
 				}
 			}
 		case "stdout":
