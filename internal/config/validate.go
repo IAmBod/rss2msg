@@ -258,6 +258,17 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 	}
 
+	if p := c.Telemetry.PostHog; p.Enabled {
+		if p.FlushInterval < 0 {
+			return *warnings, fmt.Errorf("telemetry.posthog.flush_interval %v must not be negative", p.FlushInterval)
+		}
+		if lvl := strings.TrimSpace(p.Level); lvl != "" {
+			if _, ok := knownZerologLevels[strings.ToLower(lvl)]; !ok {
+				return *warnings, fmt.Errorf("telemetry.posthog.level %q is not a valid level (want one of trace, debug, info, warn, error, fatal, panic, disabled)", p.Level)
+			}
+		}
+	}
+
 	if c.Health.Enabled {
 		if strings.TrimSpace(c.Health.Listen) == "" {
 			return *warnings, fmt.Errorf("health.listen is required when health.enabled=true")
