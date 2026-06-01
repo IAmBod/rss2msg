@@ -200,6 +200,7 @@ sinks:
   #       Authorization: "Bearer ${HOOK_TOKEN}"
   #     timeout: 10s
   #     success_codes: [200, 201, 202, 204]
+  #     http3: false                                # dial over HTTP/3 (QUIC); requires an https:// url
   #     tls:                                        # for https:// targets with a private CA / mTLS
   #       ca_file: /etc/ssl/certs/internal-ca.pem
 
