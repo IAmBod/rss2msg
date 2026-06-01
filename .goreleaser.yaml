@@ -107,7 +107,9 @@ changelog:
 # the older dockers/docker_manifests pair).
 dockers_v2:
   - id: rss2msg
-    dockerfile: Dockerfile.goreleaser
+    # Reuse the multi-stage Dockerfile; its final stage (production) packages the
+    # prebuilt binary, so buildx targets it by default.
+    dockerfile: Dockerfile
     images:
       - ghcr.io/iambod/rss2msg
     tags:
