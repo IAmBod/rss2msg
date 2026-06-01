@@ -2,7 +2,7 @@
 title: Releasing
 type: how-to
 tags: [rss2msg/docs, development, release]
-summary: The release pipeline — golangci-lint in CI, git-cliff for the changelog and version bumps, and GoReleaser for multi-platform binaries, Linux packages (.deb/.rpm/.apk), and a multi-arch Docker image, all driven by a semver tag.
+summary: The release pipeline — golangci-lint in CI, git-cliff for the changelog and version bumps, and GoReleaser for multi-platform binaries, Linux packages (.deb/.rpm/.apk), a multi-arch Docker image, and a Homebrew formula, all driven by a semver tag.
 updated: 2026-06-01
 ---
 
@@ -14,7 +14,7 @@ rss2msg ships through a tag-driven pipeline built from three tools:
 | --- | --- | --- |
 | [golangci-lint](https://golangci-lint.run) | [`.golangci.yml`](../../.golangci.yml) | Code-quality gate on every PR and push to `main`. |
 | [git-cliff](https://git-cliff.org) | [`cliff.toml`](../../cliff.toml) | Builds `CHANGELOG.md` and per-release notes from [Conventional Commits](https://www.conventionalcommits.org); derives the next semver. |
-| [GoReleaser](https://goreleaser.com) | [`.goreleaser.yaml`](../../.goreleaser.yaml) | Builds multi-platform binaries, Linux packages (`.deb`/`.rpm`/`.apk`), and a multi-arch Docker image, and publishes the GitHub Release. |
+| [GoReleaser](https://goreleaser.com) | [`.goreleaser.yaml`](../../.goreleaser.yaml) | Builds multi-platform binaries, Linux packages (`.deb`/`.rpm`/`.apk`), a multi-arch Docker image, and a Homebrew formula, and publishes the GitHub Release. |
 
 Two GitHub Actions workflows wire them together:
 
@@ -60,6 +60,9 @@ The release workflow then:
   `:latest` — the `production` (final) stage of the single
   [`Dockerfile`](../../Dockerfile), which packages the cross-compiled binary GoReleaser
   stages per platform (`COPY $TARGETPLATFORM/rss2msg`);
+- updates the [Homebrew tap](#homebrew-tap) — generates the `rss2msg` cask from the
+  macOS archives and commits it to `IAmBod/homebrew-tap` (skipped for prerelease tags,
+  see [`homebrew_casks:` in `.goreleaser.yaml`](../../.goreleaser.yaml));
 - publishes a GitHub Release whose notes are the git-cliff section for that tag.
 
 ## Version metadata
@@ -97,6 +100,28 @@ task release-snapshot   # full dry-run into ./dist, nothing published
 - If `main` is protected such that the Actions bot cannot push, the `CHANGELOG.md`
   sync step will fail; either allow the bot to push or run `task changelog` and commit
   the file manually before tagging.
+
+## Homebrew tap
+
+The release publishes a Homebrew cask so macOS users can `brew install IAmBod/tap/rss2msg`
+(see [Install](../getting-started.md#install)). GoReleaser builds the cask from the macOS
+archives and commits it to a **separate tap repository**. It uses `homebrew_casks` rather
+than the deprecated `brews` formula section; the cask ships the prebuilt binary and a
+postflight that clears the quarantine attribute (the binary isn't notarized). Homebrew
+Cask is macOS-only — Linux users install via the `.deb`/`.rpm`/`.apk` packages or the
+container image. Setup is one-time:
+
+1. Create a public repo **`IAmBod/homebrew-tap`**. Homebrew maps the tap name
+   `IAmBod/tap` to a repo named `homebrew-tap`, so the cask lands at
+   `Casks/rss2msg.rb` there and `brew install IAmBod/tap/rss2msg` resolves.
+2. Add a repository (or organization) secret **`TAP_GITHUB_TOKEN`** — a fine-grained
+   personal access token with `contents: write` on the tap repo. The built-in
+   `GITHUB_TOKEN` only has access to *this* repo, so a cross-repo push needs its own
+   token; the release workflow passes it to GoReleaser as `$TAP_GITHUB_TOKEN`.
+
+Until both exist, the rest of the release (binaries, packages, image, GitHub Release)
+still publishes — only the `brews` step fails. Prerelease tags (e.g. `v1.0.0-rc.1`)
+never touch the tap, because the formula uses `skip_upload: auto`.
 
 ## Related
 
