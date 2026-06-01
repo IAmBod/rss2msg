@@ -141,6 +141,14 @@ sinks:
   #     region: us-east-1
   #     # message_group: feed_url                       # FIFO only: feed_url (default) | item_id | sink
   #   dead_letter: dlq-main
+  # - name: pubsub-main
+  #   driver: gcp_pubsub
+  #   gcp_pubsub:
+  #     project_id: my-gcp-project
+  #     topic_id: feed-changes                          # topic must already exist
+  #     # endpoint: localhost:8085                      # for the Pub/Sub emulator
+  #     # ordering_key: feed_url                        # ordered delivery: feed_url | item_id | sink
+  #   dead_letter: dlq-main
   # - name: rmq-main
   #   driver: rabbitmq
   #   rabbitmq:
