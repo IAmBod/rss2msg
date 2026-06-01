@@ -69,6 +69,7 @@ nfpms:
     vendor: IAmBod
     homepage: https://github.com/IAmBod/rss2msg
     maintainer: Bödei Károly <info@randombullsh.it>
+    license: BUSL-1.1
     description: |-
       RSS/Atom/JSON feed-to-message bridge.
       Polls feeds, detects new and updated items, and publishes a canonical change
