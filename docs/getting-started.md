@@ -8,6 +8,32 @@ updated: 2026-05-30
 
 # Getting Started
 
+## Install
+
+If you just want to run rss2msg, install a pre-built binary instead of building
+from source.
+
+**Homebrew** (macOS):
+
+```bash
+brew install IAmBod/tap/rss2msg
+rss2msg version
+```
+
+This pulls the cask from the project's [Homebrew tap](https://github.com/IAmBod/homebrew-tap),
+which the [release pipeline](development/releasing.md) updates on every stable tag.
+(Homebrew Cask is macOS-only; on Linux use a package or the image below.)
+
+**Linux packages:** download a `.deb` / `.rpm` / `.apk` for your architecture from the
+[GitHub Releases](https://github.com/IAmBod/rss2msg/releases) page and install it with
+your package manager (e.g. `sudo dpkg -i rss2msg_*_amd64.deb`).
+
+**Other options:** download a raw `.tar.gz` / `.zip` binary from the same
+[Releases](https://github.com/IAmBod/rss2msg/releases) page, or run the container
+image — see [Run with Docker](how-to/run-with-docker.md).
+
+To build from source instead, read on.
+
 ## Build
 
 ```bash
