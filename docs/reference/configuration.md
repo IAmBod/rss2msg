@@ -3,7 +3,7 @@ title: Configuration Reference
 type: reference
 tags: [rss2msg/docs, configuration]
 summary: Loading order, environment variables, and every config field except sinks, coordination, and feeds.
-updated: 2026-05-30
+updated: 2026-06-01
 ---
 
 # Configuration Reference
@@ -71,6 +71,13 @@ telemetry:
   prometheus:
     enabled: false
     listen: ":9090"
+  sentry:
+    enabled: false
+    # dsn: ${SENTRY_DSN}
+    level: error
+    sample_rate: 1.0
+    traces_sample_rate: 0.0
+    debug: false
 ```
 
 | field | default | notes |
@@ -90,6 +97,27 @@ safe for local development.
 
 The Kafka/SQS/SNS sinks all inject W3C `traceparent` (and `tracestate` when
 present) so downstream consumers can stitch the trace.
+
+### `telemetry.sentry`
+
+Optional [Sentry](https://sentry.io) error/crash reporting, disabled by default.
+When enabled, log events at or above `level` are forwarded to Sentry as events,
+and unrecovered panics are reported before the process exits.
+
+| field | default | notes |
+| -------------------- | ------- | ----- |
+| `enabled`            | `false` | Master switch. |
+| `dsn`                | `""`    | Sentry DSN; falls back to the `SENTRY_DSN` env var when empty. If neither resolves while enabled, Sentry is skipped with a warning (startup is not aborted). |
+| `environment`        | `""`    | Falls back to `SENTRY_ENVIRONMENT`. |
+| `release`            | `""`    | Falls back to `SENTRY_RELEASE`. |
+| `server_name`        | `""`    | Optional host/instance label. |
+| `level`              | `error` | Minimum zerolog level forwarded (`trace`..`panic`). Events carry the log message; an OTEL span context adds `trace_id`/`span_id` tags. |
+| `sample_rate`        | `1.0`   | Error-event sampling, `[0.0, 1.0]`. |
+| `traces_sample_rate` | `0.0`   | Performance/transaction sampling, `[0.0, 1.0]`. |
+| `debug`              | `false` | Sentry SDK debug logging to stdout. |
+
+> Only the log message, level, and trace tags reach Sentry — zerolog hooks do not
+> expose structured fields or the underlying `err` object.
 
 ## `http`
 

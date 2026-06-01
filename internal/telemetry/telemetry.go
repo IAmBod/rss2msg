@@ -50,7 +50,28 @@ func (t *Telemetry) Shutdown(ctx context.Context) error {
 // Shutdown must be called.
 func Setup(ctx context.Context, cfg config.Config, out io.Writer) (*Telemetry, error) {
 	t := &Telemetry{}
-	t.Logger = buildLogger(cfg.Log, out)
+
+	// Resolve Sentry first so its hook can be attached to the logger we build
+	// below. A missing DSN is non-fatal: warn (once the logger exists) and skip.
+	var sentryHooks []zerolog.Hook
+	sentryDSNMissing := false
+	if cfg.Telemetry.Sentry.Enabled {
+		hook, shutdown, err := setupSentry(cfg.Telemetry.Sentry)
+		switch {
+		case errors.Is(err, errNoSentryDSN):
+			sentryDSNMissing = true
+		case err != nil:
+			return nil, err
+		default:
+			sentryHooks = append(sentryHooks, hook)
+			t.shutdownFns = append(t.shutdownFns, shutdown)
+		}
+	}
+
+	t.Logger = buildLogger(cfg.Log, out, sentryHooks...)
+	if sentryDSNMissing {
+		t.Logger.Warn().Msg("telemetry.sentry.enabled=true but no DSN resolved (set telemetry.sentry.dsn or SENTRY_DSN); Sentry disabled")
+	}
 
 	// Install the W3C TraceContext + Baggage propagator so that span context
 	// can actually be injected into outbound carriers (e.g. Kafka headers).
@@ -97,7 +118,7 @@ func Setup(ctx context.Context, cfg config.Config, out io.Writer) (*Telemetry, e
 
 var zerologOnce sync.Once
 
-func buildLogger(c config.LogConfig, out io.Writer) zerolog.Logger {
+func buildLogger(c config.LogConfig, out io.Writer, extraHooks ...zerolog.Hook) zerolog.Logger {
 	zerologOnce.Do(func() {
 		zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMs
 	})
@@ -109,7 +130,13 @@ func buildLogger(c config.LogConfig, out io.Writer) zerolog.Logger {
 	if c.Format == "console" {
 		w = zerolog.ConsoleWriter{Out: out}
 	}
-	return zerolog.New(w).Level(lvl).Hook(otelLogHook{}).With().Timestamp().Logger()
+	logger := zerolog.New(w).Level(lvl).Hook(otelLogHook{})
+	for _, h := range extraHooks {
+		if h != nil {
+			logger = logger.Hook(h)
+		}
+	}
+	return logger.With().Timestamp().Logger()
 }
 
 // otelLogHook decorates every log event whose ctx carries a valid OTEL span
