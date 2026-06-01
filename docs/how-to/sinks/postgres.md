@@ -20,6 +20,7 @@ updated: 2026-05-30
 | ---------------- | -------- | ----- |
 | `postgres.dsn`   | yes      | Standalone DSN; not required to match the state DSN. |
 | `postgres.table` | yes      | Unquoted identifier (`[A-Za-z_][A-Za-z0-9_]*`, ≤ 63 chars). Validated; never interpolated raw. |
+| `postgres.tls`   | no       | Structured client TLS (custom CA, mTLS, verification). When set, forces TLS and clears pgx plaintext fallbacks. See [Secure Connections (TLS)](../secure-connections-tls.md#sinks). |
 
 Schema created on first publish (idempotent):
 
@@ -42,5 +43,6 @@ from the JSONB payload.
 ## Related
 
 - [Choose a Sink](../choose-a-sink.md) — all drivers and the decision table.
+- [Secure Connections (TLS)](../secure-connections-tls.md#sinks) — custom CA / mTLS for this sink.
 - [Sink Wire Formats](../../reference/wire-formats.md) — on-the-wire layout.
 - [Change Envelope](../../reference/change-envelope.md) — the payload body.

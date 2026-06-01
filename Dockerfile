@@ -3,11 +3,19 @@
 # Multi-stage build for rss2msg.
 #
 #   development — full Go toolchain + `air` for hot reload (used by docker-compose).
-#   production  — static binary on a distroless base; small and runs as nonroot.
+#   build       — compiles the static binary from source. Handy on its own
+#                 (`docker build --target build --output=. .`); the production image
+#                 below does NOT use it (GoReleaser supplies that binary).
+#   production  — distroless runtime that packages a prebuilt binary. This is the
+#                 final stage, so `docker build` targets it by default — which is how
+#                 GoReleaser (dockers_v2) builds the published image.
 #
-# Build either stage explicitly with --target:
-#   docker build --target development -t rss2msg:dev .
-#   docker build --target production  -t rss2msg:latest .
+# The production stage does NOT compile from source: GoReleaser cross-compiles the
+# binary (see builds: in .goreleaser.yaml) and stages it in the build context under
+# a per-platform subdirectory (linux/amd64/rss2msg, linux/arm64/rss2msg, …), which
+# the `COPY $TARGETPLATFORM/rss2msg` below selects. A plain `docker build .` has no
+# such binary in its context; build a local production image with `task release-snapshot`
+# (GoReleaser) instead. The hot-reload `development` image still builds from source.
 #
 # rss2msg uses a pure-Go SQLite driver (modernc.org/sqlite), so the binary builds
 # with CGO disabled and needs no libc at runtime — hence the `static` distroless base.
@@ -43,10 +51,13 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -o /out/rss2msg ./cmd/rss2msg
 
 ############################
-# production — minimal runtime
+# production — minimal runtime (final stage = default build target)
 ############################
 FROM gcr.io/distroless/static-debian12:nonroot AS production
-COPY --from=build /out/rss2msg /usr/local/bin/rss2msg
+# GoReleaser (dockers_v2) stages the cross-compiled binary under per-platform
+# subdirectories; $TARGETPLATFORM (set by buildx, e.g. linux/amd64) selects ours.
+ARG TARGETPLATFORM
+COPY $TARGETPLATFORM/rss2msg /usr/local/bin/rss2msg
 # Config is resolved from --config, then ./config.yaml, then /etc/rss2msg/config.yaml.
 # Mount your config at /etc/rss2msg/config.yaml (see docs/how-to/run-with-docker.md).
 EXPOSE 8080 9090

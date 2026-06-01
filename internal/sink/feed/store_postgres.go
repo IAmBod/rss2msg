@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
 
 	"github.com/iambod/rss2msg/internal/model"
 )
@@ -53,6 +54,16 @@ func newPostgresStore(ctx context.Context, opts postgresOptions) (*postgresStore
 			return nil, err
 		}
 		cfg.ConnConfig.TLSConfig = tc
+		// Drop any plaintext fallbacks pgx set up from the DSN's sslmode — the
+		// operator opted into TLS knobs, so plaintext must never be attempted
+		// (mirrors coord/postgres and state/postgres).
+		cfg.ConnConfig.Fallbacks = nil
+		if opts.TLS.InsecureSkipVerify {
+			log.Warn().
+				Str("sink_driver", "feed").
+				Str("store", "postgres").
+				Msg("feed postgres store: TLS verification disabled (insecure_skip_verify=true)")
+		}
 	}
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
