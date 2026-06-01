@@ -3,7 +3,7 @@ title: Telemetry
 type: reference
 tags: [rss2msg/docs, observability]
 summary: OTEL instruments, their attributes, and trace/log correlation.
-updated: 2026-05-30
+updated: 2026-06-01
 ---
 
 # Telemetry
@@ -25,6 +25,17 @@ up `traceparent` from message headers/attributes to stitch the full trace.
 
 Zerolog is configured with the service name and is OTEL-correlated: log
 records emitted inside a span carry `trace_id` and `span_id` fields.
+
+## Sentry
+
+Optional error/crash reporting (disabled by default). When
+`telemetry.sentry.enabled` is set and a DSN resolves (from config or
+`SENTRY_DSN`), a zerolog hook forwards log events at or above
+`telemetry.sentry.level` (default `error`) to Sentry, and unrecovered panics
+are captured before the process exits. Events inside a span carry `trace_id` /
+`span_id` tags, cross-linking Sentry issues to traces. See the
+[`telemetry.sentry` config block](configuration.md#telemetrysentry) for all
+fields.
 
 ## Related
 
