@@ -379,11 +379,15 @@ func openStateStore(ctx context.Context, c config.StateConfig) (state.Store, err
 func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Telemetry) (sink.Publisher, error) {
 	switch sc.Driver {
 	case "postgres":
-		return sinkpg.New(ctx, sinkpg.Options{Name: sc.Name, DSN: sc.Postgres.DSN, Table: sc.Postgres.Table})
+		return sinkpg.New(ctx, sinkpg.Options{
+			Name: sc.Name, DSN: sc.Postgres.DSN, Table: sc.Postgres.Table,
+			TLS: sinkPGTLSFromConfig(sc.Postgres.TLS),
+		})
 	case "kafka":
 		return sinkkafka.New(sinkkafka.Options{
 			Name: sc.Name, Brokers: sc.Kafka.Brokers, Topic: sc.Kafka.Topic,
 			Acks: sc.Kafka.Acks, Compression: sc.Kafka.Compression,
+			TLS: sinkKafkaTLSFromConfig(sc.Kafka.TLS),
 		})
 	case "stdout":
 		return sinkstdout.New(sinkstdout.Options{
@@ -399,6 +403,7 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 			Headers:      sc.HTTP.Headers,
 			Timeout:      sc.HTTP.Timeout,
 			SuccessCodes: sc.HTTP.SuccessCodes,
+			TLS:          sinkHTTPTLSFromConfig(sc.HTTP.TLS),
 		})
 	case "rabbitmq":
 		return sinkrabbitmq.New(sinkrabbitmq.Options{
@@ -410,6 +415,7 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 			Declare:      sc.RabbitMQ.Declare,
 			Durable:      sc.RabbitMQ.Durable,
 			Mandatory:    sc.RabbitMQ.Mandatory,
+			TLS:          sinkRabbitMQTLSFromConfig(sc.RabbitMQ.TLS),
 		})
 	case "sqs":
 		return sinksqs.New(ctx, sinksqs.Options{
