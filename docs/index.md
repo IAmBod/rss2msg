@@ -25,6 +25,7 @@ Start here. Pages are grouped the way you use them.
     - [Docker Compose](how-to/deploy/docker-compose.md)
     - [Kubernetes](how-to/deploy/kubernetes.md)
     - [AWS ECS (Fargate)](how-to/deploy/aws-ecs.md)
+    - [AWS Lambda](how-to/deploy/aws-lambda.md)
     - [Azure Container Apps](how-to/deploy/azure-container-apps.md)
     - [GCP Cloud Run](how-to/deploy/gcp-cloud-run.md)
 - [Kubernetes Health Probes](how-to/kubernetes-health-probes.md)
