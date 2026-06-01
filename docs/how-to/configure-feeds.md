@@ -37,6 +37,7 @@ when present, and updates the row from the response's `ETag` /
 
 ## Related
 
+- [Feeds from CMS Platforms](feeds-from-cms-platforms.md) — feed URLs for WordPress, Ghost, Substack, and other common platforms.
 - [Dynamic Feed Sources](dynamic-feed-sources.md) — reconcile the feed list at runtime from `feed_sources:`.
 - [Choose a Sink](choose-a-sink.md) — the sink names referenced by `feeds[].sinks`.
 - [Configuration Reference](../reference/configuration.md#http) — global `http` defaults feeds can override.
