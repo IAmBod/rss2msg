@@ -1166,6 +1166,71 @@ func TestValidateHealthDisabledSkipsChecks(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsGCPPubSubSink(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "ps-x", Driver: "gcp_pubsub",
+		GCPPubSub: GCPPubSubSinkConfig{ProjectID: "proj", TopicID: "feed-changes"},
+	})
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateAcceptsGCPPubSubOrderingKey(t *testing.T) {
+	t.Parallel()
+	for _, k := range []string{"feed_url", "item_id", "sink"} {
+		c := goodCfg()
+		c.Sinks = append(c.Sinks, SinkConfig{
+			Name: "ps-x", Driver: "gcp_pubsub",
+			GCPPubSub: GCPPubSubSinkConfig{ProjectID: "proj", TopicID: "t", OrderingKey: k},
+		})
+		if _, err := Validate(c); err != nil {
+			t.Fatalf("ordering_key %q: expected nil, got %v", k, err)
+		}
+	}
+}
+
+func TestValidateRejectsGCPPubSubWithoutProjectID(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "ps-x", Driver: "gcp_pubsub",
+		GCPPubSub: GCPPubSubSinkConfig{TopicID: "t"},
+	})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "project_id") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsGCPPubSubWithoutTopicID(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "ps-x", Driver: "gcp_pubsub",
+		GCPPubSub: GCPPubSubSinkConfig{ProjectID: "proj"},
+	})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "topic_id") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsGCPPubSubUnknownOrderingKey(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "ps-x", Driver: "gcp_pubsub",
+		GCPPubSub: GCPPubSubSinkConfig{ProjectID: "proj", TopicID: "t", OrderingKey: "bogus"},
+	})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "ordering_key") {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestValidateAcceptsAzureServiceBusSink(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()
