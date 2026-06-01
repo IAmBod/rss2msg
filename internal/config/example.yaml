@@ -1,0 +1,187 @@
+log:
+  level: info
+  format: json
+
+telemetry:
+  service_name: rss2msg
+  traces:   { enabled: true }
+  metrics:  { enabled: true }
+  logs:     { enabled: false }
+  prometheus:
+    enabled: false
+    listen: ":9090"
+
+http:
+  user_agent: "rss2msg/0.1 (+https://example.com)"
+  timeout: 30s
+
+retry:
+  max_attempts: 3
+  base_delay: 500ms
+  max_delay: 10s
+
+runtime:
+  shutdown_drain_timeout: 30s
+  run_once_concurrency: 8
+
+health:
+  enabled: true
+  listen: ":8080"               # probe listener address
+  liveness_path: /healthz       # 200 while the process is alive
+  readiness_path: /readyz       # 200 when started, not draining, deps reachable
+  startup_path: /startupz       # 503 until boot completes, then 200
+
+coordination:
+  driver: memory   # memory | postgres | redis ; default memory
+  # postgres:
+  #   dsn: ${POSTGRES_DSN}  # optional; falls back to state.postgres.dsn
+  #   tls:                  # only takes effect when DSN does not set sslmode=disable
+  #     ca_file: /etc/ssl/pg-ca.pem
+  #     cert_file: /etc/ssl/pg-client.pem   # mTLS: both cert_file and key_file or neither
+  #     key_file:  /etc/ssl/pg-client.key
+  #     server_name: pg.internal             # SNI / cert-verify hostname override
+  #     insecure_skip_verify: false          # true = disable cert verification (test only)
+  # redis:
+  #   mode: single           # single (default) | sentinel | cluster
+  #   lock_ttl: 30s          # optional, default 30s
+  #   renewal_interval: 10s  # optional, default = lock_ttl / 3
+  #   # --- single mode (default) ---
+  #   url: ${REDIS_URL}      # e.g. redis://localhost:6379/0 or rediss://...
+  #   # --- sentinel mode (tested / supported HA path) ---
+  #   sentinel:
+  #     master_name: mymaster
+  #     addrs: [sentinel-a:26379, sentinel-b:26379]
+  #     username: redisuser           # data-node credentials (master/replicas)
+  #     password: ${REDIS_PASSWORD}   # data-node credentials (master/replicas)
+  #     sentinel_username: sentuser           # sentinel-node credentials
+  #     sentinel_password: ${SENTINEL_PASSWORD} # sentinel-node credentials
+  #     db: 0
+  #   # --- cluster mode (best-effort; not covered by CI integration tests) ---
+  #   cluster:
+  #     addrs: [node-a:6379, node-b:6379]
+  #     username: redisuser
+  #     password: ${REDIS_PASSWORD}
+  #   # --- shared TLS block (applies to all modes) ---
+  #   # For single, requires rediss:// URL. For sentinel/cluster, set server_name —
+  #   # there is no URL to derive the SNI hostname from.
+  #   tls:
+  #     ca_file: /etc/ssl/redis-ca.pem
+  #     cert_file: /etc/ssl/redis-client.pem   # mTLS: both cert_file and key_file or neither
+  #     key_file:  /etc/ssl/redis-client.key
+  #     server_name: redis.internal             # SNI / cert-verify hostname override
+  #     insecure_skip_verify: false             # true = disable cert verification (test only)
+
+state:
+  driver: sqlite   # postgres | sqlite
+  sqlite:
+    path: ./rss2msg.db    # filesystem path; ":memory:" and "?_pragma=..." are accepted
+  # postgres:
+  #   dsn: ${POSTGRES_DSN}
+  #   tls:                  # only takes effect when DSN does not set sslmode=disable
+  #     ca_file: /etc/ssl/pg-ca.pem
+  #     cert_file: /etc/ssl/pg-client.pem   # mTLS: both cert_file and key_file or neither
+  #     key_file:  /etc/ssl/pg-client.key
+  #     server_name: pg.internal             # SNI / cert-verify hostname override
+  #     insecure_skip_verify: false          # true = disable cert verification (test only)
+
+sinks:
+  # A composite fans every change out to its children. Used as `default`, so
+  # feeds with no explicit `sinks:` list publish to both children.
+  - name: default
+    driver: composite
+    composite:
+      children: [console, pretty]
+  - name: console
+    driver: stdout
+    stdout:
+      target: stdout                              # stdout (default) | stderr
+      format: json                                # json (default, NDJSON) | pretty (indented)
+  - name: pretty
+    driver: stdout
+    stdout:
+      format: pretty
+  # The blocks below are reference examples for the other sink drivers.
+  # Uncomment + supply credentials, and add the sink name to a feed's
+  # sinks: [...] list to route to it.
+  # - name: pg-main
+  #   driver: postgres
+  #   postgres:
+  #     dsn: ${POSTGRES_DSN}
+  #     table: feed_changes
+  #     tls:                                        # custom CA / mTLS — see docs/how-to/secure-connections-tls.md#sinks
+  #       ca_file: /etc/ssl/certs/db-ca.pem
+  # - name: kafka-main
+  #   driver: kafka
+  #   kafka:
+  #     brokers: ["kafka-1:9092", "kafka-2:9092"]
+  #     topic: feed.changes
+  #     acks: all
+  #     compression: snappy
+  #     tls:                                        # kafka has no URL scheme — set enabled to turn TLS on
+  #       enabled: true
+  #       ca_file: /etc/ssl/certs/kafka-ca.pem
+  #   dead_letter: dlq-main
+  # - name: dlq-main
+  #   driver: postgres
+  #   postgres:
+  #     dsn: ${POSTGRES_DSN}
+  #     table: feed_changes_dlq
+  # - name: sqs-main
+  #   driver: sqs
+  #   sqs:
+  #     queue_url: https://sqs.us-east-1.amazonaws.com/123456789012/feed-changes
+  #     region: us-east-1
+  #     # endpoint_url: http://localhost:4566           # for LocalStack
+  #     # message_group: feed_url                       # FIFO only: feed_url (default) | item_id | sink
+  #   dead_letter: dlq-main
+  # - name: sns-main
+  #   driver: sns
+  #   sns:
+  #     topic_arn: arn:aws:sns:us-east-1:123456789012:feed-changes
+  #     region: us-east-1
+  #     # message_group: feed_url                       # FIFO only: feed_url (default) | item_id | sink
+  #   dead_letter: dlq-main
+  # - name: rmq-main
+  #   driver: rabbitmq
+  #   rabbitmq:
+  #     url: amqp://guest:guest@rabbit-1:5672/      # or amqps:// for TLS
+  #     exchange: feed.changes
+  #     exchange_type: topic                        # direct (default) | topic | fanout | headers
+  #     routing_key: feed.changes
+  #     declare: true                               # declare the exchange at startup
+  #     durable: true                               # only meaningful when declare=true
+  #     tls:                                        # use an amqps:// url above; adds custom CA / mTLS
+  #       ca_file: /etc/ssl/certs/rabbit-ca.pem
+  #   dead_letter: dlq-main
+  # - name: webhook
+  #   driver: http
+  #   http:
+  #     url: https://example.com/hook               # http:// or https://
+  #     method: POST                                # POST (default) | PUT
+  #     headers:
+  #       Authorization: "Bearer ${HOOK_TOKEN}"
+  #     timeout: 10s
+  #     success_codes: [200, 201, 202, 204]
+  #     tls:                                        # for https:// targets with a private CA / mTLS
+  #       ca_file: /etc/ssl/certs/internal-ca.pem
+
+feeds:
+  - url: https://example.com/blog/rss.xml
+    interval: 5m
+    sinks: [pretty]                               # explicit: publish to the "pretty" sink only
+  - url: https://other.example/atom.xml
+    interval: 15m                                 # implicit: no sinks list → falls back to "default"
+    http:
+      timeout: 10s
+      headers:
+        Authorization: "Bearer ${OTHER_FEED_TOKEN}"
+
+# Dynamic feed sources (optional). Ordered list; earlier entries win on URL
+# collision. Omit entirely to use only the static feeds: block above. The serve
+# daemon reloads feeds from these at runtime (file watch + SIGHUP) without a
+# restart. Only "static" and "file" types are implemented today.
+# feed_sources:
+#   - type: file          # JSON array of feed specs; watched, reloads on change
+#     name: control-plane
+#     path: /etc/rss2msg/feeds.json
+#   - type: static        # injects the feeds: block at this precedence position
