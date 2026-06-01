@@ -14,6 +14,7 @@ updated: 2026-05-30
 | kafka    | `Key = item_id`          | JSON `Change` value | Headers: `feed_url`, `kind`, `schema_version`, `traceparent?`, `tracestate?`, `dlq_*?`. |
 | sqs      | n/a                      | JSON `Change` body  | MessageAttributes: same as Kafka headers.                         |
 | sns      | n/a                      | JSON `Change` body  | MessageAttributes: same as Kafka headers.                         |
+| gcp_pubsub | `OrderingKey` (optional) | JSON `Change` `Data` | Attributes: same as Kafka headers.                              |
 | feed     | entry id `urn:rss2msg:<sha256>` | RSS 2.0 / Atom 1.0 document (windowed) | Served over HTTP; per-entry mapping below. |
 
 Postgres `payload` is the full envelope — everything else is extractable
