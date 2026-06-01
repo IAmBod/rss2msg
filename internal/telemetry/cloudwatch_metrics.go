@@ -173,7 +173,7 @@ func toDimensions(attrs attribute.Set) []cwtypes.Dimension {
 	pairs := make([]kv, 0, attrs.Len())
 	for it := attrs.Iter(); it.Next(); {
 		a := it.Attribute()
-		pairs = append(pairs, kv{k: string(a.Key), v: a.Value.Emit()})
+		pairs = append(pairs, kv{k: string(a.Key), v: a.Value.String()})
 	}
 	sort.Slice(pairs, func(i, j int) bool { return pairs[i].k < pairs[j].k })
 	if len(pairs) > maxDimensions {

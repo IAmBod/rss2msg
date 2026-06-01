@@ -22,10 +22,6 @@ import (
 // CloudWatch caps a batch at 10,000 events (and 1 MB); we chunk on count.
 const maxLogBatch = 10000
 
-// logsShutdownTimeout bounds how long Shutdown waits for the shipper to drain
-// its buffer when the shutdown context carries no shorter deadline.
-const logsShutdownTimeout = 2 * time.Second
-
 // cwLogEvent is a single buffered log record awaiting shipment to CloudWatch.
 type cwLogEvent struct {
 	ts  time.Time
