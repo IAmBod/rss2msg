@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/quic-go/quic-go/http3"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -49,6 +50,10 @@ type Options struct {
 	// TLS, if non-nil, applies custom TLS (CA / client cert / verification
 	// options) to the client transport. Only meaningful for https:// URLs.
 	TLS *TLSOptions
+
+	// HTTP3 dials the upstream over HTTP/3 (QUIC) instead of HTTP/1.1+H2.
+	// HTTP/3 is TLS-only, so the URL must use the https:// scheme.
+	HTTP3 bool
 }
 
 // TLSOptions configures custom TLS for the webhook client. Same shape as the
@@ -76,6 +81,9 @@ type Publisher struct {
 	headers      map[string]string
 	successCodes map[int]struct{}
 	client       *http.Client
+	// closeTransport releases the underlying transport (the QUIC connection /
+	// UDP socket for HTTP/3). nil for the stdlib transport.
+	closeTransport func() error
 }
 
 func New(opts Options) (*Publisher, error) {
@@ -94,6 +102,9 @@ func New(opts Options) (*Publisher, error) {
 	}
 	if u.Host == "" {
 		return nil, fmt.Errorf("http sink %q: url has no host", opts.Name)
+	}
+	if opts.HTTP3 && u.Scheme != "https" {
+		return nil, fmt.Errorf("http sink %q: http3 requires an https:// url, got scheme %q", opts.Name, u.Scheme)
 	}
 
 	method := opts.Method
@@ -123,13 +134,12 @@ func New(opts Options) (*Publisher, error) {
 		}
 	}
 
-	client := &http.Client{Timeout: timeout}
+	var tc *tls.Config
 	if opts.TLS != nil {
-		tc, err := buildTLSConfig(*opts.TLS)
+		tc, err = buildTLSConfig(*opts.TLS)
 		if err != nil {
 			return nil, fmt.Errorf("http sink %q: build TLS config: %w", opts.Name, err)
 		}
-		client.Transport = &http.Transport{TLSClientConfig: tc}
 		if opts.TLS.InsecureSkipVerify {
 			log.Warn().
 				Str("sink", opts.Name).
@@ -138,13 +148,26 @@ func New(opts Options) (*Publisher, error) {
 		}
 	}
 
+	client := &http.Client{Timeout: timeout}
+	var closeTransport func() error
+	switch {
+	case opts.HTTP3:
+		// http3.Transport accepts a nil TLSClientConfig (system roots).
+		tr := &http3.Transport{TLSClientConfig: tc}
+		client.Transport = tr
+		closeTransport = tr.Close
+	case tc != nil:
+		client.Transport = &http.Transport{TLSClientConfig: tc}
+	}
+
 	return &Publisher{
-		name:         opts.Name,
-		url:          opts.URL,
-		method:       method,
-		headers:      opts.Headers,
-		successCodes: codes,
-		client:       client,
+		name:           opts.Name,
+		url:            opts.URL,
+		method:         method,
+		headers:        opts.Headers,
+		successCodes:   codes,
+		client:         client,
+		closeTransport: closeTransport,
 	}, nil
 }
 
@@ -185,6 +208,9 @@ func (p *Publisher) Name() string { return p.name }
 
 func (p *Publisher) Close() error {
 	p.client.CloseIdleConnections()
+	if p.closeTransport != nil {
+		return p.closeTransport()
+	}
 	return nil
 }
 
