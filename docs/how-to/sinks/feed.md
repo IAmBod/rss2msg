@@ -126,6 +126,14 @@ cross-reference the syndication feed. The window only contains items routed to
 
 ## Store backends
 
+> [!warning]
+> **The default `memory` store does not survive a restart.** Its window lives
+> only in the process, so after a restart the served `/rss` and `/atom` feeds
+> come back empty and refill only as feeds are re-polled *and change again* —
+> items the upstream has since rotated out never return. For a feed that must
+> persist across restarts use `store.driver: sqlite` (durable local file) or
+> `postgres` (durable and shared across instances).
+
 The window store holds the most recent changes (keyed on `(feed_url, item_id)`,
 so re-detecting the same item updates its existing entry). On each request the
 sink reads up to `max_items` most-recent changes and renders them.
