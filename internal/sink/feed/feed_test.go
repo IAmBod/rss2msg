@@ -2,6 +2,7 @@ package feed
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/iambod/rss2msg/internal/model"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestPublisher_PublishThenServe(t *testing.T) {
@@ -147,6 +149,50 @@ func TestMCP_DisabledHasNoRoute(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("disabled mcp /mcp: status = %d, want 404", resp.StatusCode)
+	}
+}
+
+func TestMCP_EndToEndListRecentItems(t *testing.T) {
+	ctx := context.Background()
+	p, err := New(ctx, Options{
+		Name: "out", Listen: "127.0.0.1:0", MaxItems: 10, StoreDriver: "memory",
+		Meta: FeedMeta{Title: "t", Link: "https://x/"},
+		MCP:  Surface{Enabled: true, Path: "/mcp"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	if err := p.Publish(ctx, model.Change{
+		FeedURL: "https://a/feed", ItemID: "1", Title: "Hello MCP",
+		Content: "body", DetectedAt: time.Unix(5, 0),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "1"}, nil)
+	sess, err := client.Connect(ctx, &mcp.StreamableClientTransport{
+		Endpoint:             "http://" + p.Addr() + "/mcp",
+		DisableStandaloneSSE: true,
+	}, nil)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer sess.Close()
+
+	res, err := sess.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "list_recent_items",
+		Arguments: map[string]any{"limit": 5},
+	})
+	if err != nil {
+		t.Fatalf("call list_recent_items: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("tool reported error: %+v", res.Content)
+	}
+	js, _ := json.Marshal(res.StructuredContent)
+	if !strings.Contains(string(js), "Hello MCP") {
+		t.Fatalf("list_recent_items output missing published item: %s", js)
 	}
 }
 
