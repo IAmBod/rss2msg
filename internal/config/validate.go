@@ -247,6 +247,10 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 	}
 
+	if c.Runtime.DeliverTimeout < 0 {
+		return *warnings, fmt.Errorf("runtime.deliver_timeout %v must not be negative (0 disables it)", c.Runtime.DeliverTimeout)
+	}
+
 	// A distributed coordinator (redis/postgres) implies multiple instances,
 	// but the SQLite state store is a local per-instance file. The coordinator
 	// only serialises polling; dedup lives in the state store, so each instance

@@ -82,6 +82,27 @@ func TestValidateRejectsIntervalBelowOneSecond(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsNegativeDeliverTimeout(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Runtime.DeliverTimeout = -1 * time.Second
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "deliver_timeout") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateAcceptsZeroAndPositiveDeliverTimeout(t *testing.T) {
+	t.Parallel()
+	for _, d := range []time.Duration{0, 30 * time.Second} {
+		c := goodCfg()
+		c.Runtime.DeliverTimeout = d
+		if _, err := Validate(c); err != nil {
+			t.Fatalf("deliver_timeout=%v: unexpected error %v", d, err)
+		}
+	}
+}
+
 func TestValidateRejectsReservedHeaderOverrides(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()
