@@ -8,7 +8,7 @@ updated: 2026-06-02
 
 # Secure Connections (TLS)
 
-TLS applies to the Postgres state store, the Postgres coordinator, the Redis coordinator, and the network message sinks (Postgres, Kafka, RabbitMQ, HTTP); the field surface is identical across them.
+TLS applies to the Postgres state store, the Postgres coordinator, the Redis coordinator, and the network message sinks (Postgres, Kafka, RabbitMQ, HTTP, gRPC); the field surface is identical across them.
 
 > [!warning]
 > `insecure_skip_verify: true` disables server certificate verification. Test only — it is logged at `warn` on startup.
@@ -61,7 +61,7 @@ against most real certificates.
 
 ## Sinks
 
-The **postgres**, **kafka**, **rabbitmq**, **nats**, and **http** sinks accept the
+The **postgres**, **kafka**, **rabbitmq**, **nats**, **http**, and **grpc** sinks accept the
 same five knobs under a `tls:` block, plus an `enabled` flag:
 
 ```yaml
@@ -105,6 +105,14 @@ sinks:
       url: "https://hooks.internal/feed"          # https:// scheme
       tls:
         ca_file: /etc/ssl/certs/internal-ca.pem
+
+  - name: grpc-out
+    driver: grpc
+    grpc:
+      target: receiver.internal:50051             # plaintext unless a tls: block is set
+      tls:
+        enabled: true                             # grpc has no URL scheme; opt in here
+        ca_file: /etc/ssl/certs/internal-ca.pem
 ```
 
 | field                  | default      | notes |
@@ -122,6 +130,7 @@ A sink's `tls:` block is **active** when `enabled: true` or any field is set. Wh
 - **rabbitmq** — dials with TLS; use an `amqps://` URL.
 - **nats** — forces the TLS handshake (`nats.Secure`); use a `tls://` URL.
 - **http** — applies the TLS config to the webhook client transport; use an `https://` URL. Set `http3: true` to dial over HTTP/3 (QUIC); HTTP/3 is TLS-only, so the URL must be `https://`.
+- **grpc** — dials the `target` with transport credentials. Use `enabled: true` to turn it on with the system roots; omit the block entirely for plaintext (h2c).
 
 The **sqs** and **sns** sinks talk to AWS over HTTPS via the AWS SDK, which manages TLS
 automatically — there is no `tls:` block to configure. The **feed** sink is a *server*:

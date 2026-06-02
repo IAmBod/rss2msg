@@ -17,7 +17,7 @@ Common fields on every sink:
 | field         | required | notes |
 | ------------- | -------- | ----- |
 | `name`        | yes      | Unique per config. Referenced by `feeds[].sinks` and `dead_letter`. |
-| `driver`      | yes      | One of `postgres`, `kafka`, `rabbitmq`, `nats`, `sqs`, `sns`, `gcp_pubsub`, `azureservicebus`, `stdout`, `http`, `feed`, `composite`. |
+| `driver`      | yes      | One of `postgres`, `kafka`, `rabbitmq`, `nats`, `sqs`, `sns`, `gcp_pubsub`, `azureservicebus`, `stdout`, `http`, `grpc`, `feed`, `composite`. |
 | `dead_letter` | no       | Name of another declared sink. On retry exhaustion the change is delivered there once, with `dlq_from_sink`, `dlq_error`, and `dlq_attempts` annotations. A sink cannot be its own DLQ. |
 
 ## Drivers
@@ -34,6 +34,7 @@ Common fields on every sink:
 | azureservicebus | Azure queue/topic, SAS or Azure AD auth                                            | [azureservicebus](sinks/azureservicebus.md) |
 | stdout    | local dev, debugging, ad-hoc pipelines                                                   | [stdout](sinks/stdout.md)       |
 | http      | webhooks (Slack, Discord, custom receivers)                                              | [http](sinks/http.md)           |
+| grpc      | typed delivery to your own gRPC `ChangeSink` server (deadlines, mTLS, streaming HTTP/2)  | [grpc](sinks/grpc.md)           |
 | feed      | serve detected changes as an RSS/Atom feed over HTTP (store: memory / sqlite / postgres) | [feed](sinks/feed.md)           |
 | composite | fan one change out to several child sinks under one name                                 | [composite](sinks/composite.md) |
 
