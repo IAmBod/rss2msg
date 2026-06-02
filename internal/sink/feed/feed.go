@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/metric"
 
@@ -138,6 +139,23 @@ func New(ctx context.Context, o Options) (*Publisher, error) {
 		h.instr = instr
 	}
 
+	// When the MCP surface is enabled, front the listener with a mux so /mcp
+	// routes to the streamable MCP handler (behind the same auth) while the
+	// rss/atom handler keeps serving everything else.
+	var root http.Handler = h
+	if mcpPath := surfacePath(o.MCP, "/mcp"); mcpPath != "" {
+		var mcpCount metric.Int64Counter
+		if h.instr != nil {
+			mcpCount = h.instr.mcpRequests
+		}
+		ms := buildMCPServer(store, o.MaxItems, o.Name)
+		sh := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return ms }, nil)
+		mux := http.NewServeMux()
+		mux.Handle("/", h)
+		mux.Handle(mcpPath, mcpAuthMiddleware(o.Auth, mcpCount, sh))
+		root = mux
+	}
+
 	to := o.Timeouts.withDefaults()
 	ln, err := net.Listen("tcp", o.Listen)
 	if err != nil {
@@ -145,7 +163,7 @@ func New(ctx context.Context, o Options) (*Publisher, error) {
 		return nil, fmt.Errorf("feed sink %q: listen %q: %w", o.Name, o.Listen, err)
 	}
 	srv := &http.Server{
-		Handler:           h,
+		Handler:           root,
 		ReadHeaderTimeout: to.ReadHeader,
 		ReadTimeout:       to.Read,
 		WriteTimeout:      to.Write,

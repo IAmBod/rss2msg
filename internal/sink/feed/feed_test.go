@@ -92,6 +92,64 @@ func TestNew_DisabledSurfaceReturns404(t *testing.T) {
 	}
 }
 
+func TestMCP_RouteMountedAndAuthGated(t *testing.T) {
+	ctx := context.Background()
+	p, err := New(ctx, Options{
+		Name: "out", Listen: "127.0.0.1:0", MaxItems: 5, StoreDriver: "memory",
+		Meta: FeedMeta{Title: "t", Link: "https://x/"},
+		RSS:  Surface{Enabled: true},
+		MCP:  Surface{Enabled: true, Path: "/mcp"},
+		Auth: &AuthConfig{BearerToken: "secret"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	// Unauthenticated MCP request is rejected by the sink's auth (401), not 404
+	// — proving the route is mounted behind the same auth as rss/atom.
+	resp, err := http.Get("http://" + p.Addr() + "/mcp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated /mcp: status = %d, want 401", resp.StatusCode)
+	}
+	// rss is still served on the same listener (mux coexistence). Auth applies
+	// to every surface, so authenticate this request.
+	req, _ := http.NewRequest(http.MethodGet, "http://"+p.Addr()+"/rss", nil)
+	req.Header.Set("Authorization", "Bearer secret")
+	rss, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rss.Body.Close()
+	if rss.StatusCode != http.StatusOK {
+		t.Fatalf("/rss alongside mcp: status = %d, want 200", rss.StatusCode)
+	}
+}
+
+func TestMCP_DisabledHasNoRoute(t *testing.T) {
+	ctx := context.Background()
+	p, err := New(ctx, Options{
+		Name: "out", Listen: "127.0.0.1:0", MaxItems: 5, StoreDriver: "memory",
+		Meta: FeedMeta{Title: "t", Link: "https://x/"},
+		RSS:  Surface{Enabled: true}, // mcp left disabled
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	resp, err := http.Get("http://" + p.Addr() + "/mcp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("disabled mcp /mcp: status = %d, want 404", resp.StatusCode)
+	}
+}
+
 func TestNew_BindErrorSurfaces(t *testing.T) {
 	ctx := context.Background()
 	p1, err := New(ctx, Options{Name: "a", Listen: "127.0.0.1:0", MaxItems: 5, StoreDriver: "memory", Meta: FeedMeta{Title: "t", Link: "https://x/"}})
