@@ -3,6 +3,7 @@ package telemetry
 import (
 	"bytes"
 	"context"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -10,6 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	"go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
 	"github.com/iambod/rss2msg/internal/config"
 )
@@ -169,6 +172,38 @@ func TestCloudWatchMetricsFoldsAttributesAsDimensions(t *testing.T) {
 	want := []string{"reason=timeout", "sink=kafka"}
 	if len(data[0].dims) != 2 || data[0].dims[0] != want[0] || data[0].dims[1] != want[1] {
 		t.Fatalf("unexpected dimensions: %v", data[0].dims)
+	}
+}
+
+func TestCloudWatchMetricsAddsResourceInstanceIDDimension(t *testing.T) {
+	t.Parallel()
+	// In a multi-instance deployment two replicas would otherwise push the same
+	// metric+dimension set and collide into one CloudWatch series. The resource's
+	// service.instance.id must be folded into the dimensions so they stay distinct.
+	f := &fakeCWMetrics{}
+	exp := newCloudWatchMetricsExporter(f, "rss2msg")
+	rm := &metricdata.ResourceMetrics{
+		Resource: resource.NewSchemaless(semconv.ServiceInstanceID("host-a")),
+		ScopeMetrics: []metricdata.ScopeMetrics{{Metrics: []metricdata.Metrics{{
+			Name: "feed.fetches",
+			Data: metricdata.Sum[int64]{DataPoints: []metricdata.DataPoint[int64]{{
+				Value:      5,
+				Time:       cwFixedTime,
+				Attributes: attribute.NewSet(attribute.String("feed_url", "https://example.com")),
+			}}},
+		}}}},
+	}
+	if err := exp.Export(context.Background(), rm); err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	data := f.allData()
+	if len(data) != 1 {
+		t.Fatalf("expected 1 datum, got %d", len(data))
+	}
+	// Dimensions are sorted by key: feed_url < service.instance.id.
+	want := []string{"feed_url=https://example.com", "service.instance.id=host-a"}
+	if !reflect.DeepEqual(data[0].dims, want) {
+		t.Fatalf("dims = %v, want %v", data[0].dims, want)
 	}
 }
 

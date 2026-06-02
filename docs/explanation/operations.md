@@ -34,7 +34,10 @@ updated: 2026-05-30
   election — any instance may pick up any feed; losers skip the cycle
   silently. Postgres uses session-scoped advisory locks (auto-released on
   crash). Redis uses a TTL lease with a background renewer; crashed
-  instances release after `lock_ttl`.
+  instances release after `lock_ttl`. Metrics stay per-instance: every signal
+  carries `service.instance.id` (`telemetry.instance_id`, default hostname),
+  which the CloudWatch and Graphite exporters add as a dimension/tag so replicas
+  don't collide into one series — see [Telemetry](../reference/telemetry.md#multi-instance-deployments).
 - **AWS credentials.** SQS and SNS use the AWS SDK credential chain. The
   config carries only region, queue URL / topic ARN, and an optional
   `endpoint_url` for LocalStack-style overrides. SQS FIFO queues and SNS
