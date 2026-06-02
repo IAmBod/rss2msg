@@ -307,6 +307,33 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 	}
 
+	if cw := c.Telemetry.CloudWatch; cw.Enabled {
+		if cw.Logs.Enabled {
+			if strings.TrimSpace(cw.Logs.LogGroup) == "" {
+				return *warnings, fmt.Errorf("telemetry.cloudwatch.logs.log_group is required when telemetry.cloudwatch.logs.enabled=true")
+			}
+			if lvl := strings.TrimSpace(cw.Logs.Level); lvl != "" {
+				if _, ok := knownZerologLevels[strings.ToLower(lvl)]; !ok {
+					return *warnings, fmt.Errorf("telemetry.cloudwatch.logs.level %q is not a valid level (want one of trace, debug, info, warn, error, fatal, panic, disabled)", cw.Logs.Level)
+				}
+			}
+			if cw.Logs.BatchInterval < 0 {
+				return *warnings, fmt.Errorf("telemetry.cloudwatch.logs.batch_interval must not be negative")
+			}
+		}
+		if cw.Metrics.Enabled {
+			if cw.Metrics.Interval < 0 {
+				return *warnings, fmt.Errorf("telemetry.cloudwatch.metrics.interval must not be negative")
+			}
+			if !c.Telemetry.Metrics.Enabled {
+				*warnings = append(*warnings, "telemetry.cloudwatch.metrics is enabled but telemetry.metrics.enabled=false; no metrics will be pushed")
+			}
+		}
+		if !cw.Logs.Enabled && !cw.Metrics.Enabled {
+			*warnings = append(*warnings, "telemetry.cloudwatch.enabled=true but neither logs nor metrics is enabled; CloudWatch will do nothing")
+		}
+	}
+
 	if len(c.Sinks) == 0 {
 		return *warnings, fmt.Errorf("at least one sink must be declared")
 	}

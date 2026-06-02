@@ -50,6 +50,21 @@ shutdown. See the
 [`telemetry.posthog` config block](configuration.md#telemetryposthog) for all
 fields.
 
+## AWS CloudWatch
+
+Optional [AWS CloudWatch](https://aws.amazon.com/cloudwatch/) telemetry (disabled
+by default), with two independently-toggleable surfaces. When
+`telemetry.cloudwatch.logs.enabled` is set, a zerolog hook batches log events at
+or above `telemetry.cloudwatch.logs.level` (default `info`) and a background
+goroutine ships them to a CloudWatch Logs group/stream via `PutLogEvents`, so the
+logging path never blocks; an OTEL span context adds `trace_id` / `span_id` to
+the message. When `telemetry.cloudwatch.metrics.enabled` is set, an OTEL
+`PeriodicReader` pushes the instruments to CloudWatch Metrics via `PutMetricData`
+(sums/gauges as values, histograms as a `StatisticSet`), folding attributes into
+`Dimensions`. Credentials resolve through the default AWS SDK chain. See the
+[`telemetry.cloudwatch` config block](configuration.md#telemetrycloudwatch) for
+all fields.
+
 ## Related
 
 - [Configuration Reference](configuration.md) — the `telemetry` config block and OTLP env vars.
