@@ -16,6 +16,7 @@ updated: 2026-05-30
 | sns      | n/a                      | JSON `Change` body  | MessageAttributes: same as Kafka headers.                         |
 | gcp_pubsub | `OrderingKey` (optional) | JSON `Change` `Data` | Attributes: same as Kafka headers.                              |
 | azureservicebus | `MessageID = item_id` | JSON `Change` body | ApplicationProperties: same keys as Kafka headers; `ContentType: application/json`. |
+| nats     | subject (static)         | JSON `Change` `Data` | NATS headers: same keys as Kafka headers. |
 | feed     | entry id `urn:rss2msg:<sha256>` | RSS 2.0 / Atom 1.0 document (windowed) | Served over HTTP; per-entry mapping below. |
 
 Postgres `payload` is the full envelope — everything else is extractable
@@ -23,6 +24,7 @@ from it; the columns are for indexing and basic SQL filtering.
 
 The [rabbitmq](../how-to/sinks/rabbitmq.md),
 [azureservicebus](../how-to/sinks/azureservicebus.md),
+[nats](../how-to/sinks/nats.md),
 [stdout](../how-to/sinks/stdout.md), and [http](../how-to/sinks/http.md) sinks
 document their publish layout on their own pages.
 
