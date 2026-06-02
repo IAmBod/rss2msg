@@ -151,6 +151,17 @@ The release function ignores its caller's `ctx` — it uses a fresh 5 s
 background context — so a canceled poll ctx (e.g. on SIGTERM) does not leak
 the lease.
 
+## Metrics across instances
+
+Each instance only records `feed.fetches` / `feed.changes` for the feeds it
+owns that cycle (non-owners increment `feed.poll.skipped` instead), so counts
+don't double. To keep replicas distinct in push-based metric backends, every
+signal carries `service.instance.id` — set it with `telemetry.instance_id`
+(default: `OTEL_SERVICE_INSTANCE_ID`, then the hostname). The CloudWatch and
+Graphite exporters add it as a dimension/tag; Prometheus is already per-instance
+via separate scrape targets. See
+[Telemetry → Multi-instance deployments](../reference/telemetry.md#multi-instance-deployments).
+
 ## Related
 
 - [Secure Connections (TLS)](secure-connections-tls.md) — TLS for the postgres/redis coordinators.

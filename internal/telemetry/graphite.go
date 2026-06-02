@@ -15,6 +15,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	"go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
 	"github.com/iambod/rss2msg/internal/config"
 )
@@ -69,10 +71,13 @@ func (e *graphiteExporter) Export(ctx context.Context, rm *metricdata.ResourceMe
 		return nil
 	}
 
+	// Fold the resource's instance id into every line's tags so two replicas
+	// pushing the same path+tags don't merge into one Carbon series.
+	extra := resourceTags(rm.Resource)
 	var b strings.Builder
 	for _, sm := range rm.ScopeMetrics {
 		for _, m := range sm.Metrics {
-			e.encode(&b, m)
+			e.encode(&b, m, extra)
 		}
 	}
 	payload := b.String()
@@ -105,47 +110,47 @@ func (e *graphiteExporter) Shutdown(context.Context) error {
 	return nil
 }
 
-func (e *graphiteExporter) encode(b *strings.Builder, m metricdata.Metrics) {
+func (e *graphiteExporter) encode(b *strings.Builder, m metricdata.Metrics, extra []graphiteTag) {
 	switch data := m.Data.(type) {
 	case metricdata.Sum[int64]:
-		encodeNum(e, b, m.Name, data.DataPoints)
+		encodeNum(e, b, m.Name, data.DataPoints, extra)
 	case metricdata.Sum[float64]:
-		encodeNum(e, b, m.Name, data.DataPoints)
+		encodeNum(e, b, m.Name, data.DataPoints, extra)
 	case metricdata.Gauge[int64]:
-		encodeNum(e, b, m.Name, data.DataPoints)
+		encodeNum(e, b, m.Name, data.DataPoints, extra)
 	case metricdata.Gauge[float64]:
-		encodeNum(e, b, m.Name, data.DataPoints)
+		encodeNum(e, b, m.Name, data.DataPoints, extra)
 	case metricdata.Histogram[int64]:
-		encodeHist(e, b, m.Name, data.DataPoints)
+		encodeHist(e, b, m.Name, data.DataPoints, extra)
 	case metricdata.Histogram[float64]:
-		encodeHist(e, b, m.Name, data.DataPoints)
+		encodeHist(e, b, m.Name, data.DataPoints, extra)
 	}
 }
 
-func encodeNum[N int64 | float64](e *graphiteExporter, b *strings.Builder, name string, dps []metricdata.DataPoint[N]) {
+func encodeNum[N int64 | float64](e *graphiteExporter, b *strings.Builder, name string, dps []metricdata.DataPoint[N], extra []graphiteTag) {
 	for _, dp := range dps {
-		e.line(b, name, dp.Attributes, float64(dp.Value), dp.Time)
+		e.line(b, name, dp.Attributes, extra, float64(dp.Value), dp.Time)
 	}
 }
 
-func encodeHist[N int64 | float64](e *graphiteExporter, b *strings.Builder, name string, dps []metricdata.HistogramDataPoint[N]) {
+func encodeHist[N int64 | float64](e *graphiteExporter, b *strings.Builder, name string, dps []metricdata.HistogramDataPoint[N], extra []graphiteTag) {
 	for _, dp := range dps {
-		e.line(b, name+".count", dp.Attributes, float64(dp.Count), dp.Time)
-		e.line(b, name+".sum", dp.Attributes, float64(dp.Sum), dp.Time)
+		e.line(b, name+".count", dp.Attributes, extra, float64(dp.Count), dp.Time)
+		e.line(b, name+".sum", dp.Attributes, extra, float64(dp.Sum), dp.Time)
 		if v, ok := dp.Min.Value(); ok {
-			e.line(b, name+".min", dp.Attributes, float64(v), dp.Time)
+			e.line(b, name+".min", dp.Attributes, extra, float64(v), dp.Time)
 		}
 		if v, ok := dp.Max.Value(); ok {
-			e.line(b, name+".max", dp.Attributes, float64(v), dp.Time)
+			e.line(b, name+".max", dp.Attributes, extra, float64(v), dp.Time)
 		}
 	}
 }
 
 // line appends a single Carbon plaintext record. Attributes fold into Graphite
 // tags ("path;key=value;…"), sorted by key for deterministic output.
-func (e *graphiteExporter) line(b *strings.Builder, name string, attrs attribute.Set, value float64, ts time.Time) {
+func (e *graphiteExporter) line(b *strings.Builder, name string, attrs attribute.Set, extra []graphiteTag, value float64, ts time.Time) {
 	b.WriteString(metricPath(e.prefix, name))
-	writeTags(b, attrs)
+	writeTags(b, attrs, extra)
 	b.WriteByte(' ')
 	b.WriteString(strconv.FormatFloat(value, 'g', -1, 64))
 	b.WriteByte(' ')
@@ -161,23 +166,48 @@ func metricPath(prefix, name string) string {
 	return prefix + "." + name
 }
 
-func writeTags(b *strings.Builder, attrs attribute.Set) {
-	if attrs.Len() == 0 {
+// graphiteTag is a raw (unsanitized) tag key/value carried from the resource
+// into writeTags, which sanitizes on output alongside the data-point attributes.
+type graphiteTag struct{ k, v string }
+
+func writeTags(b *strings.Builder, attrs attribute.Set, extra []graphiteTag) {
+	if attrs.Len() == 0 && len(extra) == 0 {
 		return
 	}
-	type tag struct{ k, v string }
-	tags := make([]tag, 0, attrs.Len())
+	merged := make(map[string]string, attrs.Len()+len(extra))
+	// Resource extras are lower priority; data-point attributes overwrite them.
+	for _, t := range extra {
+		merged[sanitizeTag(t.k)] = sanitizeTag(t.v)
+	}
 	for it := attrs.Iter(); it.Next(); {
 		kv := it.Attribute()
-		tags = append(tags, tag{k: sanitizeTag(string(kv.Key)), v: sanitizeTag(kv.Value.String())})
+		merged[sanitizeTag(string(kv.Key))] = sanitizeTag(kv.Value.String())
 	}
-	sort.Slice(tags, func(i, j int) bool { return tags[i].k < tags[j].k })
-	for _, t := range tags {
+	keys := make([]string, 0, len(merged))
+	for k := range merged {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
 		b.WriteByte(';')
-		b.WriteString(t.k)
+		b.WriteString(k)
 		b.WriteByte('=')
-		b.WriteString(t.v)
+		b.WriteString(merged[k])
 	}
+}
+
+// resourceTags extracts service.instance.id from the OTEL resource as a Graphite
+// tag. Without it, replicas pushing the same path+tags collide into one series.
+func resourceTags(res *resource.Resource) []graphiteTag {
+	if res == nil {
+		return nil
+	}
+	for it := res.Iter(); it.Next(); {
+		if a := it.Attribute(); a.Key == semconv.ServiceInstanceIDKey {
+			return []graphiteTag{{k: string(a.Key), v: a.Value.String()}}
+		}
+	}
+	return nil
 }
 
 // sanitizeNode keeps a metric-path node Carbon-safe: spaces become underscores

@@ -26,6 +26,24 @@ up `traceparent` from message headers/attributes to stitch the full trace.
 Zerolog is configured with the service name and is OTEL-correlated: log
 records emitted inside a span carry `trace_id` and `span_id` fields.
 
+## Multi-instance deployments
+
+Every metric also carries the resource attribute `service.instance.id`
+(`telemetry.instance_id`, defaulting to `OTEL_SERVICE_INSTANCE_ID` then the
+hostname). The push-based exporters fold it into each metric so that two
+replicas reporting the same instrument + attributes stay distinct rather than
+collapsing into one series:
+
+- **CloudWatch** — `service.instance.id` is added as a metric dimension.
+- **Graphite** — `service.instance.id` is added as a tag.
+- **Prometheus** — already per-instance: each replica exposes its own
+  `/metrics` endpoint and Prometheus adds the `instance` label at scrape time,
+  so no extra dimension is emitted (configure one scrape target per replica).
+- **OTLP** — the resource is sent intact; the backend keys series by resource.
+
+See [Run Multiple Instances](../how-to/run-multiple-instances.md) for the
+coordinator setup that gates which replica polls each feed.
+
 ## Sentry
 
 Optional error/crash reporting (disabled by default). When
