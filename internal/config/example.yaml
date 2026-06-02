@@ -32,6 +32,21 @@ telemetry:
     # distinct_id: ""              # distinct id attached to events; defaults to service name/host
     level: error                   # min log level forwarded; error+ becomes a $exception (Error Tracking) event
     flush_interval: 0s             # batch flush cadence (0 uses the SDK default)
+  cloudwatch:                      # optional AWS CloudWatch telemetry (disabled by default)
+    enabled: false
+    # region: us-east-1            # AWS region; empty uses the default SDK chain
+    # endpoint_url: ""             # optional endpoint override (e.g. LocalStack)
+    logs:                          # ship log events to CloudWatch Logs
+      enabled: false
+      # log_group: /rss2msg/app    # required when logs enabled
+      # log_stream: ""             # defaults to the hostname
+      level: info                  # min log level forwarded (trace|debug|info|warn|error|fatal|panic)
+      batch_interval: 5s           # flush cadence (0 uses the default)
+      create_group: false          # auto-create the log group/stream if missing
+    metrics:                       # push metrics to CloudWatch Metrics (PutMetricData)
+      enabled: false
+      namespace: rss2msg           # CloudWatch namespace
+      interval: 60s                # push cadence (0 uses the OTEL SDK default)
 
 http:
   user_agent: "rss2msg/0.1 (+https://example.com)"
@@ -200,6 +215,7 @@ sinks:
   #       Authorization: "Bearer ${HOOK_TOKEN}"
   #     timeout: 10s
   #     success_codes: [200, 201, 202, 204]
+  #     http3: false                                # dial over HTTP/3 (QUIC); requires an https:// url
   #     tls:                                        # for https:// targets with a private CA / mTLS
   #       ca_file: /etc/ssl/certs/internal-ca.pem
 

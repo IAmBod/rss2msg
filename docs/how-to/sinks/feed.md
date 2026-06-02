@@ -2,7 +2,7 @@
 title: Feed sink
 type: how-to
 tags: [rss2msg/docs, sinks, feed, rss, atom, mcp]
-summary: Re-publish detected changes as an RSS 2.0, Atom 1.0, or MCP surface over HTTP so feed readers and AI agents can subscribe.
+summary: Re-publish detected changes as an RSS 2.0, Atom 1.0, or MCP surface over HTTP (with optional HTTP/3) so feed readers and AI agents can subscribe.
 updated: 2026-06-02
 ---
 
@@ -47,6 +47,7 @@ sinks:
       tls:                            # optional; serve HTTPS directly. Omit when TLS is terminated upstream.
         cert_file: /etc/rss2msg/feed.crt
         key_file: /etc/rss2msg/feed.key
+      http3: false                    # optional; also serve HTTP/3 (QUIC) on the same port. Requires tls.
       auth:                           # optional; when set, endpoints require auth and responses become Cache-Control: private
         basic: { username: feeds, password: ${FEED_PASSWORD} }
         # or, instead of basic:  bearer_token: ${FEED_TOKEN}
@@ -75,6 +76,7 @@ sinks:
 | `cache_control_ttl` | no       | off           | Client-facing `max-age`; see [HTTP caching](#http-caching). |
 | `timeouts`          | no       | (see below)   | HTTP server timeouts. |
 | `tls`               | no       | (none)        | Serve HTTPS directly; `cert_file` and `key_file` must both be set or both empty. |
+| `http3`             | no       | `false`       | Also serve HTTP/3 (QUIC) on the same UDP port and advertise it via `Alt-Svc`; see [HTTP/3](#http3). Requires `tls`. |
 | `auth`              | no       | (none)        | Exactly one of `basic` or `bearer_token`; see [Auth](#auth). |
 | `store`             | no       | `memory`      | Backing window store; see [Store backends](#store-backends). |
 
@@ -192,10 +194,23 @@ URL so the Atom `rel=self` link is correct — rss2msg does not read
 See [Secure Connections (TLS)](../secure-connections-tls.md) for certificate
 guidance.
 
+## HTTP/3
+
+Set `http3: true` to additionally serve the feed over **HTTP/3** (QUIC). HTTP/3
+runs over UDP and is TLS-only, so `tls.cert_file` and `tls.key_file` are
+required — config validation rejects `http3` without them.
+
+When enabled, the sink binds a UDP socket on the **same** `host:port` as the TCP
+listener and serves HTTP/3 there, while the TCP listener keeps serving
+HTTP/1.1 and HTTP/2. The TCP responses carry an `Alt-Svc: h3=":<port>"` header so
+clients that understand HTTP/3 can upgrade on their next request. Clients that
+don't simply keep using HTTP/2 — enabling `http3` never breaks existing readers.
+
+Make sure UDP on the feed port is reachable end-to-end (firewall / load balancer
+/ security-group rules) — HTTP/3 fails closed to HTTP/2 if UDP is blocked.
+
 ## Related
 
 - [Choose a Sink](../choose-a-sink.md) — all drivers and the decision table.
 - [Sink Wire Formats](../../reference/wire-formats.md) — the RSS/Atom item layout.
 - [Change Envelope](../../reference/change-envelope.md) — the source record.
-</content>
-</invoke>

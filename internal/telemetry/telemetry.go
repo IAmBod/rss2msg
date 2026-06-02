@@ -83,6 +83,21 @@ func Setup(ctx context.Context, cfg config.Config, out io.Writer) (*Telemetry, e
 		}
 	}
 
+	if cfg.Telemetry.CloudWatch.Enabled && cfg.Telemetry.CloudWatch.Logs.Enabled {
+		// Report shipment failures through a hookless logger on `out` so an
+		// error never re-enters the CloudWatch hook and recurses.
+		errLogger := zerolog.New(out).With().Timestamp().Logger()
+		onErr := func(err error) {
+			errLogger.Warn().Err(err).Msg("cloudwatch logs shipment failed")
+		}
+		hook, shutdown, err := setupCloudWatchLogs(ctx, cfg.Telemetry.CloudWatch, onErr)
+		if err != nil {
+			return nil, err
+		}
+		logHooks = append(logHooks, hook)
+		t.shutdownFns = append(t.shutdownFns, shutdown)
+	}
+
 	t.Logger = buildLogger(cfg.Log, out, logHooks...)
 	for _, w := range setupWarnings {
 		t.Logger.Warn().Msg(w)
@@ -238,6 +253,14 @@ func newMeterProvider(ctx context.Context, cfg config.Config, res *resource.Reso
 			ropts = append(ropts, sdkmetric.WithInterval(cfg.Telemetry.Graphite.Interval))
 		}
 		opts = append(opts, sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exp, ropts...)))
+	}
+
+	if cfg.Telemetry.CloudWatch.Enabled && cfg.Telemetry.CloudWatch.Metrics.Enabled {
+		readerOpt, err := setupCloudWatchMetrics(ctx, cfg.Telemetry.CloudWatch)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cloudwatch metrics exporter: %w", err)
+		}
+		opts = append(opts, readerOpt)
 	}
 
 	mp := sdkmetric.NewMeterProvider(opts...)

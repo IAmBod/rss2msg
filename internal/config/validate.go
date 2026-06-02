@@ -307,6 +307,33 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 	}
 
+	if cw := c.Telemetry.CloudWatch; cw.Enabled {
+		if cw.Logs.Enabled {
+			if strings.TrimSpace(cw.Logs.LogGroup) == "" {
+				return *warnings, fmt.Errorf("telemetry.cloudwatch.logs.log_group is required when telemetry.cloudwatch.logs.enabled=true")
+			}
+			if lvl := strings.TrimSpace(cw.Logs.Level); lvl != "" {
+				if _, ok := knownZerologLevels[strings.ToLower(lvl)]; !ok {
+					return *warnings, fmt.Errorf("telemetry.cloudwatch.logs.level %q is not a valid level (want one of trace, debug, info, warn, error, fatal, panic, disabled)", cw.Logs.Level)
+				}
+			}
+			if cw.Logs.BatchInterval < 0 {
+				return *warnings, fmt.Errorf("telemetry.cloudwatch.logs.batch_interval must not be negative")
+			}
+		}
+		if cw.Metrics.Enabled {
+			if cw.Metrics.Interval < 0 {
+				return *warnings, fmt.Errorf("telemetry.cloudwatch.metrics.interval must not be negative")
+			}
+			if !c.Telemetry.Metrics.Enabled {
+				*warnings = append(*warnings, "telemetry.cloudwatch.metrics is enabled but telemetry.metrics.enabled=false; no metrics will be pushed")
+			}
+		}
+		if !cw.Logs.Enabled && !cw.Metrics.Enabled {
+			*warnings = append(*warnings, "telemetry.cloudwatch.enabled=true but neither logs nor metrics is enabled; CloudWatch will do nothing")
+		}
+	}
+
 	if len(c.Sinks) == 0 {
 		return *warnings, fmt.Errorf("at least one sink must be declared")
 	}
@@ -406,6 +433,9 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			u, err := url.Parse(raw)
 			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 				return *warnings, fmt.Errorf("sinks[%d] (http %q): http.url %q is not a valid http(s) URL", i, s.Name, raw)
+			}
+			if s.HTTP.HTTP3 && u.Scheme != "https" {
+				return *warnings, fmt.Errorf("sinks[%d] (http %q): http3 requires an https:// url (HTTP/3 is TLS-only)", i, s.Name)
 			}
 			if _, ok := knownHTTPSinkMethods[s.HTTP.Method]; !ok {
 				return *warnings, fmt.Errorf("sinks[%d] (http %q): unknown method %q (want POST or PUT)", i, s.Name, s.HTTP.Method)
@@ -511,6 +541,9 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			}
 			if (f.TLS.CertFile == "") != (f.TLS.KeyFile == "") {
 				return *warnings, fmt.Errorf("sinks[%d] (feed %q): tls.cert_file and key_file must both be set or both empty", i, s.Name)
+			}
+			if f.HTTP3 && (f.TLS.CertFile == "" || f.TLS.KeyFile == "") {
+				return *warnings, fmt.Errorf("sinks[%d] (feed %q): http3 requires tls.cert_file and key_file (HTTP/3 is TLS-only)", i, s.Name)
 			}
 			hasBasic := f.Auth.Basic.Username != "" || f.Auth.Basic.Password != ""
 			if hasBasic && f.Auth.BearerToken != "" {
