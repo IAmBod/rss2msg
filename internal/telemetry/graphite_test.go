@@ -12,6 +12,8 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	"go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
 	"github.com/iambod/rss2msg/internal/config"
 )
@@ -173,6 +175,39 @@ func TestGraphiteExporterEncodesHistogram(t *testing.T) {
 	}
 }
 
+func TestGraphiteExporterAddsResourceInstanceIDTag(t *testing.T) {
+	t.Parallel()
+	// Two replicas pushing identical tag sets would merge into one Carbon series;
+	// the resource's service.instance.id must be folded in to keep them distinct.
+	sink := newCarbonSink(t)
+	exp, err := newGraphiteExporter(config.TelemetryGraphiteConfig{Address: sink.addr, Prefix: "rss2msg"})
+	if err != nil {
+		t.Fatalf("newGraphiteExporter: %v", err)
+	}
+	rm := &metricdata.ResourceMetrics{
+		Resource: resource.NewSchemaless(semconv.ServiceInstanceID("host-a")),
+		ScopeMetrics: []metricdata.ScopeMetrics{{Metrics: []metricdata.Metrics{{
+			Name: "feed.fetches",
+			Data: metricdata.Sum[int64]{DataPoints: []metricdata.DataPoint[int64]{{
+				Value:      5,
+				Time:       fixedTime,
+				Attributes: attribute.NewSet(attribute.String("feed_url", "https://example.com")),
+			}}},
+		}}}},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := exp.Export(ctx, rm); err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	got := sink.collect(t)
+	// Tags are sorted by key: feed_url < service.instance.id.
+	want := []string{"rss2msg.feed.fetches;feed_url=https://example.com;service.instance.id=host-a 5 1700000000"}
+	if !equalLines(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
 func TestGraphiteExporterEmptyPrefixOmitsLeadingDot(t *testing.T) {
 	t.Parallel()
 	sink := newCarbonSink(t)
@@ -246,12 +281,15 @@ func TestSetupWiresGraphiteAndFlushesOnShutdown(t *testing.T) {
 	got := sink.collect(t)
 	var found bool
 	for _, l := range got {
-		if strings.HasPrefix(strings.TrimSpace(l), "rss2msg.feed.fetches ") {
+		// Setup populates the resource's service.instance.id, so the line carries
+		// it as a tag: "rss2msg.feed.fetches;service.instance.id=<host> 7 <ts>".
+		trimmed := strings.TrimSpace(l)
+		if strings.HasPrefix(trimmed, "rss2msg.feed.fetches;") && strings.Contains(trimmed, "service.instance.id=") {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("expected rss2msg.feed.fetches line, got %v", got)
+		t.Fatalf("expected rss2msg.feed.fetches line with instance id tag, got %v", got)
 	}
 }
 

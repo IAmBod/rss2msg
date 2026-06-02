@@ -18,8 +18,10 @@ import (
 	sinkdapr "github.com/iambod/rss2msg/internal/sink/dapr"
 	feedsink "github.com/iambod/rss2msg/internal/sink/feed"
 	sinkgcppubsub "github.com/iambod/rss2msg/internal/sink/gcppubsub"
+	sinkgrpc "github.com/iambod/rss2msg/internal/sink/grpc"
 	sinkhttp "github.com/iambod/rss2msg/internal/sink/http"
 	sinkkafka "github.com/iambod/rss2msg/internal/sink/kafka"
+	sinknats "github.com/iambod/rss2msg/internal/sink/nats"
 	sinkpg "github.com/iambod/rss2msg/internal/sink/postgres"
 	sinkrabbitmq "github.com/iambod/rss2msg/internal/sink/rabbitmq"
 	sinksns "github.com/iambod/rss2msg/internal/sink/sns"
@@ -291,6 +293,21 @@ func sinkRabbitMQTLSFromConfig(t config.SinkTLSConfig) *sinkrabbitmq.TLSOptions 
 	}
 }
 
+// sinkNATSTLSFromConfig maps the canonical sink TLS block to the nats sink's
+// TLS options, returning nil when the block is inactive.
+func sinkNATSTLSFromConfig(t config.SinkTLSConfig) *sinknats.TLSOptions {
+	if !t.Active() {
+		return nil
+	}
+	return &sinknats.TLSOptions{
+		CAFile:             t.CAFile,
+		CertFile:           t.CertFile,
+		KeyFile:            t.KeyFile,
+		ServerName:         t.ServerName,
+		InsecureSkipVerify: t.InsecureSkipVerify,
+	}
+}
+
 // sinkHTTPTLSFromConfig maps the canonical sink TLS block to the http sink's
 // TLS options, returning nil when the block is inactive.
 func sinkHTTPTLSFromConfig(t config.SinkTLSConfig) *sinkhttp.TLSOptions {
@@ -298,6 +315,21 @@ func sinkHTTPTLSFromConfig(t config.SinkTLSConfig) *sinkhttp.TLSOptions {
 		return nil
 	}
 	return &sinkhttp.TLSOptions{
+		CAFile:             t.CAFile,
+		CertFile:           t.CertFile,
+		KeyFile:            t.KeyFile,
+		ServerName:         t.ServerName,
+		InsecureSkipVerify: t.InsecureSkipVerify,
+	}
+}
+
+// sinkGRPCTLSFromConfig maps the canonical sink TLS block to the grpc sink's
+// TLS options, returning nil when the block is inactive (insecure transport).
+func sinkGRPCTLSFromConfig(t config.SinkTLSConfig) *sinkgrpc.TLSOptions {
+	if !t.Active() {
+		return nil
+	}
+	return &sinkgrpc.TLSOptions{
 		CAFile:             t.CAFile,
 		CertFile:           t.CertFile,
 		KeyFile:            t.KeyFile,
@@ -409,6 +441,15 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 			TLS:          sinkHTTPTLSFromConfig(sc.HTTP.TLS),
 			HTTP3:        sc.HTTP.HTTP3,
 		})
+	case "grpc":
+		return sinkgrpc.New(sinkgrpc.Options{
+			Name:      sc.Name,
+			Target:    sc.GRPC.Target,
+			Authority: sc.GRPC.Authority,
+			Timeout:   sc.GRPC.Timeout,
+			Metadata:  sc.GRPC.Metadata,
+			TLS:       sinkGRPCTLSFromConfig(sc.GRPC.TLS),
+		})
 	case "rabbitmq":
 		return sinkrabbitmq.New(sinkrabbitmq.Options{
 			Name:         sc.Name,
@@ -495,6 +536,18 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 			Topic:       sc.DaprPubSub.Topic,
 			ContentType: sc.DaprPubSub.ContentType,
 			Metadata:    sc.DaprPubSub.Metadata,
+		})
+	case "nats":
+		return sinknats.New(sinknats.Options{
+			Name:      sc.Name,
+			URL:       sc.NATS.URL,
+			Subject:   sc.NATS.Subject,
+			Token:     sc.NATS.Token,
+			Username:  sc.NATS.Username,
+			Password:  sc.NATS.Password,
+			CredsFile: sc.NATS.CredsFile,
+			JetStream: sc.NATS.JetStream,
+			TLS:       sinkNATSTLSFromConfig(sc.NATS.TLS),
 		})
 	case "azureservicebus":
 		return sinkasb.New(sinkasb.Options{

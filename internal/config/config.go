@@ -23,6 +23,7 @@ type LogConfig struct {
 
 type TelemetryConfig struct {
 	ServiceName string                    `mapstructure:"service_name"`
+	InstanceID  string                    `mapstructure:"instance_id"` // service.instance.id; defaults to OTEL_SERVICE_INSTANCE_ID then hostname
 	Traces      TelemetrySignalConfig     `mapstructure:"traces"`
 	Metrics     TelemetrySignalConfig     `mapstructure:"metrics"`
 	Logs        TelemetrySignalConfig     `mapstructure:"logs"`
@@ -235,7 +236,19 @@ type SinkConfig struct {
 	GCPPubSub       GCPPubSubSinkConfig       `mapstructure:"gcp_pubsub"`
 	AzureServiceBus AzureServiceBusSinkConfig `mapstructure:"azureservicebus"`
 	DaprPubSub      DaprPubSubSinkConfig      `mapstructure:"dapr_pubsub"`
+	NATS            NATSSinkConfig            `mapstructure:"nats"`
+	GRPC            GRPCSinkConfig            `mapstructure:"grpc"`
 	Extra           map[string]interface{}    `mapstructure:",remain"`
+}
+
+// GRPCSinkConfig configures the "grpc" sink: rss2msg dials Target and calls the
+// ChangeSink.Publish RPC (proto/sink/v1) once per change.
+type GRPCSinkConfig struct {
+	Target    string            `mapstructure:"target"`    // gRPC dial target, e.g. host:port
+	Authority string            `mapstructure:"authority"` // optional :authority / TLS server-name override
+	Timeout   time.Duration     `mapstructure:"timeout"`   // per-RPC deadline; 0 -> none
+	Metadata  map[string]string `mapstructure:"metadata"`  // static outgoing metadata (e.g. authorization)
+	TLS       SinkTLSConfig     `mapstructure:"tls"`
 }
 
 type HTTPSinkConfig struct {
@@ -436,6 +449,22 @@ type DaprPubSubSinkConfig struct {
 	Topic       string            `mapstructure:"topic"`        // required: topic to publish to
 	ContentType string            `mapstructure:"content_type"` // optional: payload content type (default application/json)
 	Metadata    map[string]string `mapstructure:"metadata"`     // optional: static per-publish metadata (e.g. partition key)
+}
+
+// NATSSinkConfig configures the NATS sink (driver "nats"). At most one auth
+// group (token, username/password, or creds_file) may be set.
+type NATSSinkConfig struct {
+	URL       string `mapstructure:"url"`        // required: one or more comma-separated NATS URLs
+	Subject   string `mapstructure:"subject"`    // required: subject to publish to
+	Token     string `mapstructure:"token"`      // token auth
+	Username  string `mapstructure:"username"`   // user/password auth (both or neither)
+	Password  string `mapstructure:"password"`   //
+	CredsFile string `mapstructure:"creds_file"` // path to a NATS user credentials file (JWT + NKey seed)
+	// JetStream publishes through JetStream and waits for a server ack; the
+	// subject must already be bound to an existing stream (the sink never
+	// creates streams).
+	JetStream bool          `mapstructure:"jetstream"`
+	TLS       SinkTLSConfig `mapstructure:"tls"`
 }
 
 // FeedSourceConfig is one entry in the ordered feed_sources list. Order is

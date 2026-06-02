@@ -256,6 +256,89 @@ func TestValidateRejectsSNSWithoutTopicARN(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsNATSSink(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "nats-x", Driver: "nats",
+		NATS: NATSSinkConfig{URL: "nats://localhost:4222", Subject: "feed.changes"},
+	})
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsNATSWithoutURL(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "nats-x", Driver: "nats",
+		NATS: NATSSinkConfig{Subject: "feed.changes"},
+	})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "nats.url") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsNATSWithoutSubject(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "nats-x", Driver: "nats",
+		NATS: NATSSinkConfig{URL: "nats://localhost:4222"},
+	})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "nats.subject") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsNATSConflictingAuth(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "nats-x", Driver: "nats",
+		NATS: NATSSinkConfig{
+			URL: "nats://localhost:4222", Subject: "feed.changes",
+			Token: "tok", Username: "u", Password: "p",
+		},
+	})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "at most one of token") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsNATSPartialUserPassword(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "nats-x", Driver: "nats",
+		NATS: NATSSinkConfig{URL: "nats://localhost:4222", Subject: "feed.changes", Username: "u"},
+	})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "username and password") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsNATSTLSCertWithoutKey(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "nats-x", Driver: "nats",
+		NATS: NATSSinkConfig{
+			URL: "nats://localhost:4222", Subject: "feed.changes",
+			TLS: SinkTLSConfig{CertFile: "/tmp/c.pem"},
+		},
+	})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "cert_file and key_file") {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestValidateAcceptsFIFOSNSTopicARN(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()

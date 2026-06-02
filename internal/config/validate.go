@@ -47,11 +47,13 @@ var knownSinkDrivers = map[string]struct{}{
 	"sns":             {},
 	"stdout":          {},
 	"http":            {},
+	"grpc":            {},
 	"feed":            {},
 	"composite":       {},
 	"gcp_pubsub":      {},
 	"azureservicebus": {},
 	"dapr_pubsub":     {},
+	"nats":            {},
 }
 
 var knownFeedStoreDrivers = map[string]struct{}{
@@ -446,6 +448,22 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 					return *warnings, fmt.Errorf("sinks[%d] (http %q): success_code %d is out of range 100-599", i, s.Name, c)
 				}
 			}
+		case "grpc":
+			if strings.TrimSpace(s.GRPC.Target) == "" {
+				return *warnings, fmt.Errorf("sinks[%d] (grpc %q): grpc.target is required", i, s.Name)
+			}
+			if s.GRPC.Timeout < 0 {
+				return *warnings, fmt.Errorf("sinks[%d] (grpc %q): grpc.timeout must not be negative", i, s.Name)
+			}
+			for k := range s.GRPC.Metadata {
+				lk := strings.ToLower(strings.TrimSpace(k))
+				if lk == "" {
+					return *warnings, fmt.Errorf("sinks[%d] (grpc %q): grpc.metadata has an empty key", i, s.Name)
+				}
+				if strings.HasPrefix(lk, ":") || strings.HasPrefix(lk, "grpc-") || lk == "content-type" {
+					return *warnings, fmt.Errorf("sinks[%d] (grpc %q): grpc.metadata key %q is reserved", i, s.Name, k)
+				}
+			}
 		case "rabbitmq":
 			if strings.TrimSpace(s.RabbitMQ.URL) == "" {
 				return *warnings, fmt.Errorf("sinks[%d] (rabbitmq %q): rabbitmq.url is required", i, s.Name)
@@ -482,6 +500,30 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			}
 			if strings.TrimSpace(s.DaprPubSub.Topic) == "" {
 				return *warnings, fmt.Errorf("sinks[%d] (dapr_pubsub %q): dapr_pubsub.topic is required", i, s.Name)
+			}
+		case "nats":
+			n := s.NATS
+			if strings.TrimSpace(n.URL) == "" {
+				return *warnings, fmt.Errorf("sinks[%d] (nats %q): nats.url is required", i, s.Name)
+			}
+			if strings.TrimSpace(n.Subject) == "" {
+				return *warnings, fmt.Errorf("sinks[%d] (nats %q): nats.subject is required", i, s.Name)
+			}
+			if (strings.TrimSpace(n.Username) == "") != (strings.TrimSpace(n.Password) == "") {
+				return *warnings, fmt.Errorf("sinks[%d] (nats %q): username and password must both be set or both empty", i, s.Name)
+			}
+			authGroups := 0
+			if strings.TrimSpace(n.Token) != "" {
+				authGroups++
+			}
+			if strings.TrimSpace(n.Username) != "" {
+				authGroups++
+			}
+			if strings.TrimSpace(n.CredsFile) != "" {
+				authGroups++
+			}
+			if authGroups > 1 {
+				return *warnings, fmt.Errorf("sinks[%d] (nats %q): at most one of token, username/password, or creds_file may be set", i, s.Name)
 			}
 		case "composite":
 			if len(s.Composite.Children) == 0 {
@@ -591,8 +633,8 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 	}
 
-	// Client-TLS blocks (postgres/kafka/rabbitmq/http sinks) require cert_file
-	// and key_file to be set together for mutual-TLS.
+	// Client-TLS blocks (postgres/kafka/rabbitmq/http/nats sinks) require
+	// cert_file and key_file to be set together for mutual-TLS.
 	for i, s := range c.Sinks {
 		var stls SinkTLSConfig
 		switch s.Driver {
@@ -604,6 +646,10 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			stls = s.RabbitMQ.TLS
 		case "http":
 			stls = s.HTTP.TLS
+		case "nats":
+			stls = s.NATS.TLS
+		case "grpc":
+			stls = s.GRPC.TLS
 		default:
 			continue
 		}

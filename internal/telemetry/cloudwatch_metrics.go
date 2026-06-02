@@ -11,6 +11,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	"go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
 	"github.com/iambod/rss2msg/internal/config"
 )
@@ -71,10 +73,13 @@ func (e *cloudWatchMetricsExporter) Export(ctx context.Context, rm *metricdata.R
 		return nil
 	}
 
+	// Fold the resource's instance id into every datum so two replicas pushing
+	// the same metric+attributes don't collapse into one CloudWatch series.
+	extra := resourceDimensions(rm.Resource)
 	var data []cwtypes.MetricDatum
 	for _, sm := range rm.ScopeMetrics {
 		for _, m := range sm.Metrics {
-			data = appendMetricData(data, m)
+			data = appendMetricData(data, m, extra)
 		}
 	}
 	if len(data) == 0 {
@@ -107,38 +112,38 @@ func (e *cloudWatchMetricsExporter) Shutdown(context.Context) error {
 	return nil
 }
 
-func appendMetricData(data []cwtypes.MetricDatum, m metricdata.Metrics) []cwtypes.MetricDatum {
+func appendMetricData(data []cwtypes.MetricDatum, m metricdata.Metrics, extra []cwtypes.Dimension) []cwtypes.MetricDatum {
 	switch d := m.Data.(type) {
 	case metricdata.Sum[int64]:
-		return appendNum(data, m.Name, d.DataPoints)
+		return appendNum(data, m.Name, d.DataPoints, extra)
 	case metricdata.Sum[float64]:
-		return appendNum(data, m.Name, d.DataPoints)
+		return appendNum(data, m.Name, d.DataPoints, extra)
 	case metricdata.Gauge[int64]:
-		return appendNum(data, m.Name, d.DataPoints)
+		return appendNum(data, m.Name, d.DataPoints, extra)
 	case metricdata.Gauge[float64]:
-		return appendNum(data, m.Name, d.DataPoints)
+		return appendNum(data, m.Name, d.DataPoints, extra)
 	case metricdata.Histogram[int64]:
-		return appendHist(data, m.Name, d.DataPoints)
+		return appendHist(data, m.Name, d.DataPoints, extra)
 	case metricdata.Histogram[float64]:
-		return appendHist(data, m.Name, d.DataPoints)
+		return appendHist(data, m.Name, d.DataPoints, extra)
 	}
 	return data
 }
 
-func appendNum[N int64 | float64](data []cwtypes.MetricDatum, name string, dps []metricdata.DataPoint[N]) []cwtypes.MetricDatum {
+func appendNum[N int64 | float64](data []cwtypes.MetricDatum, name string, dps []metricdata.DataPoint[N], extra []cwtypes.Dimension) []cwtypes.MetricDatum {
 	for _, dp := range dps {
 		ts := dp.Time
 		data = append(data, cwtypes.MetricDatum{
 			MetricName: aws.String(name),
 			Value:      aws.Float64(float64(dp.Value)),
 			Timestamp:  &ts,
-			Dimensions: toDimensions(dp.Attributes),
+			Dimensions: toDimensions(dp.Attributes, extra),
 		})
 	}
 	return data
 }
 
-func appendHist[N int64 | float64](data []cwtypes.MetricDatum, name string, dps []metricdata.HistogramDataPoint[N]) []cwtypes.MetricDatum {
+func appendHist[N int64 | float64](data []cwtypes.MetricDatum, name string, dps []metricdata.HistogramDataPoint[N], extra []cwtypes.Dimension) []cwtypes.MetricDatum {
 	for _, dp := range dps {
 		// CloudWatch rejects a StatisticSet with SampleCount==0, which would
 		// fail the whole PutMetricData batch; skip empty histogram points.
@@ -162,33 +167,60 @@ func appendHist[N int64 | float64](data []cwtypes.MetricDatum, name string, dps 
 			MetricName:      aws.String(name),
 			StatisticValues: &stat,
 			Timestamp:       &ts,
-			Dimensions:      toDimensions(dp.Attributes),
+			Dimensions:      toDimensions(dp.Attributes, extra),
 		})
 	}
 	return data
 }
 
-// toDimensions folds an attribute set into CloudWatch Dimensions, sorted by key
-// for deterministic output and capped at the 30-dimension limit.
-func toDimensions(attrs attribute.Set) []cwtypes.Dimension {
-	if attrs.Len() == 0 {
+// toDimensions folds a data point's attribute set plus any resource-level extra
+// dimensions into CloudWatch Dimensions, sorted by key for deterministic output
+// and capped at the 30-dimension limit. Data-point attributes take precedence
+// over extras on a key conflict.
+func toDimensions(attrs attribute.Set, extra []cwtypes.Dimension) []cwtypes.Dimension {
+	if attrs.Len() == 0 && len(extra) == 0 {
 		return nil
 	}
-	type kv struct{ k, v string }
-	pairs := make([]kv, 0, attrs.Len())
+	merged := make(map[string]string, attrs.Len()+len(extra))
+	// Resource extras are lower priority; data-point attributes overwrite them.
+	for _, d := range extra {
+		merged[*d.Name] = *d.Value
+	}
 	for it := attrs.Iter(); it.Next(); {
 		a := it.Attribute()
-		pairs = append(pairs, kv{k: string(a.Key), v: a.Value.String()})
+		merged[string(a.Key)] = a.Value.String()
 	}
-	sort.Slice(pairs, func(i, j int) bool { return pairs[i].k < pairs[j].k })
-	if len(pairs) > maxDimensions {
-		pairs = pairs[:maxDimensions]
+	keys := make([]string, 0, len(merged))
+	for k := range merged {
+		keys = append(keys, k)
 	}
-	dims := make([]cwtypes.Dimension, 0, len(pairs))
-	for _, p := range pairs {
-		dims = append(dims, cwtypes.Dimension{Name: aws.String(p.k), Value: aws.String(p.v)})
+	sort.Strings(keys)
+	if len(keys) > maxDimensions {
+		keys = keys[:maxDimensions]
+	}
+	dims := make([]cwtypes.Dimension, 0, len(keys))
+	for _, k := range keys {
+		dims = append(dims, cwtypes.Dimension{Name: aws.String(k), Value: aws.String(merged[k])})
 	}
 	return dims
+}
+
+// resourceDimensions extracts service.instance.id from the OTEL resource as a
+// CloudWatch dimension. Without it, replicas pushing the same metric+attributes
+// collide into a single series. Returns nil when the resource carries no id.
+func resourceDimensions(res *resource.Resource) []cwtypes.Dimension {
+	if res == nil {
+		return nil
+	}
+	for it := res.Iter(); it.Next(); {
+		if a := it.Attribute(); a.Key == semconv.ServiceInstanceIDKey {
+			return []cwtypes.Dimension{{
+				Name:  aws.String(string(a.Key)),
+				Value: aws.String(a.Value.String()),
+			}}
+		}
+	}
+	return nil
 }
 
 // setupCloudWatchMetrics builds a CloudWatch client from cfg and returns a

@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+// Package rss2msg.sink.v1 defines the gRPC contract spoken by the rss2msg
+// "grpc" sink. rss2msg acts as the client: it dials a server you run that
+// implements ChangeSink and calls Publish once per detected feed change.
+//
+// This is the typed analogue of the HTTP/webhook sink. The Change message
+// mirrors internal/model.Change field-for-field (schema_version 1).
+package rss2msg.sink.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/iambod/rss2msg/proto/sink/v1;sinkv1";
+
+// ChangeSink receives feed changes from rss2msg.
+service ChangeSink {
+  // Publish delivers a single change. A non-OK gRPC status, or an ack with
+  // accepted=false, is treated by rss2msg as a delivery failure and drives the
+  // configured retry / dead-letter behaviour.
+  rpc Publish(PublishRequest) returns (PublishAck);
+}
+
+// PublishRequest carries one change.
+message PublishRequest {
+  Change change = 1;
+}
+
+// PublishAck reports the outcome of a Publish call. An OK status with an empty
+// ack (accepted defaulting to false but no error) is ambiguous, so servers
+// SHOULD set accepted=true on success; rss2msg treats accepted=false as a
+// failure.
+message PublishAck {
+  bool accepted = 1;
+  // Optional human-readable reason when accepted=false; surfaced in rss2msg logs.
+  string error = 2;
+}
+
+// Change mirrors internal/model.Change. Optional model fields map to proto3
+// default-value semantics; the *time.Time fields map to absent Timestamps.
+message Change {
+  int32 schema_version = 1;
+  string feed_url = 2;
+  string feed_title = 3;
+  string item_id = 4;
+  // kind is "new" or "updated".
+  string kind = 5;
+  string title = 6;
+  string link = 7;
+  repeated string authors = 8;
+  string summary = 9;
+  string content = 10;
+  repeated string categories = 11;
+  // published_at / updated_at are absent when the source omitted them.
+  google.protobuf.Timestamp published_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+  string content_hash = 14;
+  google.protobuf.Timestamp detected_at = 15;
+
+  // dlq_* are populated only when this change is delivered to a dead-letter sink.
+  string dlq_from_sink = 16;
+  string dlq_error = 17;
+  int32 dlq_attempts = 18;
+}
