@@ -65,6 +65,9 @@ retry:
 runtime:
   shutdown_drain_timeout: 30s
   run_once_concurrency: 8
+  # Bound a single sink delivery (all retry attempts plus the DLQ handoff) so one
+  # wedged sink can't stall a feed's poll loop. 0 (or omitted) disables it.
+  deliver_timeout: 0s
 
 health:
   enabled: true

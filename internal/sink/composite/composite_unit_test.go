@@ -36,7 +36,7 @@ func (f *fakeSink) Publish(_ context.Context, c model.Change) error {
 func (f *fakeSink) count() int { f.mu.Lock(); defer f.mu.Unlock(); return len(f.received) }
 
 func branch(name string, primary, dlq sink.Publisher) Branch {
-	return Branch{Name: name, Wrapped: sink.WithRetry(primary, dlq, retry.Config{MaxAttempts: 1})}
+	return Branch{Name: name, Wrapped: sink.WithRetry(primary, dlq, retry.Config{MaxAttempts: 1}, 0)}
 }
 
 func sampleChange() model.Change {

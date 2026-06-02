@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/iambod/rss2msg/internal/config"
 	"github.com/iambod/rss2msg/internal/feedsource"
@@ -107,6 +109,14 @@ func newServeCmd(opts *rootOpts) *cobra.Command {
 				},
 				OnError: func(err error) {
 					tel.Logger.Error().Err(err).Msg("feed reconcile aborted")
+				},
+				OnPollOverrun: func(feedURL string, took, interval time.Duration) {
+					w.instr.PollOverran.Add(ctx, 1, metric.WithAttributes(attribute.String("feed_url", feedURL)))
+					tel.Logger.Warn().
+						Str("feed_url", feedURL).
+						Dur("took", took).
+						Dur("interval", interval).
+						Msg("poll overran its interval; effective polling rate is below configured")
 				},
 			})
 		},

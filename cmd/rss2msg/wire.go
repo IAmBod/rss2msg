@@ -39,6 +39,7 @@ type wired struct {
 	coord     coord.Coordinator
 	pipelines []*pipeline
 	factory   scheduler.PipelineFactory
+	instr     telemetry.Instruments
 }
 
 func (w *wired) Close() {
@@ -127,7 +128,7 @@ func wireAll(ctx context.Context, cfg config.Config, tel *telemetry.Telemetry) (
 		return nil, fmt.Errorf("instruments: %w", err)
 	}
 
-	w := &wired{store: st, registry: reg, coord: cd}
+	w := &wired{store: st, registry: reg, coord: cd, instr: instr}
 	factory := w.newPipelineFactory(cfg, tel, fetcher, det, instr)
 	for _, fc := range cfg.Feeds {
 		p, err := factory(fc)
@@ -162,7 +163,7 @@ func wrapSink(reg *sink.Registry, cfg config.Config, name string) (*sink.Retryin
 	}
 	scCfg := findSink(cfg.Sinks, name)
 	if scCfg.Driver == "composite" {
-		return sink.WithRetry(primary, nil, retry.Config{MaxAttempts: 1}), nil
+		return sink.WithRetry(primary, nil, retry.Config{MaxAttempts: 1}, cfg.Runtime.DeliverTimeout), nil
 	}
 	var dlq sink.Publisher
 	if scCfg.DeadLetter != "" {
@@ -172,7 +173,7 @@ func wrapSink(reg *sink.Registry, cfg config.Config, name string) (*sink.Retryin
 		MaxAttempts: cfg.Retry.MaxAttempts,
 		BaseDelay:   cfg.Retry.BaseDelay,
 		MaxDelay:    cfg.Retry.MaxDelay,
-	}), nil
+	}, cfg.Runtime.DeliverTimeout), nil
 }
 
 // linkComposites resolves each composite sink's children from the registry and
