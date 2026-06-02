@@ -32,7 +32,7 @@ func newRootCmd() *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().StringVar(&opts.configPath, "config", "", "Path to config file (default: ./config.yaml or /etc/rss2msg/config.yaml)")
-	root.AddCommand(newServeCmd(opts), newRunOnceCmd(opts), newValidateConfigCmd(opts), newGenerateConfigCmd(), newVersionCmd())
+	root.AddCommand(newServeCmd(opts), newRunOnceCmd(opts), newValidateConfigCmd(opts), newGenerateConfigCmd(), newHealthcheckCmd(opts), newVersionCmd())
 	return root
 }
 
