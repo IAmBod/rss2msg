@@ -1,17 +1,20 @@
 ---
 title: Feed sink
 type: how-to
-tags: [rss2msg/docs, sinks, feed, rss, atom]
-summary: Re-publish detected changes as an RSS 2.0 and Atom 1.0 feed over HTTP (with optional HTTP/3) so feed readers can subscribe.
+tags: [rss2msg/docs, sinks, feed, rss, atom, mcp]
+summary: Re-publish detected changes as an RSS 2.0, Atom 1.0, or MCP surface over HTTP (with optional HTTP/3) so feed readers and AI agents can subscribe.
 updated: 2026-06-02
 ---
 
 # Feed sink
 
-Re-publishes detected changes as a feed served over HTTP, so any feed reader
-can subscribe to rss2msg's output. The sink runs its own HTTP server and
-exposes two endpoints: `GET /rss` (RSS 2.0) and `GET /atom` (Atom 1.0). It
-keeps a rolling window of the most recent changes and renders them on request.
+Re-publishes detected changes over HTTP from a rolling window of the most
+recent changes, rendered on request. It runs its own HTTP server and can serve
+the same window through three independent **surfaces**, each a `{ enabled, path }`
+block: `rss` (RSS 2.0, default `/rss`), `atom` (Atom 1.0, default `/atom`), and
+`mcp` (a Model Context Protocol server for AI agents, default `/mcp`). RSS and
+Atom are enabled by default; MCP is opt-in. All three share the listener, TLS,
+and auth, and at least one must be enabled.
 
 ```yaml
 sinks:
@@ -24,8 +27,15 @@ sinks:
       link: "https://example.com/"    # the website this feed is about (RSS channel link / Atom rel=alternate)
       description: "Aggregated feed changes from rss2msg"
       max_items: 50                   # rolling window size (default 50)
-      rss_path: /rss                  # default /rss
-      atom_path: /atom                # default /atom
+      rss:                            # RSS 2.0 output surface (default enabled at /rss)
+        enabled: true
+        path: /rss
+      atom:                           # Atom 1.0 output surface (default enabled at /atom)
+        enabled: true
+        path: /atom
+      mcp:                            # MCP server surface (opt-in; default disabled)
+        enabled: false
+        path: /mcp
       render_cache_ttl: 10s           # optional; in-memory server-side render cache, pure TTL (default off)
       cache_control_ttl: 5m           # optional; Cache-Control: public, max-age=<this> (default off -> no-cache)
       timeouts:                       # optional; safe non-zero defaults applied when unset
@@ -59,8 +69,9 @@ sinks:
 | `link`              | no       | (none)        | The website this feed is about (RSS channel link / Atom `rel=alternate`). Must be an absolute URL when set. |
 | `description`       | no       | (none)        | Feed / channel description. |
 | `max_items`         | no       | `50`          | Rolling window size. Must be `>= 1`. |
-| `rss_path`          | no       | `/rss`        | Must start with `/` and differ from `atom_path`. |
-| `atom_path`         | no       | `/atom`       | Must start with `/` and differ from `rss_path`. |
+| `rss`               | no       | enabled `/rss`  | RSS 2.0 surface: `{ enabled, path }`. `path` must start with `/` and differ from other enabled surfaces. |
+| `atom`              | no       | enabled `/atom` | Atom 1.0 surface: `{ enabled, path }`. `path` must start with `/` and differ from other enabled surfaces. |
+| `mcp`               | no       | disabled `/mcp` | MCP surface: `{ enabled, path }`. Opt-in. See [MCP surface](#mcp-surface). |
 | `render_cache_ttl`  | no       | off           | In-memory server-side render cache (pure TTL); see [HTTP caching](#http-caching). |
 | `cache_control_ttl` | no       | off           | Client-facing `max-age`; see [HTTP caching](#http-caching). |
 | `timeouts`          | no       | (see below)   | HTTP server timeouts. |
@@ -79,14 +90,39 @@ delivered via DLQ routing) are never surfaced in the public feed.
 
 | request                  | response |
 | ------------------------ | -------- |
-| `GET <rss_path>`         | `200`, `Content-Type: application/rss+xml` (RSS 2.0). |
-| `GET <atom_path>`        | `200`, `Content-Type: application/atom+xml` (Atom 1.0). |
+| `GET <rss.path>`         | `200`, `Content-Type: application/rss+xml` (RSS 2.0). |
+| `GET <atom.path>`        | `200`, `Content-Type: application/atom+xml` (Atom 1.0). |
 | `HEAD` on either path    | `200` with headers, no body. |
-| any other method         | `405`, `Allow: GET, HEAD`. |
+| `<mcp.path>`             | MCP streamable-HTTP endpoint when `mcp.enabled`; see [MCP surface](#mcp-surface). |
+| any other method (rss/atom) | `405`, `Allow: GET, HEAD`. |
 | any other path           | `404`. |
 
 The feed-item layout (how a `Change` maps onto a feed entry, and the synthetic
 entry id) is documented in [Sink Wire Formats](../../reference/wire-formats.md).
+
+## MCP surface
+
+When `mcp.enabled` is set, the sink also serves a [Model Context
+Protocol](https://modelcontextprotocol.io) server at `mcp.path` (default `/mcp`)
+over the streamable-HTTP transport, on the same listener and behind the same TLS
+and auth as the RSS/Atom surfaces. This lets an AI agent read the same rolling
+window the feed renders. It is **read-only**: there are no tools that mutate
+state.
+
+Connect an MCP client to `http(s)://<host><mcp.path>`. The server exposes four
+tools, all backed by the rolling window (so results are bounded by `max_items`):
+
+| tool | arguments | returns |
+| ---- | --------- | ------- |
+| `list_feeds` | — | the feeds in the window, each with an item count. |
+| `list_recent_items` | `limit` (optional, default/cap = `max_items`), `feed_url` (optional) | recent items newest-first (summaries, no body). |
+| `get_item` | `feed_url`, `item_id` | a single item including full content. |
+| `search_items` | `query`, `since` (optional, RFC3339) | items whose title/summary/content contain `query` (case-insensitive), at or after `since`. |
+
+Each item carries its native `item_id` (the key `get_item` expects) plus the
+synthetic `guid` URN that the RSS/Atom output emits, so MCP results
+cross-reference the syndication feed. The window only contains items routed to
+*this* feed sink — it is not a global archive of every feed.
 
 ## Store backends
 

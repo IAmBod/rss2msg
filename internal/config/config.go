@@ -278,8 +278,9 @@ type FeedSinkConfig struct {
 	Link            string             `mapstructure:"link"`
 	Description     string             `mapstructure:"description"`
 	MaxItems        int                `mapstructure:"max_items"`
-	RSSPath         string             `mapstructure:"rss_path"`
-	AtomPath        string             `mapstructure:"atom_path"`
+	RSS             FeedSurfaceConfig  `mapstructure:"rss"`
+	Atom            FeedSurfaceConfig  `mapstructure:"atom"`
+	MCP             FeedSurfaceConfig  `mapstructure:"mcp"`
 	RenderCacheTTL  time.Duration      `mapstructure:"render_cache_ttl"`
 	CacheControlTTL time.Duration      `mapstructure:"cache_control_ttl"`
 	Timeouts        FeedTimeoutsConfig `mapstructure:"timeouts"`
@@ -287,6 +288,32 @@ type FeedSinkConfig struct {
 	HTTP3           bool               `mapstructure:"http3"` // serve HTTP/3 (QUIC) alongside TCP; requires tls
 	Auth            FeedAuthConfig     `mapstructure:"auth"`
 	Store           FeedStoreConfig    `mapstructure:"store"`
+}
+
+// FeedSurfaceConfig is one output surface of the feed sink — RSS, Atom, or MCP.
+// Each is served on the sink's shared listener at Path, behind the same TLS/auth.
+// Enabled is a pointer so an omitted block ("unset") is distinguishable from an
+// explicit `enabled: false`: rss/atom default on while mcp defaults off, all from
+// the same zero value, resolved via On(default).
+type FeedSurfaceConfig struct {
+	Enabled *bool  `mapstructure:"enabled"`
+	Path    string `mapstructure:"path"`
+}
+
+// On reports whether the surface is enabled, applying def when unset.
+func (s FeedSurfaceConfig) On(def bool) bool {
+	if s.Enabled == nil {
+		return def
+	}
+	return *s.Enabled
+}
+
+// PathOr returns the configured path, or def when unset.
+func (s FeedSurfaceConfig) PathOr(def string) string {
+	if s.Path == "" {
+		return def
+	}
+	return s.Path
 }
 
 type FeedTimeoutsConfig struct {

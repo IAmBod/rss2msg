@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/quic-go/quic-go/http3"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/metric"
@@ -29,8 +30,9 @@ type Options struct {
 	PublicURL       string
 	Meta            FeedMeta
 	MaxItems        int
-	RSSPath         string
-	AtomPath        string
+	RSS             Surface
+	Atom            Surface
+	MCP             Surface
 	RenderCacheTTL  time.Duration
 	CacheControlTTL time.Duration
 	Timeouts        Timeouts
@@ -47,6 +49,26 @@ type Options struct {
 
 	Meter  metric.Meter   // optional; nil => no metrics
 	Logger zerolog.Logger // optional; zero value => no server logging
+}
+
+// Surface is one output endpoint of the feed sink (RSS, Atom, or MCP). A
+// disabled surface registers no route. Path defaults to the canonical value
+// (def passed at wiring) when enabled but left empty.
+type Surface struct {
+	Enabled bool
+	Path    string
+}
+
+// surfacePath returns the route path for a surface: empty when disabled (the
+// handler 404s empty paths), or the configured path / canonical default.
+func surfacePath(s Surface, def string) string {
+	if !s.Enabled {
+		return ""
+	}
+	if s.Path == "" {
+		return def
+	}
+	return s.Path
 }
 
 type Timeouts struct {
@@ -105,13 +127,11 @@ func New(ctx context.Context, o Options) (*Publisher, error) {
 	if err != nil {
 		return nil, err
 	}
-	rss, atom := o.RSSPath, o.AtomPath
-	if rss == "" {
-		rss = "/rss"
-	}
-	if atom == "" {
-		atom = "/atom"
-	}
+	// A disabled surface yields an empty path, which the handler treats as
+	// "not served" (404). An enabled surface with no explicit path falls back
+	// to the canonical default.
+	rss := surfacePath(o.RSS, "/rss")
+	atom := surfacePath(o.Atom, "/atom")
 	selfBase := o.PublicURL
 	if selfBase == "" {
 		selfBase = o.Meta.Link
@@ -136,6 +156,23 @@ func New(ctx context.Context, o Options) (*Publisher, error) {
 		h.instr = instr
 	}
 
+	// When the MCP surface is enabled, front the listener with a mux so /mcp
+	// routes to the streamable MCP handler (behind the same auth) while the
+	// rss/atom handler keeps serving everything else.
+	var root http.Handler = h
+	if mcpPath := surfacePath(o.MCP, "/mcp"); mcpPath != "" {
+		var mcpCount metric.Int64Counter
+		if h.instr != nil {
+			mcpCount = h.instr.mcpRequests
+		}
+		ms := buildMCPServer(store, o.MaxItems, o.Name)
+		sh := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return ms }, nil)
+		mux := http.NewServeMux()
+		mux.Handle("/", h)
+		mux.Handle(mcpPath, mcpAuthMiddleware(o.Auth, mcpCount, sh))
+		root = mux
+	}
+
 	to := o.Timeouts.withDefaults()
 	ln, err := net.Listen("tcp", o.Listen)
 	if err != nil {
@@ -143,7 +180,7 @@ func New(ctx context.Context, o Options) (*Publisher, error) {
 		return nil, fmt.Errorf("feed sink %q: listen %q: %w", o.Name, o.Listen, err)
 	}
 	srv := &http.Server{
-		Handler:           h,
+		Handler:           root,
 		ReadHeaderTimeout: to.ReadHeader,
 		ReadTimeout:       to.Read,
 		WriteTimeout:      to.Write,
@@ -152,7 +189,9 @@ func New(ctx context.Context, o Options) (*Publisher, error) {
 	p := &Publisher{name: o.Name, store: store, server: srv, ln: ln, shutdown: to.Shutdown, tlsCert: o.TLSCertFile, tlsKey: o.TLSKeyFile, logger: o.Logger}
 
 	if o.HTTP3 {
-		if err := p.enableHTTP3(h); err != nil {
+		// Serve the same root handler (which includes the MCP mux when enabled)
+		// over HTTP/3, not just the rss/atom handler.
+		if err := p.enableHTTP3(root); err != nil {
 			_ = ln.Close()
 			_ = store.Close()
 			return nil, fmt.Errorf("feed sink %q: %w", o.Name, err)

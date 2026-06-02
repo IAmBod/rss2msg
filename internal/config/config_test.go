@@ -108,6 +108,57 @@ sinks:
 	}
 }
 
+func TestLoad_FeedSinkSurfaces(t *testing.T) {
+	t.Parallel()
+	cfg := mustLoadYAML(t, `
+state:
+  driver: sqlite
+  sqlite: { path: /tmp/s.db }
+feeds:
+  - url: https://example.com/f.xml
+sinks:
+  - name: out-feed
+    driver: feed
+    feed:
+      listen: ":8088"
+      rss:  { enabled: true,  path: /feed.rss }
+      atom: { enabled: false, path: /feed.atom }
+      mcp:  { enabled: true,  path: /mcp }
+`)
+	f := cfg.Sinks[0].Feed
+	if !f.RSS.On(false) || f.RSS.Path != "/feed.rss" {
+		t.Fatalf("rss surface = %+v, want enabled with /feed.rss", f.RSS)
+	}
+	if f.Atom.On(true) {
+		t.Fatalf("atom surface should be explicitly disabled, got %+v", f.Atom)
+	}
+	if !f.MCP.On(false) || f.MCP.Path != "/mcp" {
+		t.Fatalf("mcp surface = %+v, want enabled with /mcp", f.MCP)
+	}
+}
+
+func TestFeedSurfaceDefaults(t *testing.T) {
+	t.Parallel()
+	var zero FeedSurfaceConfig
+	// An unset surface honors whatever default the caller passes — this is how
+	// rss/atom default on while mcp defaults off, from the same zero value.
+	if !zero.On(true) {
+		t.Fatal("unset surface should resolve On(true) => true")
+	}
+	if zero.On(false) {
+		t.Fatal("unset surface should resolve On(false) => false")
+	}
+	if zero.PathOr("/rss") != "/rss" {
+		t.Fatalf("PathOr default = %q, want /rss", zero.PathOr("/rss"))
+	}
+	// An explicitly-disabled surface stays off even when the default is on.
+	off := false
+	disabled := FeedSurfaceConfig{Enabled: &off}
+	if disabled.On(true) {
+		t.Fatal("explicitly disabled surface should resolve On(true) => false")
+	}
+}
+
 func TestDefaults(t *testing.T) {
 	t.Parallel()
 	d := Defaults()

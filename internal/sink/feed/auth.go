@@ -11,8 +11,9 @@ type AuthConfig struct {
 	BearerToken          string
 }
 
-func (h *handler) authOK(r *http.Request) bool {
-	a := h.cfg.auth
+// checkAuth reports whether the request satisfies the auth config (nil => open).
+// Shared by the RSS/Atom handler and the MCP route so both gate identically.
+func checkAuth(a *AuthConfig, r *http.Request) bool {
 	if a == nil {
 		return true
 	}
@@ -29,13 +30,18 @@ func (h *handler) authOK(r *http.Request) bool {
 	return ok && userOK && passOK
 }
 
-func ctEqual(a, b string) bool {
-	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
-}
-
-func (h *handler) writeUnauthorized(w http.ResponseWriter) {
-	if h.cfg.auth != nil && h.cfg.auth.BearerToken == "" {
+// writeAuthChallenge writes a 401, adding a Basic challenge when basic auth is in use.
+func writeAuthChallenge(a *AuthConfig, w http.ResponseWriter) {
+	if a != nil && a.BearerToken == "" {
 		w.Header().Set("WWW-Authenticate", `Basic realm="rss2msg"`)
 	}
 	http.Error(w, "unauthorized", http.StatusUnauthorized)
 }
+
+func ctEqual(a, b string) bool {
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
+}
+
+func (h *handler) authOK(r *http.Request) bool { return checkAuth(h.cfg.auth, r) }
+
+func (h *handler) writeUnauthorized(w http.ResponseWriter) { writeAuthChallenge(h.cfg.auth, w) }
