@@ -912,6 +912,60 @@ func TestValidateRejectsFileSourceWithoutPath(t *testing.T) {
 	}
 }
 
+func TestValidateAllowsPostgresSource(t *testing.T) {
+	t.Parallel()
+	cfg := Defaults()
+	cfg.State = StateConfig{Driver: "sqlite", SQLite: SQLiteStateConfig{Path: "x.db"}}
+	cfg.Sinks = []SinkConfig{{Name: "default", Driver: "stdout"}}
+	cfg.Feeds = nil
+	cfg.FeedSources = []FeedSourceConfig{{
+		Type:     "postgres",
+		Postgres: PostgresFeedSourceConfig{DSN: "postgres://u@h/db"},
+	}}
+	if _, err := Validate(cfg); err != nil {
+		t.Fatalf("expected valid, got %v", err)
+	}
+}
+
+func TestValidateRejectsPostgresSourceWithoutDSN(t *testing.T) {
+	t.Parallel()
+	cfg := Defaults()
+	cfg.State = StateConfig{Driver: "sqlite", SQLite: SQLiteStateConfig{Path: "x.db"}}
+	cfg.Sinks = []SinkConfig{{Name: "default", Driver: "stdout"}}
+	cfg.FeedSources = []FeedSourceConfig{{Type: "postgres"}}
+	if _, err := Validate(cfg); err == nil {
+		t.Fatal("expected error for postgres source without dsn")
+	}
+}
+
+func TestValidateRejectsPostgresSourceTableAndQuery(t *testing.T) {
+	t.Parallel()
+	cfg := Defaults()
+	cfg.State = StateConfig{Driver: "sqlite", SQLite: SQLiteStateConfig{Path: "x.db"}}
+	cfg.Sinks = []SinkConfig{{Name: "default", Driver: "stdout"}}
+	cfg.FeedSources = []FeedSourceConfig{{
+		Type:     "postgres",
+		Postgres: PostgresFeedSourceConfig{DSN: "postgres://u@h/db", Table: "feeds", Query: "SELECT 1"},
+	}}
+	if _, err := Validate(cfg); err == nil {
+		t.Fatal("expected error when table and query both set")
+	}
+}
+
+func TestValidateRejectsPostgresSourceBadTable(t *testing.T) {
+	t.Parallel()
+	cfg := Defaults()
+	cfg.State = StateConfig{Driver: "sqlite", SQLite: SQLiteStateConfig{Path: "x.db"}}
+	cfg.Sinks = []SinkConfig{{Name: "default", Driver: "stdout"}}
+	cfg.FeedSources = []FeedSourceConfig{{
+		Type:     "postgres",
+		Postgres: PostgresFeedSourceConfig{DSN: "postgres://u@h/db", Table: "bad table!"},
+	}}
+	if _, err := Validate(cfg); err == nil {
+		t.Fatal("expected error for invalid table identifier")
+	}
+}
+
 func TestValidateRejectsNoFeedsAndNoSources(t *testing.T) {
 	t.Parallel()
 	cfg := Defaults()
