@@ -198,6 +198,19 @@ sinks:
   #     tls:                                        # use an amqps:// url above; adds custom CA / mTLS
   #       ca_file: /etc/ssl/certs/rabbit-ca.pem
   #   dead_letter: dlq-main
+  # - name: nats-main
+  #   driver: nats
+  #   nats:
+  #     url: nats://nats-1:4222                       # comma-separate for a cluster; tls:// for TLS
+  #     subject: feed.changes
+  #     # token: ${NATS_TOKEN}                         # at most one auth group:
+  #     # username: rss                                #   token | username+password | creds_file
+  #     # password: ${NATS_PASSWORD}
+  #     # creds_file: /etc/nats/rss.creds              # JWT + NKey credentials file
+  #     # jetstream: true                              # persisted, server-acked publish (stream must exist)
+  #     # tls:                                         # custom CA / mTLS; use a tls:// url above
+  #     #   ca_file: /etc/ssl/certs/nats-ca.pem
+  #   dead_letter: dlq-main
   # - name: asb-main
   #   driver: azureservicebus
   #   azureservicebus:
