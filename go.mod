@@ -12,6 +12,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.74.2
 	github.com/aws/aws-sdk-go-v2/service/sns v1.39.18
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.28
+	github.com/dapr/dapr v1.16.0
 	github.com/dapr/go-sdk v1.13.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/getsentry/sentry-go v0.46.2
@@ -48,6 +49,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.44.0
 	google.golang.org/api v0.272.0
 	google.golang.org/grpc v1.81.1
+	google.golang.org/protobuf v1.36.11
 	modernc.org/sqlite v1.51.0
 )
 
@@ -88,7 +90,6 @@ require (
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
-	github.com/dapr/dapr v1.16.0 // indirect
 	github.com/dapr/durabletask-go v0.10.0 // indirect
 	github.com/dapr/kit v0.16.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -185,7 +186,6 @@ require (
 	google.golang.org/genproto v0.0.0-20260217215200-42d3e9bedb6d // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.72.3 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
