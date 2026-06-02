@@ -30,6 +30,41 @@ type TelemetryConfig struct {
 	Graphite    TelemetryGraphiteConfig   `mapstructure:"graphite"`
 	Sentry      TelemetrySentryConfig     `mapstructure:"sentry"`
 	PostHog     TelemetryPostHogConfig    `mapstructure:"posthog"`
+	CloudWatch  TelemetryCloudWatchConfig `mapstructure:"cloudwatch"`
+}
+
+// TelemetryCloudWatchConfig configures optional AWS CloudWatch telemetry. It is
+// disabled by default. Region and EndpointURL are shared by both surfaces; AWS
+// credentials are resolved via the default SDK chain (checked at telemetry.Setup,
+// not validation). Logs and Metrics toggle independently, so logs-only or
+// metrics-only deployments work.
+type TelemetryCloudWatchConfig struct {
+	Enabled     bool                    `mapstructure:"enabled"`      // master switch for the block
+	Region      string                  `mapstructure:"region"`       // AWS region; empty uses the SDK default chain
+	EndpointURL string                  `mapstructure:"endpoint_url"` // optional endpoint override (e.g. LocalStack)
+	Logs        CloudWatchLogsConfig    `mapstructure:"logs"`
+	Metrics     CloudWatchMetricsConfig `mapstructure:"metrics"`
+}
+
+// CloudWatchLogsConfig configures the CloudWatch Logs zerolog hook. When Enabled,
+// log events at or above Level are batched and shipped to LogGroup/LogStream via
+// PutLogEvents.
+type CloudWatchLogsConfig struct {
+	Enabled       bool          `mapstructure:"enabled"`
+	LogGroup      string        `mapstructure:"log_group"`      // required when logs enabled
+	LogStream     string        `mapstructure:"log_stream"`     // defaults to the hostname
+	Level         string        `mapstructure:"level"`          // min zerolog level forwarded (default "info")
+	BatchInterval time.Duration `mapstructure:"batch_interval"` // flush cadence (default 5s)
+	CreateGroup   bool          `mapstructure:"create_group"`   // auto-create the group/stream if missing
+}
+
+// CloudWatchMetricsConfig configures the CloudWatch Metrics OTEL exporter. When
+// Enabled, metrics are pushed to Namespace via PutMetricData on the configured
+// Interval through an OTEL PeriodicReader.
+type CloudWatchMetricsConfig struct {
+	Enabled   bool          `mapstructure:"enabled"`
+	Namespace string        `mapstructure:"namespace"` // CloudWatch namespace (default "rss2msg")
+	Interval  time.Duration `mapstructure:"interval"`  // push cadence (default 60s)
 }
 
 // TelemetryPostHogConfig configures optional PostHog telemetry. It is disabled
@@ -407,6 +442,11 @@ func Defaults() Config {
 				Enabled:  false,
 				Endpoint: "https://us.i.posthog.com",
 				Level:    "error",
+			},
+			CloudWatch: TelemetryCloudWatchConfig{
+				Enabled: false,
+				Logs:    CloudWatchLogsConfig{Level: "info", BatchInterval: 5 * time.Second},
+				Metrics: CloudWatchMetricsConfig{Namespace: "rss2msg", Interval: 60 * time.Second},
 			},
 		},
 		HTTP:         HTTPConfig{UserAgent: "rss2msg/0.1", Timeout: 30 * time.Second},
