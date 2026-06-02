@@ -70,6 +70,8 @@ func TestFeedSinkServesOverHTTP3(t *testing.T) {
 		Listen:      "127.0.0.1:0",
 		Meta:        FeedMeta{Title: "t", Link: "https://example.com/"},
 		MaxItems:    10,
+		RSS:         Surface{Enabled: true},
+		Atom:        Surface{Enabled: true},
 		TLSCertFile: certPath,
 		TLSKeyFile:  keyPath,
 		HTTP3:       true,
