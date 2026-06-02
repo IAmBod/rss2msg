@@ -56,6 +56,7 @@ func applyDefaults(v *viper.Viper, d Config) {
 	v.SetDefault("log.level", d.Log.Level)
 	v.SetDefault("log.format", d.Log.Format)
 	v.SetDefault("telemetry.service_name", d.Telemetry.ServiceName)
+	v.SetDefault("telemetry.instance_id", d.Telemetry.InstanceID)
 	v.SetDefault("telemetry.traces.enabled", d.Telemetry.Traces.Enabled)
 	v.SetDefault("telemetry.metrics.enabled", d.Telemetry.Metrics.Enabled)
 	v.SetDefault("telemetry.logs.enabled", d.Telemetry.Logs.Enabled)

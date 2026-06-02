@@ -11,6 +11,33 @@ import (
 	"github.com/iambod/rss2msg/internal/config"
 )
 
+func TestInstanceIDResolution(t *testing.T) {
+	t.Run("config value wins", func(t *testing.T) {
+		t.Setenv("OTEL_SERVICE_INSTANCE_ID", "from-env")
+		cfg := config.Defaults()
+		cfg.Telemetry.InstanceID = "from-config"
+		if got := instanceID(cfg); got != "from-config" {
+			t.Fatalf("instanceID = %q, want from-config", got)
+		}
+	})
+	t.Run("env when config empty", func(t *testing.T) {
+		t.Setenv("OTEL_SERVICE_INSTANCE_ID", "from-env")
+		cfg := config.Defaults()
+		cfg.Telemetry.InstanceID = ""
+		if got := instanceID(cfg); got != "from-env" {
+			t.Fatalf("instanceID = %q, want from-env", got)
+		}
+	})
+	t.Run("hostname fallback", func(t *testing.T) {
+		t.Setenv("OTEL_SERVICE_INSTANCE_ID", "")
+		cfg := config.Defaults()
+		cfg.Telemetry.InstanceID = ""
+		if got := instanceID(cfg); got == "" {
+			t.Fatal("instanceID fell back to empty; want non-empty hostname")
+		}
+	})
+}
+
 func TestSetupReturnsShutdownAndLogger(t *testing.T) {
 	t.Parallel()
 	cfg := config.Defaults()

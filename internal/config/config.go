@@ -23,6 +23,7 @@ type LogConfig struct {
 
 type TelemetryConfig struct {
 	ServiceName string                    `mapstructure:"service_name"`
+	InstanceID  string                    `mapstructure:"instance_id"` // service.instance.id; defaults to OTEL_SERVICE_INSTANCE_ID then hostname
 	Traces      TelemetrySignalConfig     `mapstructure:"traces"`
 	Metrics     TelemetrySignalConfig     `mapstructure:"metrics"`
 	Logs        TelemetrySignalConfig     `mapstructure:"logs"`
