@@ -16,6 +16,7 @@ updated: 2026-05-30
 | sns      | n/a                      | JSON `Change` body  | MessageAttributes: same as Kafka headers.                         |
 | gcp_pubsub | `OrderingKey` (optional) | JSON `Change` `Data` | Attributes: same as Kafka headers.                              |
 | azureservicebus | `MessageID = item_id` | JSON `Change` body | ApplicationProperties: same keys as Kafka headers; `ContentType: application/json`. |
+| dapr_pubsub | n/a (broker-defined) | JSON `Change` data (CloudEvent by default) | Metadata: same keys as Kafka headers, plus any static `metadata`. |
 | nats     | subject (static)         | JSON `Change` `Data` | NATS headers: same keys as Kafka headers. |
 | grpc     | n/a                      | Typed `Change` protobuf (`ChangeSink.Publish`) | Metadata: `rss2msg-schema-version`, `rss2msg-feed-url`, `rss2msg-item-id`, `rss2msg-kind`, `rss2msg-dlq-*?`; W3C trace context. |
 | feed     | entry id `urn:rss2msg:<sha256>` | RSS 2.0 / Atom 1.0 document (windowed) | Served over HTTP; per-entry mapping below. |

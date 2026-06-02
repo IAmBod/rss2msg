@@ -235,6 +235,7 @@ type SinkConfig struct {
 	Composite       CompositeSinkConfig       `mapstructure:"composite"`
 	GCPPubSub       GCPPubSubSinkConfig       `mapstructure:"gcp_pubsub"`
 	AzureServiceBus AzureServiceBusSinkConfig `mapstructure:"azureservicebus"`
+	DaprPubSub      DaprPubSubSinkConfig      `mapstructure:"dapr_pubsub"`
 	NATS            NATSSinkConfig            `mapstructure:"nats"`
 	GRPC            GRPCSinkConfig            `mapstructure:"grpc"`
 	Extra           map[string]interface{}    `mapstructure:",remain"`
@@ -437,6 +438,17 @@ type AzureServiceBusSinkConfig struct {
 	Namespace        string `mapstructure:"namespace"`         // Azure AD auth (DefaultAzureCredential)
 	Queue            string `mapstructure:"queue"`             // destination queue
 	Topic            string `mapstructure:"topic"`             // destination topic
+}
+
+// DaprPubSubSinkConfig configures the Dapr pub/sub sink (driver "dapr_pubsub").
+// The sink publishes to a Dapr pub/sub component via the local sidecar; the
+// underlying broker is selected by Dapr component YAML, not here.
+type DaprPubSubSinkConfig struct {
+	Address     string            `mapstructure:"address"`      // optional: sidecar gRPC endpoint (host:port); empty = SDK default
+	PubsubName  string            `mapstructure:"pubsub_name"`  // required: Dapr pub/sub component name
+	Topic       string            `mapstructure:"topic"`        // required: topic to publish to
+	ContentType string            `mapstructure:"content_type"` // optional: payload content type (default application/json)
+	Metadata    map[string]string `mapstructure:"metadata"`     // optional: static per-publish metadata (e.g. partition key)
 }
 
 // NATSSinkConfig configures the NATS sink (driver "nats"). At most one auth
