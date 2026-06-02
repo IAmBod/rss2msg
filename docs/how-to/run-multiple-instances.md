@@ -3,7 +3,7 @@ title: Run Multiple Instances
 type: how-to
 tags: [rss2msg/docs, coordination, scaling]
 summary: Gate poll cycles across horizontally-scaled instances with the memory, postgres, or redis coordinator.
-updated: 2026-05-31
+updated: 2026-06-02
 ---
 
 # Run Multiple Instances
@@ -11,6 +11,16 @@ updated: 2026-05-31
 Gates which instance is allowed to poll a given feed in a given cycle, for
 horizontally-scaled deployments. The default is single-instance (`memory`,
 always grants the lease).
+
+> [!warning]
+> **A distributed coordinator needs a shared state store.** The coordinator only
+> serialises *polling*; deduplication of already-seen items lives in the
+> [state store](../reference/configuration.md#state). The `sqlite` state store is a
+> local per-instance file, so each instance keeps its own seen-items set: instance B
+> will republish every item instance A already sent. When you set
+> `coordination.driver` to `redis` or `postgres`, also set `state.driver: postgres`
+> so every instance shares one dedup set. Validation emits a warning if it sees a
+> distributed coordinator paired with `state.driver: sqlite`.
 
 ```yaml
 coordination:
