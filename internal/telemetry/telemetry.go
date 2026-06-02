@@ -314,6 +314,7 @@ type Instruments struct {
 	FeedChanges         metric.Int64Counter
 	SinkPublishFailures metric.Int64Counter
 	PollSkipped         metric.Int64Counter
+	PollOverran         metric.Int64Counter
 	FeedFetchDuration   metric.Float64Histogram
 	SinkPublishDuration metric.Float64Histogram
 }
@@ -331,6 +332,9 @@ func NewInstruments(meter metric.Meter) (Instruments, error) {
 		return i, err
 	}
 	if i.PollSkipped, err = meter.Int64Counter("feed.poll.skipped"); err != nil {
+		return i, err
+	}
+	if i.PollOverran, err = meter.Int64Counter("feed.poll.overran"); err != nil {
 		return i, err
 	}
 	if i.FeedFetchDuration, err = meter.Float64Histogram("feed.fetch.duration", metric.WithUnit("ms")); err != nil {

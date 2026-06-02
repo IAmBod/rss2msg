@@ -30,6 +30,10 @@ type DynamicConfig struct {
 	// OnError, if set, is called when a reconcile is aborted (e.g. a feed's
 	// pipeline failed to build). The running set is left unchanged. Optional.
 	OnError func(err error)
+	// OnPollOverrun, if set, is called when a single poll takes longer than the
+	// feed's interval, so the effective polling rate is below what's configured.
+	// Optional.
+	OnPollOverrun func(feedURL string, took, interval time.Duration)
 }
 
 type runningFeed struct {
@@ -102,7 +106,7 @@ func ServeDynamic(ctx context.Context, cfg DynamicConfig) error {
 			} else {
 				added++
 			}
-			running[url] = startFeed(ctx, byURL[url], p)
+			running[url] = startFeed(ctx, byURL[url], p, cfg.OnPollOverrun)
 		}
 		if cfg.OnReconcile != nil {
 			cfg.OnReconcile(added, removed, changed)
@@ -122,14 +126,18 @@ func ServeDynamic(ctx context.Context, cfg DynamicConfig) error {
 }
 
 // startFeed launches a pre-built pipeline's loop and returns its handle.
-func startFeed(parent context.Context, fc config.FeedConfig, p FeedPipeline) *runningFeed {
+func startFeed(parent context.Context, fc config.FeedConfig, p FeedPipeline, onPollOverrun func(feedURL string, took, interval time.Duration)) *runningFeed {
 	fctx, cancel := context.WithCancel(parent)
 	done := make(chan struct{})
+	var onOverrun func(took time.Duration)
+	if onPollOverrun != nil {
+		onOverrun = func(took time.Duration) { onPollOverrun(fc.URL, took, fc.Interval) }
+	}
 	go func() {
 		defer close(done)
 		// Per-tick RunOnce errors are logged inside the pipeline; the dynamic
 		// scheduler does not aggregate them (unlike static Serve).
-		runFeedLoop(fctx, p, fc.Interval, func(error) {})
+		runFeedLoop(fctx, p, fc.Interval, func(error) {}, onOverrun)
 	}()
 	return &runningFeed{cfg: fc, cancel: cancel, done: done}
 }

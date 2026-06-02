@@ -29,6 +29,91 @@ func (s *stubPipeline) RunOnce(ctx context.Context, feedURL string, at time.Time
 
 func (s *stubPipeline) FeedURL() string { return "https://e/1" }
 
+// slowPipeline's RunOnce takes `delay` to complete, simulating a poll that
+// overruns its interval.
+type slowPipeline struct{ delay time.Duration }
+
+func (s *slowPipeline) RunOnce(ctx context.Context, _ string, _ time.Time) ([]model.Change, error) {
+	select {
+	case <-time.After(s.delay):
+	case <-ctx.Done():
+	}
+	return nil, nil
+}
+func (s *slowPipeline) FeedURL() string { return "https://e/slow" }
+
+func TestServeReportsPollOverrun(t *testing.T) {
+	t.Parallel()
+	p := &slowPipeline{delay: 60 * time.Millisecond}
+	const interval = 20 * time.Millisecond
+
+	var overruns int32
+	var mu sync.Mutex
+	var gotURL string
+	var gotTook, gotInterval time.Duration
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	done := make(chan struct{})
+	go func() {
+		_ = Serve(ctx, ServeConfig{
+			Pipelines:    []FeedPipeline{p},
+			Intervals:    map[string]time.Duration{"https://e/slow": interval},
+			DrainTimeout: 200 * time.Millisecond,
+			OnPollOverrun: func(feedURL string, took, iv time.Duration) {
+				atomic.AddInt32(&overruns, 1)
+				mu.Lock()
+				gotURL, gotTook, gotInterval = feedURL, took, iv
+				mu.Unlock()
+			},
+		})
+		close(done)
+	}()
+	time.Sleep(120 * time.Millisecond)
+	cancel()
+	<-done
+
+	if atomic.LoadInt32(&overruns) < 1 {
+		t.Fatalf("expected at least one poll-overrun callback, got 0")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if gotURL != "https://e/slow" {
+		t.Fatalf("callback feedURL = %q", gotURL)
+	}
+	if gotTook <= gotInterval {
+		t.Fatalf("expected took (%v) > interval (%v)", gotTook, gotInterval)
+	}
+}
+
+func TestServeNoOverrunWhenPollIsFast(t *testing.T) {
+	t.Parallel()
+	p := &stubPipeline{} // returns immediately
+	var overruns int32
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	done := make(chan struct{})
+	go func() {
+		_ = Serve(ctx, ServeConfig{
+			Pipelines:    []FeedPipeline{p},
+			Intervals:    map[string]time.Duration{"https://e/1": 20 * time.Millisecond},
+			DrainTimeout: 100 * time.Millisecond,
+			OnPollOverrun: func(string, time.Duration, time.Duration) {
+				atomic.AddInt32(&overruns, 1)
+			},
+		})
+		close(done)
+	}()
+	time.Sleep(90 * time.Millisecond)
+	cancel()
+	<-done
+
+	if got := atomic.LoadInt32(&overruns); got != 0 {
+		t.Fatalf("expected no overruns for a fast poll, got %d", got)
+	}
+}
+
 func TestServeRunsEachFeedOnSchedule(t *testing.T) {
 	t.Parallel()
 	p := &stubPipeline{}

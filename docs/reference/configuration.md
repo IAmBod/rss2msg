@@ -264,6 +264,7 @@ poll and re-detected on the next.
 | ------------------------ | ------- | ----- |
 | `shutdown_drain_timeout` | `30s`   | `serve` waits this long for in-flight publishes to finish on SIGINT/SIGTERM before forcing exit. |
 | `run_once_concurrency`   | `0`     | Bounded worker pool for `run-once`. `0` means "one per feed" (no pool). |
+| `deliver_timeout`        | `0s`    | Bounds a single sink delivery — all retry attempts plus the DLQ handoff — so one wedged sink can't stall a feed's poll loop. `0` (or omitted) disables it; a positive value (e.g. `60s`) caps each delivery. |
 
 ## `state`
 

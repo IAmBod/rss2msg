@@ -131,6 +131,9 @@ type RetryConfig struct {
 type RuntimeConfig struct {
 	ShutdownDrainTimeout time.Duration `mapstructure:"shutdown_drain_timeout"`
 	RunOnceConcurrency   int           `mapstructure:"run_once_concurrency"`
+	// DeliverTimeout bounds a single sink delivery (all retry attempts plus the
+	// DLQ handoff) so one wedged sink can't stall a feed's poll loop. 0 = off.
+	DeliverTimeout time.Duration `mapstructure:"deliver_timeout"`
 }
 
 type CoordinationConfig struct {

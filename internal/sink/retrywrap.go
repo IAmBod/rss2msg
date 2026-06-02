@@ -3,6 +3,7 @@ package sink
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/iambod/rss2msg/internal/model"
 	"github.com/iambod/rss2msg/internal/retry"
@@ -41,15 +42,24 @@ type RetryingPublisher struct {
 	primary Publisher
 	dlq     Publisher // may be nil
 	cfg     retry.Config
+	timeout time.Duration // per-delivery deadline (retries + DLQ); 0 = off
 }
 
-func WithRetry(primary, dlq Publisher, cfg retry.Config) *RetryingPublisher {
-	return &RetryingPublisher{primary: primary, dlq: dlq, cfg: cfg}
+// WithRetry wraps primary with exponential-backoff retry and an optional DLQ.
+// timeout bounds the whole delivery (all retry attempts plus the DLQ handoff);
+// 0 disables it, preserving the prior unbounded behavior.
+func WithRetry(primary, dlq Publisher, cfg retry.Config, timeout time.Duration) *RetryingPublisher {
+	return &RetryingPublisher{primary: primary, dlq: dlq, cfg: cfg, timeout: timeout}
 }
 
 // Deliver runs primary.Publish under retry. On final failure, hands the
 // change to dlq (once, no retry). DLQ failures are dropped.
 func (r *RetryingPublisher) Deliver(ctx context.Context, change model.Change) BranchResult {
+	if r.timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, r.timeout)
+		defer cancel()
+	}
 	res := retry.Do(ctx, r.cfg, func(ctx context.Context) error {
 		return r.primary.Publish(ctx, change)
 	})
