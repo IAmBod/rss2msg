@@ -51,6 +51,7 @@ var knownSinkDrivers = map[string]struct{}{
 	"composite":       {},
 	"gcp_pubsub":      {},
 	"azureservicebus": {},
+	"dapr_pubsub":     {},
 }
 
 var knownFeedStoreDrivers = map[string]struct{}{
@@ -474,6 +475,13 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 				return *warnings, fmt.Errorf("sinks[%d] (azureservicebus %q): one of queue or topic is required", i, s.Name)
 			case hasQueue && hasTopic:
 				return *warnings, fmt.Errorf("sinks[%d] (azureservicebus %q): queue and topic are mutually exclusive", i, s.Name)
+			}
+		case "dapr_pubsub":
+			if strings.TrimSpace(s.DaprPubSub.PubsubName) == "" {
+				return *warnings, fmt.Errorf("sinks[%d] (dapr_pubsub %q): dapr_pubsub.pubsub_name is required", i, s.Name)
+			}
+			if strings.TrimSpace(s.DaprPubSub.Topic) == "" {
+				return *warnings, fmt.Errorf("sinks[%d] (dapr_pubsub %q): dapr_pubsub.topic is required", i, s.Name)
 			}
 		case "composite":
 			if len(s.Composite.Children) == 0 {

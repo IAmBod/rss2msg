@@ -186,6 +186,16 @@ sinks:
   #     # endpoint: localhost:8085                      # for the Pub/Sub emulator
   #     # ordering_key: feed_url                        # ordered delivery: feed_url | item_id | sink
   #   dead_letter: dlq-main
+  # - name: dapr-main
+  #   driver: dapr_pubsub                               # publish via the local Dapr sidecar; broker is chosen by Dapr component YAML
+  #   dapr_pubsub:
+  #     pubsub_name: rss-pubsub                         # Dapr pub/sub component name
+  #     topic: rss.changes
+  #     # address: localhost:50001                      # sidecar gRPC endpoint; default = SDK env / localhost:50001
+  #     # content_type: application/json                # payload content type (default application/json)
+  #     # metadata:                                     # static per-publish metadata (e.g. broker partition key)
+  #     #   partitionKey: feeds
+  #   dead_letter: dlq-main
   # - name: rmq-main
   #   driver: rabbitmq
   #   rabbitmq:
