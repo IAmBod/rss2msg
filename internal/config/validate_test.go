@@ -1155,6 +1155,78 @@ func TestValidate_FeedMultiInstanceWarning(t *testing.T) {
 	}
 }
 
+// sqliteStateScaleBase returns a config with a per-instance SQLite state store
+// and a single stdout sink — the caller sets Coordination to exercise the
+// distributed-coordinator-plus-local-state guardrail.
+func sqliteStateScaleBase() Config {
+	c := Defaults()
+	c.State = StateConfig{Driver: "sqlite", SQLite: SQLiteStateConfig{Path: "/tmp/s.db"}}
+	c.Sinks = []SinkConfig{{Name: "default", Driver: "stdout", Stdout: StdoutSinkConfig{Target: "stdout", Format: "json"}}}
+	c.Feeds = []FeedConfig{{URL: "https://example.com/f.xml", Interval: 5 * time.Minute}}
+	return c
+}
+
+func hasSQLiteStateScaleWarning(warnings []string) bool {
+	for _, w := range warnings {
+		if strings.Contains(w, "state.driver") && strings.Contains(w, "sqlite") && strings.Contains(w, "postgres") {
+			return true
+		}
+	}
+	return false
+}
+
+func TestValidate_WarnsRedisCoordWithSQLiteState(t *testing.T) {
+	c := sqliteStateScaleBase()
+	c.Coordination = CoordinationConfig{Driver: "redis", Redis: CoordinationRedisConfig{URL: "redis://localhost:6379"}}
+	warnings, err := Validate(c)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !hasSQLiteStateScaleWarning(warnings) {
+		t.Fatalf("expected distributed-coordinator + sqlite-state warning, got %v", warnings)
+	}
+}
+
+func TestValidate_WarnsPostgresCoordWithSQLiteState(t *testing.T) {
+	c := sqliteStateScaleBase()
+	c.Coordination = CoordinationConfig{Driver: "postgres", Postgres: CoordinationPGConfig{DSN: "postgres://x"}}
+	warnings, err := Validate(c)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !hasSQLiteStateScaleWarning(warnings) {
+		t.Fatalf("expected distributed-coordinator + sqlite-state warning, got %v", warnings)
+	}
+}
+
+func TestValidate_NoSQLiteStateWarningWithPostgresState(t *testing.T) {
+	// Postgres state store is shared across instances, so a distributed
+	// coordinator is the correct, warning-free pairing.
+	c := goodCfg() // postgres state
+	c.Coordination = CoordinationConfig{Driver: "redis", Redis: CoordinationRedisConfig{URL: "redis://localhost:6379"}}
+	warnings, err := Validate(c)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if hasSQLiteStateScaleWarning(warnings) {
+		t.Fatalf("did not expect sqlite-state warning for postgres state, got %v", warnings)
+	}
+}
+
+func TestValidate_NoSQLiteStateWarningWithMemoryCoord(t *testing.T) {
+	// SQLite state + memory coordinator is the supported single-instance
+	// default and must stay warning-free.
+	c := sqliteStateScaleBase()
+	c.Coordination = CoordinationConfig{Driver: "memory"}
+	warnings, err := Validate(c)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if hasSQLiteStateScaleWarning(warnings) {
+		t.Fatalf("did not expect sqlite-state warning for memory coordinator, got %v", warnings)
+	}
+}
+
 // base returns a minimal valid Config with Coordination.Driver="redis",
 // one valid sink named "default", and one valid feed referencing it.
 func base() Config {

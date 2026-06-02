@@ -245,6 +245,18 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 	}
 
+	// A distributed coordinator (redis/postgres) implies multiple instances,
+	// but the SQLite state store is a local per-instance file. The coordinator
+	// only serialises polling; dedup lives in the state store, so each instance
+	// keeps its own seen-items set and republishes everything other instances
+	// already sent. Mirror the feed-sink multi-instance warning below.
+	if c.State.Driver == "sqlite" &&
+		(c.Coordination.Driver == "redis" || c.Coordination.Driver == "postgres") {
+		*warnings = append(*warnings, fmt.Sprintf(
+			"coordination.driver=%q looks multi-instance but state.driver=%q is a per-instance local file; cross-instance dedup is broken and items will be republished (use state.driver: postgres)",
+			c.Coordination.Driver, c.State.Driver))
+	}
+
 	if s := c.Telemetry.Sentry; s.Enabled {
 		if s.SampleRate < 0 || s.SampleRate > 1 {
 			return *warnings, fmt.Errorf("telemetry.sentry.sample_rate %v must be within [0.0, 1.0]", s.SampleRate)
