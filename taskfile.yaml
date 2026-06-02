@@ -43,6 +43,12 @@ tasks:
     cmds:
       - '{{.GO}} mod tidy'
 
+  proto:
+    desc: 'Regenerate the gRPC sink stubs in proto/ from .proto files (requires buf; install: go install github.com/bufbuild/buf/cmd/buf@latest, google.golang.org/protobuf/cmd/protoc-gen-go@latest, google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest). Generated *.pb.go are committed, so this is only needed when a .proto changes.'
+    cmds:
+      - buf lint
+      - buf generate
+
   clean:
     desc: Remove the built binary
     cmds:

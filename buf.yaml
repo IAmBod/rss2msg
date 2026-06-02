@@ -1,0 +1,16 @@
+version: v2
+modules:
+  - path: proto
+lint:
+  use:
+    - STANDARD
+  except:
+    # The contract lives under proto/sink/v1 (not proto/rss2msg/sink/v1) to keep
+    # the import path short; the service is "ChangeSink" and its ack is
+    # "PublishAck" for ergonomics. These are deliberate API choices.
+    - PACKAGE_DIRECTORY_MATCH
+    - SERVICE_SUFFIX
+    - RPC_RESPONSE_STANDARD_NAME
+breaking:
+  use:
+    - FILE
