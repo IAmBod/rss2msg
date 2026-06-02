@@ -27,8 +27,9 @@ type Options struct {
 	PublicURL       string
 	Meta            FeedMeta
 	MaxItems        int
-	RSSPath         string
-	AtomPath        string
+	RSS             Surface
+	Atom            Surface
+	MCP             Surface
 	RenderCacheTTL  time.Duration
 	CacheControlTTL time.Duration
 	Timeouts        Timeouts
@@ -44,6 +45,26 @@ type Options struct {
 
 	Meter  metric.Meter   // optional; nil => no metrics
 	Logger zerolog.Logger // optional; zero value => no server logging
+}
+
+// Surface is one output endpoint of the feed sink (RSS, Atom, or MCP). A
+// disabled surface registers no route. Path defaults to the canonical value
+// (def passed at wiring) when enabled but left empty.
+type Surface struct {
+	Enabled bool
+	Path    string
+}
+
+// surfacePath returns the route path for a surface: empty when disabled (the
+// handler 404s empty paths), or the configured path / canonical default.
+func surfacePath(s Surface, def string) string {
+	if !s.Enabled {
+		return ""
+	}
+	if s.Path == "" {
+		return def
+	}
+	return s.Path
 }
 
 type Timeouts struct {
@@ -88,13 +109,11 @@ func New(ctx context.Context, o Options) (*Publisher, error) {
 	if err != nil {
 		return nil, err
 	}
-	rss, atom := o.RSSPath, o.AtomPath
-	if rss == "" {
-		rss = "/rss"
-	}
-	if atom == "" {
-		atom = "/atom"
-	}
+	// A disabled surface yields an empty path, which the handler treats as
+	// "not served" (404). An enabled surface with no explicit path falls back
+	// to the canonical default.
+	rss := surfacePath(o.RSS, "/rss")
+	atom := surfacePath(o.Atom, "/atom")
 	selfBase := o.PublicURL
 	if selfBase == "" {
 		selfBase = o.Meta.Link

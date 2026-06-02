@@ -17,6 +17,7 @@ func TestPublisher_PublishThenServe(t *testing.T) {
 		Name: "out", Listen: "127.0.0.1:0", MaxItems: 50,
 		Meta:        FeedMeta{Title: "t", Link: "https://x/"},
 		StoreDriver: "memory",
+		RSS:         Surface{Enabled: true}, Atom: Surface{Enabled: true},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -42,7 +43,7 @@ func TestPublisher_PublishThenServe(t *testing.T) {
 
 func TestPublisher_SkipsDLQAnnotated(t *testing.T) {
 	ctx := context.Background()
-	p, err := New(ctx, Options{Name: "out", Listen: "127.0.0.1:0", MaxItems: 50, StoreDriver: "memory", Meta: FeedMeta{Title: "t", Link: "https://x/"}})
+	p, err := New(ctx, Options{Name: "out", Listen: "127.0.0.1:0", MaxItems: 50, StoreDriver: "memory", Meta: FeedMeta{Title: "t", Link: "https://x/"}, RSS: Surface{Enabled: true}, Atom: Surface{Enabled: true}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,6 +59,36 @@ func TestPublisher_SkipsDLQAnnotated(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	if strings.Contains(string(body), "<entry") {
 		t.Fatal("dlq-annotated change must not appear in the feed")
+	}
+}
+
+func TestNew_DisabledSurfaceReturns404(t *testing.T) {
+	ctx := context.Background()
+	p, err := New(ctx, Options{
+		Name: "out", Listen: "127.0.0.1:0", MaxItems: 5, StoreDriver: "memory",
+		Meta: FeedMeta{Title: "t", Link: "https://x/"},
+		RSS:  Surface{Enabled: false, Path: "/rss"},
+		Atom: Surface{Enabled: true, Path: "/atom"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	rss, err := http.Get("http://" + p.Addr() + "/rss")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rss.Body.Close()
+	if rss.StatusCode != http.StatusNotFound {
+		t.Fatalf("disabled rss surface: status = %d, want 404", rss.StatusCode)
+	}
+	atom, err := http.Get("http://" + p.Addr() + "/atom")
+	if err != nil {
+		t.Fatal(err)
+	}
+	atom.Body.Close()
+	if atom.StatusCode != http.StatusOK {
+		t.Fatalf("enabled atom surface: status = %d, want 200", atom.StatusCode)
 	}
 }
 
@@ -78,7 +109,7 @@ func TestPublisher_SelfLinkUsesPublicURL(t *testing.T) {
 	ctx := context.Background()
 	p, err := New(ctx, Options{
 		Name: "out", Listen: "127.0.0.1:0", MaxItems: 5, StoreDriver: "memory",
-		PublicURL: "https://feeds.example", AtomPath: "/atom",
+		PublicURL: "https://feeds.example", Atom: Surface{Enabled: true, Path: "/atom"},
 		Meta: FeedMeta{Title: "t", Link: "https://site/"},
 	})
 	if err != nil {
