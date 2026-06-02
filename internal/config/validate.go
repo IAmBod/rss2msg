@@ -247,6 +247,10 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 	}
 
+	if c.Runtime.DeliverTimeout < 0 {
+		return *warnings, fmt.Errorf("runtime.deliver_timeout %v must not be negative (0 disables it)", c.Runtime.DeliverTimeout)
+	}
+
 	if s := c.Telemetry.Sentry; s.Enabled {
 		if s.SampleRate < 0 || s.SampleRate > 1 {
 			return *warnings, fmt.Errorf("telemetry.sentry.sample_rate %v must be within [0.0, 1.0]", s.SampleRate)

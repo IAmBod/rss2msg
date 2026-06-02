@@ -112,8 +112,8 @@ func TestEndToEndPublishesNewAndUpdated(t *testing.T) {
 	_ = reg.Add(kfkPub)
 
 	wraps := []*sink.RetryingPublisher{
-		sink.WithRetry(pgPub, nil, retry.Config{MaxAttempts: 2, BaseDelay: 10 * time.Millisecond, MaxDelay: 50 * time.Millisecond}),
-		sink.WithRetry(kfkPub, nil, retry.Config{MaxAttempts: 2, BaseDelay: 10 * time.Millisecond, MaxDelay: 50 * time.Millisecond}),
+		sink.WithRetry(pgPub, nil, retry.Config{MaxAttempts: 2, BaseDelay: 10 * time.Millisecond, MaxDelay: 50 * time.Millisecond}, 0),
+		sink.WithRetry(kfkPub, nil, retry.Config{MaxAttempts: 2, BaseDelay: 10 * time.Millisecond, MaxDelay: 50 * time.Millisecond}, 0),
 	}
 
 	fetcher := feed.NewFetcher(feed.Options{UserAgent: "rss2msg/e2e", Timeout: 5 * time.Second})

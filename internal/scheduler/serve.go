@@ -20,6 +20,10 @@ type ServeConfig struct {
 	Pipelines    []FeedPipeline
 	Intervals    map[string]time.Duration // keyed by feed URL
 	DrainTimeout time.Duration            // grace period after ctx is cancelled
+	// OnPollOverrun, if set, is called when a single poll takes longer than the
+	// feed's interval, so the effective polling rate is below what's configured.
+	// Optional.
+	OnPollOverrun func(feedURL string, took, interval time.Duration)
 }
 
 // Serve runs one goroutine per pipeline, each on its own ticker. It returns
@@ -52,10 +56,15 @@ func Serve(ctx context.Context, cfg ServeConfig) error {
 			collect(errors.New("scheduler: no interval for feed " + p.FeedURL()))
 			continue
 		}
+		var onOverrun func(took time.Duration)
+		if cfg.OnPollOverrun != nil {
+			url := p.FeedURL()
+			onOverrun = func(took time.Duration) { cfg.OnPollOverrun(url, took, interval) }
+		}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			runFeedLoop(ctx, p, interval, collect)
+			runFeedLoop(ctx, p, interval, collect, onOverrun)
 		}()
 	}
 
@@ -72,20 +81,31 @@ func Serve(ctx context.Context, cfg ServeConfig) error {
 	return errors.Join(joined...)
 }
 
-func runFeedLoop(ctx context.Context, p FeedPipeline, interval time.Duration, collect func(error)) {
+func runFeedLoop(ctx context.Context, p FeedPipeline, interval time.Duration, collect func(error), onOverrun func(took time.Duration)) {
 	t := time.NewTicker(interval)
 	defer t.Stop()
 	// Tick once immediately on start so users don't wait an interval before the
 	// first fetch happens.
-	tick(ctx, p, collect)
+	runTick(ctx, p, interval, collect, onOverrun)
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case now := <-t.C:
 			_ = now
-			tick(ctx, p, collect)
+			runTick(ctx, p, interval, collect, onOverrun)
 		}
+	}
+}
+
+// runTick performs one poll and, when it overran the interval, reports it. A
+// poll that ends only because ctx was cancelled is not counted as an overrun.
+func runTick(ctx context.Context, p FeedPipeline, interval time.Duration, collect func(error), onOverrun func(took time.Duration)) {
+	start := time.Now()
+	tick(ctx, p, collect)
+	took := time.Since(start)
+	if onOverrun != nil && took > interval && ctx.Err() == nil {
+		onOverrun(took)
 	}
 }
 

@@ -16,6 +16,7 @@ OTEL instruments registered under the meter
 | `feed.fetches`           | counter   |      | `feed_url`, `http.status` (int)                  |
 | `feed.changes`           | counter   |      | `feed_url`, `kind` (`new` / `updated`)           |
 | `feed.poll.skipped`      | counter   |      | `feed_url`, `reason` (`not_owner` / `coord_error`) |
+| `feed.poll.overran`      | counter   |      | `feed_url`                                       |
 | `sink.publish.failures`  | counter   |      | `sink.name`                                      |
 | `feed.fetch.duration`    | histogram | ms   | `feed_url`                                       |
 | `sink.publish.duration`  | histogram | ms   | `sink.name`                                      |
