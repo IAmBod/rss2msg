@@ -3,8 +3,9 @@ package feed
 import "go.opentelemetry.io/otel/metric"
 
 type instruments struct {
-	requests metric.Int64Counter
-	notMod   metric.Int64Counter
+	requests    metric.Int64Counter
+	notMod      metric.Int64Counter
+	mcpRequests metric.Int64Counter
 }
 
 func newInstruments(m metric.Meter) (*instruments, error) {
@@ -16,5 +17,9 @@ func newInstruments(m metric.Meter) (*instruments, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &instruments{requests: reqs, notMod: nm}, nil
+	mcpReqs, err := m.Int64Counter("feed_sink.mcp_requests")
+	if err != nil {
+		return nil, err
+	}
+	return &instruments{requests: reqs, notMod: nm, mcpRequests: mcpReqs}, nil
 }
