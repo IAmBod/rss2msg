@@ -116,7 +116,10 @@ func Setup(ctx context.Context, cfg config.Config, out io.Writer) (*Telemetry, e
 		resource.WithFromEnv(),
 		resource.WithProcess(),
 		resource.WithHost(),
-		resource.WithAttributes(semconv.ServiceName(serviceName(cfg))),
+		resource.WithAttributes(
+			semconv.ServiceName(serviceName(cfg)),
+			semconv.ServiceInstanceID(instanceID(cfg)),
+		),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("build otel resource: %w", err)
@@ -195,6 +198,20 @@ func serviceName(cfg config.Config) string {
 		return v
 	}
 	return "rss2msg"
+}
+
+// instanceID resolves service.instance.id for the OTEL resource. Setting it is
+// what keeps push-based metric exporters (CloudWatch, Graphite) from collapsing
+// multiple replicas into one colliding series. Resolution order mirrors
+// serviceName: explicit config, then OTEL_SERVICE_INSTANCE_ID, then hostname.
+func instanceID(cfg config.Config) string {
+	if cfg.Telemetry.InstanceID != "" {
+		return cfg.Telemetry.InstanceID
+	}
+	if v := os.Getenv("OTEL_SERVICE_INSTANCE_ID"); v != "" {
+		return v
+	}
+	return hostname()
 }
 
 func hasOTLPEndpoint() bool {
