@@ -10,7 +10,7 @@ Guidance for AI coding agents (Claude Code and compatible) working in this repos
 `rss2msg` is a Go service that polls RSS/Atom feeds, detects changes, and publishes
 items to one or more message sinks. The architecture is **config-first**: behavior is
 driven by YAML (Viper) rather than code changes, with pluggable feed sources, sinks
-(Postgres, Kafka, RabbitMQ, SQS/SNS, stdout, HTTP/webhook, feed, composite),
+(Postgres, Kafka, RabbitMQ, SQS/SNS, stdout, HTTP/webhook, gRPC, feed, composite),
 coordinator backends (memory, Postgres, Redis), and state stores (SQLite, Postgres).
 
 - Go 1.25, Cobra subcommands, Viper config, zerolog + OpenTelemetry.
@@ -29,6 +29,7 @@ run `task --list` for the full set:
 | `task vet` | `go vet ./...` (dependency-free static check; always available). |
 | `task lint` | `golangci-lint run ./...` (the full lint gate CI runs; needs golangci-lint v2). |
 | `task tidy` | `go mod tidy`. |
+| `task proto` | Regenerate the gRPC sink stubs in `proto/` from `.proto` files (needs `buf` + `protoc-gen-go`/`protoc-gen-go-grpc`; generated `*.pb.go` are committed). |
 | `task clean` | Remove the built binary. |
 | `task changelog` | Regenerate `CHANGELOG.md` from conventional commits (needs git-cliff). |
 | `task release-check` / `task release-snapshot` | Validate / dry-run the GoReleaser config (needs goreleaser; snapshot needs Docker). |
