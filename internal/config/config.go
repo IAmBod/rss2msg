@@ -474,10 +474,29 @@ type NATSSinkConfig struct {
 // precedence: earlier entries win on URL collision. The static feeds: block is
 // represented by an entry with Type "static".
 type FeedSourceConfig struct {
-	Type     string        `mapstructure:"type"` // "static" and "file" are implemented; http|postgres|sqlite|redis|s3|env are added by later plans
-	Name     string        `mapstructure:"name"` // optional; defaults to "<type>[index]"
-	Path     string        `mapstructure:"path"` // file source
-	Interval time.Duration `mapstructure:"interval"`
+	Type     string                   `mapstructure:"type"` // "static", "file", and "postgres" are implemented; http|sqlite|redis|s3|env are added by later plans
+	Name     string                   `mapstructure:"name"` // optional; defaults to "<type>[index]"
+	Path     string                   `mapstructure:"path"` // file source
+	Interval time.Duration            `mapstructure:"interval"`
+	Postgres PostgresFeedSourceConfig `mapstructure:"postgres"` // postgres source
+}
+
+// PostgresFeedSourceConfig configures a Postgres-backed feed source. The desired
+// feed list is read from an operator-managed table; rows map to feeds via the
+// url (required), interval, and sinks columns.
+type PostgresFeedSourceConfig struct {
+	DSN   string                `mapstructure:"dsn"`   // required
+	Table string                `mapstructure:"table"` // default "feeds"; mutually exclusive with query
+	Query string                `mapstructure:"query"` // raw SQL override; mutually exclusive with table
+	TLS   FeedSourcePGTLSConfig `mapstructure:"tls"`
+}
+
+type FeedSourcePGTLSConfig struct {
+	CAFile             string `mapstructure:"ca_file"`
+	CertFile           string `mapstructure:"cert_file"`
+	KeyFile            string `mapstructure:"key_file"`
+	ServerName         string `mapstructure:"server_name"`
+	InsecureSkipVerify bool   `mapstructure:"insecure_skip_verify"`
 }
 
 type FeedConfig struct {

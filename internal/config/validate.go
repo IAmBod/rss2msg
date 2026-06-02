@@ -251,6 +251,18 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		return *warnings, fmt.Errorf("runtime.deliver_timeout %v must not be negative (0 disables it)", c.Runtime.DeliverTimeout)
 	}
 
+	// A distributed coordinator (redis/postgres) implies multiple instances,
+	// but the SQLite state store is a local per-instance file. The coordinator
+	// only serialises polling; dedup lives in the state store, so each instance
+	// keeps its own seen-items set and republishes everything other instances
+	// already sent. Mirror the feed-sink multi-instance warning below.
+	if c.State.Driver == "sqlite" &&
+		(c.Coordination.Driver == "redis" || c.Coordination.Driver == "postgres") {
+		*warnings = append(*warnings, fmt.Sprintf(
+			"coordination.driver=%q looks multi-instance but state.driver=%q is a per-instance local file; cross-instance dedup is broken and items will be republished (use state.driver: postgres)",
+			c.Coordination.Driver, c.State.Driver))
+	}
+
 	if s := c.Telemetry.Sentry; s.Enabled {
 		if s.SampleRate < 0 || s.SampleRate > 1 {
 			return *warnings, fmt.Errorf("telemetry.sentry.sample_rate %v must be within [0.0, 1.0]", s.SampleRate)
@@ -702,6 +714,16 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			if strings.TrimSpace(s.Path) == "" {
 				return *warnings, fmt.Errorf("feed_sources[%d] (file): path is required", i)
 			}
+		case "postgres":
+			if strings.TrimSpace(s.Postgres.DSN) == "" {
+				return *warnings, fmt.Errorf("feed_sources[%d] (postgres): dsn is required", i)
+			}
+			if s.Postgres.Table != "" && s.Postgres.Query != "" {
+				return *warnings, fmt.Errorf("feed_sources[%d] (postgres): table and query are mutually exclusive", i)
+			}
+			if s.Postgres.Table != "" && !validSQLIdentifier(s.Postgres.Table) {
+				return *warnings, fmt.Errorf("feed_sources[%d] (postgres): invalid table %q", i, s.Postgres.Table)
+			}
 		case "":
 			return *warnings, fmt.Errorf("feed_sources[%d]: type is required", i)
 		default:
@@ -712,6 +734,25 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 	}
 	return *warnings, nil
+}
+
+// validSQLIdentifier reports whether s is a safe unquoted SQL identifier (used
+// for feed-source table names that get interpolated into a query).
+func validSQLIdentifier(s string) bool {
+	if s == "" || len(s) > 63 {
+		return false
+	}
+	for i, r := range s {
+		switch {
+		case r == '_':
+		case r >= 'a' && r <= 'z':
+		case r >= 'A' && r <= 'Z':
+		case r >= '0' && r <= '9' && i > 0:
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // ResolveFeedSinks returns the sink names a feed publishes to, applying the

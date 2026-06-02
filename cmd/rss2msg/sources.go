@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/iambod/rss2msg/internal/config"
@@ -36,6 +37,30 @@ func buildSources(cfg config.Config) ([]feedsource.Source, func(), error) {
 			}
 			closers = append(closers, func() { _ = f.Close() })
 			sources = append(sources, f)
+		case "postgres":
+			opts := feedsource.PostgresOptions{
+				Name:     name,
+				DSN:      sc.Postgres.DSN,
+				Table:    sc.Postgres.Table,
+				Query:    sc.Postgres.Query,
+				Interval: sc.Interval,
+			}
+			if sc.Postgres.TLS != (config.FeedSourcePGTLSConfig{}) {
+				opts.TLS = &feedsource.PostgresTLSOptions{
+					CAFile:             sc.Postgres.TLS.CAFile,
+					CertFile:           sc.Postgres.TLS.CertFile,
+					KeyFile:            sc.Postgres.TLS.KeyFile,
+					ServerName:         sc.Postgres.TLS.ServerName,
+					InsecureSkipVerify: sc.Postgres.TLS.InsecureSkipVerify,
+				}
+			}
+			p, err := feedsource.NewPostgres(context.Background(), opts)
+			if err != nil {
+				closeAll(closers)
+				return nil, nil, err
+			}
+			closers = append(closers, func() { _ = p.Close() })
+			sources = append(sources, p)
 		default:
 			closeAll(closers)
 			return nil, nil, fmt.Errorf("feed_sources[%d]: unsupported type %q", i, sc.Type)
