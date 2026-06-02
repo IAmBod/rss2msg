@@ -915,6 +915,45 @@ func TestValidate_FeedAuthExactlyOne(t *testing.T) {
 	}
 }
 
+func TestValidate_FeedRejectsMCPPathNotAbsolute(t *testing.T) {
+	c := feedSinkBase()
+	on := true
+	c.Sinks[0].Feed.MCP = FeedSurfaceConfig{Enabled: &on, Path: "mcp"}
+	if _, err := Validate(c); err == nil {
+		t.Fatal("expected error for mcp.path missing leading /")
+	}
+}
+
+func TestValidate_FeedRejectsSurfacePathCollision(t *testing.T) {
+	c := feedSinkBase()
+	on := true
+	// mcp enabled on the same path as the (default-enabled) rss surface.
+	c.Sinks[0].Feed.MCP = FeedSurfaceConfig{Enabled: &on, Path: "/rss"}
+	if _, err := Validate(c); err == nil {
+		t.Fatal("expected error for mcp.path colliding with rss.path")
+	}
+}
+
+func TestValidate_FeedMCPEnabledDefaultPathIsValid(t *testing.T) {
+	c := feedSinkBase()
+	on := true
+	c.Sinks[0].Feed.MCP = FeedSurfaceConfig{Enabled: &on} // path defaults to /mcp, distinct
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("mcp enabled with default path should be valid, got %v", err)
+	}
+}
+
+func TestValidate_FeedRejectsAllSurfacesDisabled(t *testing.T) {
+	c := feedSinkBase()
+	off := false
+	c.Sinks[0].Feed.RSS = FeedSurfaceConfig{Enabled: &off}
+	c.Sinks[0].Feed.Atom = FeedSurfaceConfig{Enabled: &off}
+	// mcp is off by default → nothing is served.
+	if _, err := Validate(c); err == nil {
+		t.Fatal("expected error when no feed surface is enabled")
+	}
+}
+
 func TestValidate_FeedCannotBeDeadLetter(t *testing.T) {
 	c := feedSinkBase()
 	c.Sinks = append(c.Sinks, SinkConfig{Name: "p", Driver: "stdout",
