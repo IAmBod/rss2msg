@@ -475,10 +475,31 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			if f.MaxItems < 0 {
 				return *warnings, fmt.Errorf("sinks[%d] (feed %q): feed.max_items must not be negative", i, s.Name)
 			}
-			rss := f.RSS.PathOr("/rss")
-			atom := f.Atom.PathOr("/atom")
-			if rss[0] != '/' || atom[0] != '/' || rss == atom {
-				return *warnings, fmt.Errorf("sinks[%d] (feed %q): rss/atom path must start with / and differ", i, s.Name)
+			surfaces := []struct {
+				name, path string
+				enabled    bool
+			}{
+				{"rss", f.RSS.PathOr("/rss"), f.RSS.On(true)},
+				{"atom", f.Atom.PathOr("/atom"), f.Atom.On(true)},
+				{"mcp", f.MCP.PathOr("/mcp"), f.MCP.On(false)},
+			}
+			byPath := map[string]string{}
+			anyEnabled := false
+			for _, srf := range surfaces {
+				if !srf.enabled {
+					continue
+				}
+				anyEnabled = true
+				if srf.path == "" || srf.path[0] != '/' {
+					return *warnings, fmt.Errorf("sinks[%d] (feed %q): %s.path must start with /", i, s.Name, srf.name)
+				}
+				if other, ok := byPath[srf.path]; ok {
+					return *warnings, fmt.Errorf("sinks[%d] (feed %q): %s.path %q collides with %s.path", i, s.Name, srf.name, srf.path, other)
+				}
+				byPath[srf.path] = srf.name
+			}
+			if !anyEnabled {
+				return *warnings, fmt.Errorf("sinks[%d] (feed %q): at least one of rss/atom/mcp must be enabled", i, s.Name)
 			}
 			for _, raw := range []string{f.Link, f.PublicURL} {
 				if raw == "" {
