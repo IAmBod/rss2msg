@@ -2,8 +2,8 @@
 title: CLI
 type: reference
 tags: [rss2msg/docs, cli]
-summary: The serve, run-once, validate-config, generate-config, and version commands, their flags, and signal handling.
-updated: 2026-06-01
+summary: The serve, run-once, validate-config, generate-config, healthcheck, and version commands, their flags, and signal handling.
+updated: 2026-06-03
 ---
 
 # CLI
@@ -16,6 +16,7 @@ Commands
   run-once           Poll every feed once and exit (bounded worker pool)
   validate-config    Parse config, dial state + each sink, exit 0/1
   generate-config    Print an annotated, runnable reference config
+  healthcheck        Probe the health endpoint over HTTP, exit 0/1
   version            Print version, commit, and build date
 
 Flags
@@ -40,6 +41,22 @@ Flags
 ```
 
 The emitted config is runnable as-is and passes `validate-config` unchanged.
+
+`healthcheck` probes a running daemon's health endpoint over HTTP and exits `0`
+when healthy, non-zero otherwise. It reads the same config as `serve` to find the
+endpoint, rewriting a wildcard listen host (`:8080`, `0.0.0.0:8080`, `[::]:8080`)
+to `127.0.0.1`. It exists so the distroless production image — which has no shell,
+`curl`, or `wget` — can still define a Docker `HEALTHCHECK`; the production image
+wires it in by default (see [Run with Docker](../how-to/run-with-docker.md#health-checks)).
+
+```
+rss2msg healthcheck                  Probe readiness (/readyz) and exit 0/1
+rss2msg healthcheck --probe liveness Probe liveness (/healthz) instead
+
+Flags
+  --probe <kind>     Which probe to check: readiness (default), liveness, startup
+  --timeout <dur>    Overall timeout for the probe request (default 2s)
+```
 
 `serve` exits cleanly on SIGINT/SIGTERM and waits up to
 [`runtime.shutdown_drain_timeout`](configuration.md#runtime) for in-flight publishes to finish.
