@@ -61,8 +61,8 @@ against most real certificates.
 
 ## Sinks
 
-The **postgres**, **kafka**, **rabbitmq**, and **http** sinks accept the same five
-knobs under a `tls:` block, plus an `enabled` flag:
+The **postgres**, **kafka**, **rabbitmq**, **nats**, and **http** sinks accept the
+same five knobs under a `tls:` block, plus an `enabled` flag:
 
 ```yaml
 sinks:
@@ -91,6 +91,14 @@ sinks:
       tls:
         ca_file: /etc/ssl/certs/rabbit-ca.pem
 
+  - name: events-nats
+    driver: nats
+    nats:
+      url: "tls://nats:4222"                      # tls:// scheme
+      subject: feed.changes
+      tls:
+        ca_file: /etc/ssl/certs/nats-ca.pem
+
   - name: hook
     driver: http
     http:
@@ -112,6 +120,7 @@ A sink's `tls:` block is **active** when `enabled: true` or any field is set. Wh
 - **postgres** — applies the TLS config to the pool and clears pgx's plaintext fallbacks (no silent downgrade).
 - **kafka** — dials the brokers over TLS. Use `enabled: true` to turn it on with the system roots.
 - **rabbitmq** — dials with TLS; use an `amqps://` URL.
+- **nats** — forces the TLS handshake (`nats.Secure`); use a `tls://` URL.
 - **http** — applies the TLS config to the webhook client transport; use an `https://` URL. Set `http3: true` to dial over HTTP/3 (QUIC); HTTP/3 is TLS-only, so the URL must be `https://`.
 
 The **sqs** and **sns** sinks talk to AWS over HTTPS via the AWS SDK, which manages TLS
