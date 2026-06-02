@@ -406,6 +406,7 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 			Timeout:      sc.HTTP.Timeout,
 			SuccessCodes: sc.HTTP.SuccessCodes,
 			TLS:          sinkHTTPTLSFromConfig(sc.HTTP.TLS),
+			HTTP3:        sc.HTTP.HTTP3,
 		})
 	case "rabbitmq":
 		return sinkrabbitmq.New(sinkrabbitmq.Options{
@@ -472,7 +473,7 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 				ReadHeader: f.Timeouts.ReadHeader, Read: f.Timeouts.Read,
 				Write: f.Timeouts.Write, Idle: f.Timeouts.Idle, Shutdown: f.Timeouts.Shutdown,
 			},
-			TLSCertFile: f.TLS.CertFile, TLSKeyFile: f.TLS.KeyFile, Auth: auth,
+			TLSCertFile: f.TLS.CertFile, TLSKeyFile: f.TLS.KeyFile, HTTP3: f.HTTP3, Auth: auth,
 			StoreDriver: f.Store.Driver, SQLitePath: f.Store.SQLite.Path,
 			PostgresDSN: f.Store.Postgres.DSN, Table: f.Store.Postgres.Table, PostgresTLS: pgTLS,
 			Meter: tel.Meter, Logger: tel.Logger,

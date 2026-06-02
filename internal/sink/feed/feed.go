@@ -2,6 +2,7 @@ package feed
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/quic-go/quic-go/http3"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/metric"
 
@@ -36,6 +38,7 @@ type Options struct {
 	Timeouts        Timeouts
 	TLSCertFile     string
 	TLSKeyFile      string
+	HTTP3           bool // serve HTTP/3 over QUIC alongside TCP; requires TLS
 	Auth            *AuthConfig
 
 	StoreDriver string
@@ -95,11 +98,25 @@ type Publisher struct {
 	name     string
 	store    Store
 	server   *http.Server
+	h3       *http3.Server // nil unless HTTP/3 is enabled
 	ln       net.Listener
+	udpConn  *net.UDPConn // nil unless HTTP/3 is enabled
 	shutdown time.Duration
 	tlsCert  string
 	tlsKey   string
 	logger   zerolog.Logger
+}
+
+// altSvcHandler wraps the TCP (H1/H2) handler and advertises the HTTP/3
+// endpoint via the Alt-Svc response header so clients can upgrade.
+type altSvcHandler struct {
+	next http.Handler
+	h3   *http3.Server
+}
+
+func (a altSvcHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	_ = a.h3.SetQUICHeaders(w.Header())
+	a.next.ServeHTTP(w, r)
 }
 
 func New(ctx context.Context, o Options) (*Publisher, error) {
@@ -170,12 +187,61 @@ func New(ctx context.Context, o Options) (*Publisher, error) {
 		IdleTimeout:       to.Idle,
 	}
 	p := &Publisher{name: o.Name, store: store, server: srv, ln: ln, shutdown: to.Shutdown, tlsCert: o.TLSCertFile, tlsKey: o.TLSKeyFile, logger: o.Logger}
+
+	if o.HTTP3 {
+		// Serve the same root handler (which includes the MCP mux when enabled)
+		// over HTTP/3, not just the rss/atom handler.
+		if err := p.enableHTTP3(root); err != nil {
+			_ = ln.Close()
+			_ = store.Close()
+			return nil, fmt.Errorf("feed sink %q: %w", o.Name, err)
+		}
+	}
+
 	go p.serve()
 	return p, nil
 }
 
+// enableHTTP3 binds a UDP socket on the same host:port as the TCP listener and
+// starts an HTTP/3 server on it. The TCP handler is wrapped to advertise the
+// HTTP/3 endpoint via Alt-Svc. Requires a TLS cert/key pair.
+func (p *Publisher) enableHTTP3(h http.Handler) error {
+	if p.tlsCert == "" || p.tlsKey == "" {
+		return errors.New("http3 requires tls cert_file and key_file")
+	}
+	cert, err := tls.LoadX509KeyPair(p.tlsCert, p.tlsKey)
+	if err != nil {
+		return fmt.Errorf("http3: load keypair: %w", err)
+	}
+	tcpAddr, ok := p.ln.Addr().(*net.TCPAddr)
+	if !ok {
+		return fmt.Errorf("http3: listener addr is %T, want *net.TCPAddr", p.ln.Addr())
+	}
+	udpConn, err := net.ListenUDP("udp", &net.UDPAddr{IP: tcpAddr.IP, Port: tcpAddr.Port})
+	if err != nil {
+		return fmt.Errorf("http3: listen udp on %s: %w", tcpAddr, err)
+	}
+	h3 := &http3.Server{
+		Addr:      p.ln.Addr().String(),
+		Handler:   h,
+		TLSConfig: http3.ConfigureTLSConfig(&tls.Config{Certificates: []tls.Certificate{cert}}),
+	}
+	p.h3 = h3
+	p.udpConn = udpConn
+	// Advertise HTTP/3 on the TCP (H1/H2) responses.
+	p.server.Handler = altSvcHandler{next: h, h3: h3}
+	return nil
+}
+
 func (p *Publisher) serve() {
-	p.logger.Info().Str("sink", p.name).Str("addr", p.ln.Addr().String()).Msg("feed sink listening")
+	p.logger.Info().Str("sink", p.name).Str("addr", p.ln.Addr().String()).Bool("http3", p.h3 != nil).Msg("feed sink listening")
+	if p.h3 != nil {
+		go func() {
+			if err := p.h3.Serve(p.udpConn); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				p.logger.Error().Err(err).Str("sink", p.name).Msg("feed sink http3 server stopped")
+			}
+		}()
+	}
 	var err error
 	if p.tlsCert != "" && p.tlsKey != "" {
 		err = p.server.ServeTLS(p.ln, p.tlsCert, p.tlsKey)
@@ -202,6 +268,11 @@ func (p *Publisher) Close() error {
 	ctx, cancel := context.WithTimeout(context.Background(), p.shutdown)
 	defer cancel()
 	err := p.server.Shutdown(ctx)
+	if p.h3 != nil {
+		if cerr := p.h3.Close(); err == nil {
+			err = cerr
+		}
+	}
 	if cerr := p.store.Close(); err == nil {
 		err = cerr
 	}
