@@ -102,6 +102,7 @@ telemetry:
 | field | default | notes |
 | --------------------- | --------- | ----- |
 | `service_name`        | `rss2msg` | Set on every OTEL signal as `service.name`. |
+| `instance_id`         | hostname  | Set on every OTEL signal as `service.instance.id`, and added as a dimension/tag on CloudWatch and Graphite metrics so replicas don't collide into one series. Falls back to `OTEL_SERVICE_INSTANCE_ID`, then the hostname. |
 | `traces.enabled`      | `true`    | Builds an OTLP/gRPC tracer provider when an OTLP endpoint env var is set; otherwise no-op. |
 | `metrics.enabled`     | `true`    | Builds a periodic OTLP exporter when an endpoint is set. |
 | `logs.enabled`        | `false`   | Reserved for future OTEL logs bridge. |
