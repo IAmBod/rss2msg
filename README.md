@@ -20,7 +20,7 @@ Full documentation lives in [`docs/`](./docs/index.md). Start there, or jump in:
 
 **How-to**
 - [Configure Feeds](./docs/how-to/configure-feeds.md) · [Dynamic Feed Sources](./docs/how-to/dynamic-feed-sources.md)
-- [Choose a Sink](./docs/how-to/choose-a-sink.md) · drivers: [postgres](./docs/how-to/sinks/postgres.md) · [kafka](./docs/how-to/sinks/kafka.md) · [sqs](./docs/how-to/sinks/sqs.md) · [sns](./docs/how-to/sinks/sns.md) · [rabbitmq](./docs/how-to/sinks/rabbitmq.md) · [azureservicebus](./docs/how-to/sinks/azureservicebus.md) · [stdout](./docs/how-to/sinks/stdout.md) · [http](./docs/how-to/sinks/http.md) · [grpc](./docs/how-to/sinks/grpc.md)
+- [Choose a Sink](./docs/how-to/choose-a-sink.md) · drivers: [postgres](./docs/how-to/sinks/postgres.md) · [kafka](./docs/how-to/sinks/kafka.md) · [sqs](./docs/how-to/sinks/sqs.md) · [sns](./docs/how-to/sinks/sns.md) · [rabbitmq](./docs/how-to/sinks/rabbitmq.md) · [nats](./docs/how-to/sinks/nats.md) · [azureservicebus](./docs/how-to/sinks/azureservicebus.md) · [stdout](./docs/how-to/sinks/stdout.md) · [http](./docs/how-to/sinks/http.md) · [grpc](./docs/how-to/sinks/grpc.md)
 - [Run Multiple Instances](./docs/how-to/run-multiple-instances.md)
 - [Run with Docker](./docs/how-to/run-with-docker.md) · [Deploy in Production](./docs/how-to/deploy.md)
 - [Secure Connections (TLS)](./docs/how-to/secure-connections-tls.md)
