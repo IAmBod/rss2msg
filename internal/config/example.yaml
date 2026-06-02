@@ -264,9 +264,18 @@ feeds:
 # Dynamic feed sources (optional). Ordered list; earlier entries win on URL
 # collision. Omit entirely to use only the static feeds: block above. The serve
 # daemon reloads feeds from these at runtime (file watch + SIGHUP) without a
-# restart. Only "static" and "file" types are implemented today.
+# restart. Only "static", "file", and "postgres" types are implemented today.
 # feed_sources:
 #   - type: file          # JSON array of feed specs; watched, reloads on change
 #     name: control-plane
 #     path: /etc/rss2msg/feeds.json
+#   - type: postgres      # reads the feed list from a Postgres table; polled
+#     name: db-feeds
+#     interval: 30s        # how often to re-read the table (min 1s)
+#     postgres:
+#       dsn: "postgres://user:pass@db:5432/rss2msg?sslmode=require"
+#       table: feeds        # default "feeds"; columns: url (required), interval, sinks (text[])
+#       # query: "SELECT url, interval, sinks FROM feeds WHERE enabled"  # raw SQL override (mutually exclusive with table)
+#       # tls:
+#       #   ca_file: /etc/rss2msg/pg-ca.pem
 #   - type: static        # injects the feeds: block at this precedence position
