@@ -234,6 +234,7 @@ type SinkConfig struct {
 	Composite       CompositeSinkConfig       `mapstructure:"composite"`
 	GCPPubSub       GCPPubSubSinkConfig       `mapstructure:"gcp_pubsub"`
 	AzureServiceBus AzureServiceBusSinkConfig `mapstructure:"azureservicebus"`
+	NATS            NATSSinkConfig            `mapstructure:"nats"`
 	GRPC            GRPCSinkConfig            `mapstructure:"grpc"`
 	Extra           map[string]interface{}    `mapstructure:",remain"`
 }
@@ -435,6 +436,22 @@ type AzureServiceBusSinkConfig struct {
 	Namespace        string `mapstructure:"namespace"`         // Azure AD auth (DefaultAzureCredential)
 	Queue            string `mapstructure:"queue"`             // destination queue
 	Topic            string `mapstructure:"topic"`             // destination topic
+}
+
+// NATSSinkConfig configures the NATS sink (driver "nats"). At most one auth
+// group (token, username/password, or creds_file) may be set.
+type NATSSinkConfig struct {
+	URL       string `mapstructure:"url"`        // required: one or more comma-separated NATS URLs
+	Subject   string `mapstructure:"subject"`    // required: subject to publish to
+	Token     string `mapstructure:"token"`      // token auth
+	Username  string `mapstructure:"username"`   // user/password auth (both or neither)
+	Password  string `mapstructure:"password"`   //
+	CredsFile string `mapstructure:"creds_file"` // path to a NATS user credentials file (JWT + NKey seed)
+	// JetStream publishes through JetStream and waits for a server ack; the
+	// subject must already be bound to an existing stream (the sink never
+	// creates streams).
+	JetStream bool          `mapstructure:"jetstream"`
+	TLS       SinkTLSConfig `mapstructure:"tls"`
 }
 
 // FeedSourceConfig is one entry in the ordered feed_sources list. Order is
