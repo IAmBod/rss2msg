@@ -3,15 +3,21 @@ title: Operational Notes
 type: explanation
 tags: [rss2msg/docs, operations]
 summary: Delivery semantics, DLQs, multi-instance behavior, AWS creds, LocalStack, and shutdown.
-updated: 2026-05-30
+updated: 2026-06-02
 ---
 
 # Operational Notes
 
 > [!note]
-> **At-least-once delivery.** If one sink succeeds and another fails on the
-> same poll, the next poll re-detects the item and re-publishes to *all*
-> sinks. Downstream consumers should dedupe on `item_id` + `content_hash`.
+> **At-least-once delivery.** A poll publishes a change to every sink *before*
+> it records the item as seen — the pipeline runs all sinks, then calls
+> `UpsertItem` only once they have been handled (`cmd/rss2msg/pipeline.go`). So
+> duplicates are possible in two cases: (1) one sink succeeds and another fails
+> on the same poll — the next poll re-detects the item and re-publishes to *all*
+> sinks; (2) the process crashes or restarts between publishing and committing
+> state — the item is re-detected and re-published on the next poll. There is no
+> exactly-once guarantee; downstream consumers should dedupe on `item_id` +
+> `content_hash`.
 
 > [!warning]
 > **Kafka `acks: none` is unsafe.** Combined with the commit-on-success
