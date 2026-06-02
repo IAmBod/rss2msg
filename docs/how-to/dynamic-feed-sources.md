@@ -2,8 +2,8 @@
 title: Dynamic Feed Sources
 type: how-to
 tags: [rss2msg/docs, feeds, dynamic]
-summary: Reconcile the serve daemon's feed list at runtime from ordered sources (file, static), with SIGHUP and file-watch reload.
-updated: 2026-05-31
+summary: Reconcile the serve daemon's feed list at runtime from ordered sources (file, static, postgres), with SIGHUP and file-watch reload.
+updated: 2026-06-02
 ---
 
 # Dynamic Feed Sources
@@ -33,7 +33,8 @@ If `feed_sources:` is omitted entirely, the `feeds:` block is the sole source
 | -------- | ----------- | ----------- |
 | `static` | implemented | Injects the top-level `feeds:` block at this position in the precedence order. |
 | `file`   | implemented | Reads a JSON file of feed specs; watches the file for changes and reloads automatically. |
-| `http`, `postgres`, `sqlite`, `redis`, `s3`, `env` | planned | Not yet implemented. |
+| `postgres` | implemented | Reads the feed list from a Postgres table; polls on an interval. |
+| `http`, `sqlite`, `redis`, `s3`, `env` | planned | Not yet implemented. |
 
 ### `type: file`
 
@@ -64,6 +65,52 @@ the previously-running feed set unchanged. `sinks` and `http` are optional:
 
 The daemon watches the file for changes and reloads the feed list
 automatically when it is modified.
+
+### `type: postgres`
+
+Reads the desired feed list from an **operator-managed** Postgres table and
+re-reads it every `interval` (the source never creates or migrates the table).
+
+```yaml
+- type: postgres
+  name: db-feeds                 # optional label for logs
+  interval: 30s                  # how often to re-read the table (min 1s; defaults to 1s)
+  postgres:
+    dsn: "postgres://user:pass@db:5432/rss2msg?sslmode=require"   # required
+    table: feeds                 # default "feeds"; mutually exclusive with query
+    # query: "SELECT url, interval, sinks FROM feeds WHERE enabled"  # raw SQL override
+    tls:                         # optional; same shape as the state/coordination Postgres TLS
+      ca_file: ""
+      cert_file: ""
+      key_file: ""
+      server_name: ""
+      insecure_skip_verify: false
+```
+
+Each row maps to one feed. Columns are matched by name; only these are read,
+and any extra columns are ignored:
+
+| column     | required | type / format |
+| ---------- | -------- | ------------- |
+| `url`      | yes      | `TEXT` — the feed URL. A row with a missing/blank `url` fails the read. |
+| `interval` | yes\*    | `TEXT` — Go duration string (e.g. `15m`). Required for `serve` to schedule the feed; a feed reaching the daemon without a valid interval rejects the whole reload atomically (same as the `file` source), leaving the running set unchanged. |
+| `sinks`    | no       | `TEXT[]` or a JSON array string (e.g. `["a","b"]`); a bare string is one sink. `NULL` → the `default` sink. |
+
+When `table` is set the source runs `SELECT * FROM <table>` (the table name is
+validated as a plain SQL identifier). Set `query` instead for full control —
+`WHERE` filters, joins, ordering, column aliases (alias the URL column to
+`url`). `table` and `query` are mutually exclusive.
+
+A failed read (unreachable DB, bad query) keeps the **last successful** feed
+list for this source, so a transient outage does not drop feeds.
+
+```sql
+CREATE TABLE feeds (
+  url      TEXT NOT NULL,
+  interval TEXT,
+  sinks    TEXT[]
+);
+```
 
 ### `type: static`
 

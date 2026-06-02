@@ -710,6 +710,16 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			if strings.TrimSpace(s.Path) == "" {
 				return *warnings, fmt.Errorf("feed_sources[%d] (file): path is required", i)
 			}
+		case "postgres":
+			if strings.TrimSpace(s.Postgres.DSN) == "" {
+				return *warnings, fmt.Errorf("feed_sources[%d] (postgres): dsn is required", i)
+			}
+			if s.Postgres.Table != "" && s.Postgres.Query != "" {
+				return *warnings, fmt.Errorf("feed_sources[%d] (postgres): table and query are mutually exclusive", i)
+			}
+			if s.Postgres.Table != "" && !validSQLIdentifier(s.Postgres.Table) {
+				return *warnings, fmt.Errorf("feed_sources[%d] (postgres): invalid table %q", i, s.Postgres.Table)
+			}
 		case "":
 			return *warnings, fmt.Errorf("feed_sources[%d]: type is required", i)
 		default:
@@ -720,6 +730,25 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 	}
 	return *warnings, nil
+}
+
+// validSQLIdentifier reports whether s is a safe unquoted SQL identifier (used
+// for feed-source table names that get interpolated into a query).
+func validSQLIdentifier(s string) bool {
+	if s == "" || len(s) > 63 {
+		return false
+	}
+	for i, r := range s {
+		switch {
+		case r == '_':
+		case r >= 'a' && r <= 'z':
+		case r >= 'A' && r <= 'Z':
+		case r >= '0' && r <= '9' && i > 0:
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // ResolveFeedSinks returns the sink names a feed publishes to, applying the
