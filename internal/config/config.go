@@ -234,7 +234,18 @@ type SinkConfig struct {
 	Composite       CompositeSinkConfig       `mapstructure:"composite"`
 	GCPPubSub       GCPPubSubSinkConfig       `mapstructure:"gcp_pubsub"`
 	AzureServiceBus AzureServiceBusSinkConfig `mapstructure:"azureservicebus"`
+	GRPC            GRPCSinkConfig            `mapstructure:"grpc"`
 	Extra           map[string]interface{}    `mapstructure:",remain"`
+}
+
+// GRPCSinkConfig configures the "grpc" sink: rss2msg dials Target and calls the
+// ChangeSink.Publish RPC (proto/sink/v1) once per change.
+type GRPCSinkConfig struct {
+	Target    string            `mapstructure:"target"`    // gRPC dial target, e.g. host:port
+	Authority string            `mapstructure:"authority"` // optional :authority / TLS server-name override
+	Timeout   time.Duration     `mapstructure:"timeout"`   // per-RPC deadline; 0 -> none
+	Metadata  map[string]string `mapstructure:"metadata"`  // static outgoing metadata (e.g. authorization)
+	TLS       SinkTLSConfig     `mapstructure:"tls"`
 }
 
 type HTTPSinkConfig struct {
