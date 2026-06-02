@@ -17,6 +17,7 @@ import (
 	compositesink "github.com/iambod/rss2msg/internal/sink/composite"
 	feedsink "github.com/iambod/rss2msg/internal/sink/feed"
 	sinkgcppubsub "github.com/iambod/rss2msg/internal/sink/gcppubsub"
+	sinkgrpc "github.com/iambod/rss2msg/internal/sink/grpc"
 	sinkhttp "github.com/iambod/rss2msg/internal/sink/http"
 	sinkkafka "github.com/iambod/rss2msg/internal/sink/kafka"
 	sinkpg "github.com/iambod/rss2msg/internal/sink/postgres"
@@ -305,6 +306,21 @@ func sinkHTTPTLSFromConfig(t config.SinkTLSConfig) *sinkhttp.TLSOptions {
 	}
 }
 
+// sinkGRPCTLSFromConfig maps the canonical sink TLS block to the grpc sink's
+// TLS options, returning nil when the block is inactive (insecure transport).
+func sinkGRPCTLSFromConfig(t config.SinkTLSConfig) *sinkgrpc.TLSOptions {
+	if !t.Active() {
+		return nil
+	}
+	return &sinkgrpc.TLSOptions{
+		CAFile:             t.CAFile,
+		CertFile:           t.CertFile,
+		KeyFile:            t.KeyFile,
+		ServerName:         t.ServerName,
+		InsecureSkipVerify: t.InsecureSkipVerify,
+	}
+}
+
 // coordPGTLSFromConfig returns nil when no TLS field is set so the postgres
 // coordinator leaves pgx's DSN-derived TLS config in place.
 func coordPGTLSFromConfig(t config.CoordinationPGTLSConfig) *coordpg.TLSOptions {
@@ -407,6 +423,15 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 			SuccessCodes: sc.HTTP.SuccessCodes,
 			TLS:          sinkHTTPTLSFromConfig(sc.HTTP.TLS),
 			HTTP3:        sc.HTTP.HTTP3,
+		})
+	case "grpc":
+		return sinkgrpc.New(sinkgrpc.Options{
+			Name:      sc.Name,
+			Target:    sc.GRPC.Target,
+			Authority: sc.GRPC.Authority,
+			Timeout:   sc.GRPC.Timeout,
+			Metadata:  sc.GRPC.Metadata,
+			TLS:       sinkGRPCTLSFromConfig(sc.GRPC.TLS),
 		})
 	case "rabbitmq":
 		return sinkrabbitmq.New(sinkrabbitmq.Options{
