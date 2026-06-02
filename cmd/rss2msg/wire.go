@@ -15,6 +15,7 @@ import (
 	"github.com/iambod/rss2msg/internal/sink"
 	sinkasb "github.com/iambod/rss2msg/internal/sink/azureservicebus"
 	compositesink "github.com/iambod/rss2msg/internal/sink/composite"
+	sinkdapr "github.com/iambod/rss2msg/internal/sink/dapr"
 	feedsink "github.com/iambod/rss2msg/internal/sink/feed"
 	sinkgcppubsub "github.com/iambod/rss2msg/internal/sink/gcppubsub"
 	sinkhttp "github.com/iambod/rss2msg/internal/sink/http"
@@ -485,6 +486,15 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 			TopicID:     sc.GCPPubSub.TopicID,
 			Endpoint:    sc.GCPPubSub.Endpoint,
 			OrderingKey: sc.GCPPubSub.OrderingKey,
+		})
+	case "dapr_pubsub":
+		return sinkdapr.New(ctx, sinkdapr.Options{
+			Name:        sc.Name,
+			Address:     sc.DaprPubSub.Address,
+			PubsubName:  sc.DaprPubSub.PubsubName,
+			Topic:       sc.DaprPubSub.Topic,
+			ContentType: sc.DaprPubSub.ContentType,
+			Metadata:    sc.DaprPubSub.Metadata,
 		})
 	case "azureservicebus":
 		return sinkasb.New(sinkasb.Options{

@@ -1231,6 +1231,44 @@ func TestValidateAcceptsGCPPubSubOrderingKey(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsDaprPubSubSink(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "dapr-x", Driver: "dapr_pubsub",
+		DaprPubSub: DaprPubSubSinkConfig{PubsubName: "rss-pubsub", Topic: "rss.changes"},
+	})
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsDaprPubSubWithoutPubsubName(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "dapr-x", Driver: "dapr_pubsub",
+		DaprPubSub: DaprPubSubSinkConfig{Topic: "t"},
+	})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "pubsub_name") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsDaprPubSubWithoutTopic(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "dapr-x", Driver: "dapr_pubsub",
+		DaprPubSub: DaprPubSubSinkConfig{PubsubName: "ps"},
+	})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "topic") {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestValidateRejectsGCPPubSubWithoutProjectID(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()
