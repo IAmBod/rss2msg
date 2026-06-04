@@ -3,7 +3,7 @@ title: Deploy in Production
 type: how-to
 tags: [rss2msg/docs, operations, deployment]
 summary: Configure, validate, run, and observe rss2msg in production — config resolution, secrets, daemon vs job, and monitoring.
-updated: 2026-05-31
+updated: 2026-06-04
 ---
 
 # Deploy in Production
@@ -68,7 +68,8 @@ Docker Compose dev stack, and how to build a production image locally; see
 ### Platform recipes
 
 Step-by-step guides for the common runtimes — each covers packaging config,
-injecting secrets, health probes, and a scheduled `run-once` variant:
+injecting secrets, health probes (for the long-lived `serve` recipes), and a
+scheduled `run-once` variant:
 
 - [Docker Compose](deploy/docker-compose.md) — the published image as a service.
 - [Kubernetes](deploy/kubernetes.md) — ConfigMap, Secret, Deployment, Service, CronJob.
