@@ -3,7 +3,7 @@ title: Run with Docker
 type: how-to
 tags: [rss2msg/docs, operations, docker]
 summary: Build and run rss2msg with the multi-stage Dockerfile — a hot-reload development image, the distroless production image published to GHCR by the release pipeline, and a Docker Compose dev stack.
-updated: 2026-06-01
+updated: 2026-06-04
 ---
 
 # Run with Docker
@@ -60,7 +60,8 @@ docker compose up --build            # or: task docker-up
 
 The app listens on the ports it's configured to use:
 
-- `8080` — feed-sink HTTP, when a [feed sink](sinks/feed.md) is configured.
+- `8080` — health probes (`/healthz`, `/readyz`, `/startupz`) on `serve`, and
+  feed-sink HTTP when a [feed sink](sinks/feed.md) is configured.
 - `9090` — Prometheus `/metrics`, when `telemetry.prometheus.enabled` is `true`.
 
 Need Postgres or Redis to exercise those drivers? Start the optional services with
@@ -127,8 +128,11 @@ docker run --rm \
 ```
 
 The image runs as the `nonroot` user. It contains no shell or package manager, so
-define container health probes in your orchestrator (a Kubernetes liveness probe,
-a Compose `healthcheck` against `/metrics`, etc.) rather than via `docker exec`.
+a container-internal `docker`/Compose `healthcheck` command can't run inside it.
+Define health probes in your orchestrator against the HTTP endpoints on `8080` —
+`/healthz` (liveness), `/readyz` (readiness), `/startupz` (startup) — rather than
+via `docker exec`. See [Kubernetes Health Probes](kubernetes-health-probes.md) for
+what each endpoint means.
 
 ## Related
 

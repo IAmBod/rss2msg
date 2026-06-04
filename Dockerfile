@@ -36,7 +36,8 @@ FROM base AS development
 # air watches the source and rebuilds on change. Pin-free: this is a dev-only tool.
 RUN --mount=type=cache,target=/go/pkg/mod go install github.com/air-verse/air@latest
 COPY . .
-# 8080: feed-sink HTTP (when a feed sink is configured); 9090: Prometheus /metrics.
+# 8080: health probes (/healthz, /readyz, /startupz on serve) + feed-sink HTTP when
+# a feed sink is configured; 9090: Prometheus /metrics.
 EXPOSE 8080 9090
 ENTRYPOINT ["air", "-c", ".air.toml"]
 
@@ -60,6 +61,8 @@ ARG TARGETPLATFORM
 COPY $TARGETPLATFORM/rss2msg /usr/local/bin/rss2msg
 # Config is resolved from --config, then ./config.yaml, then /etc/rss2msg/config.yaml.
 # Mount your config at /etc/rss2msg/config.yaml (see docs/how-to/run-with-docker.md).
+# 8080: health probes (/healthz, /readyz, /startupz on serve) + feed-sink HTTP when
+# a feed sink is configured; 9090: Prometheus /metrics.
 EXPOSE 8080 9090
 USER nonroot:nonroot
 ENTRYPOINT ["/usr/local/bin/rss2msg"]
