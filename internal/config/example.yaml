@@ -179,6 +179,17 @@ sinks:
   #     # endpoint_url: http://localhost:4566           # for LocalStack
   #     # message_group: feed_url                       # FIFO only: feed_url (default) | item_id | sink
   #   dead_letter: dlq-main
+  # - name: dynamodb-main
+  #   driver: dynamodb                                  # datastore target (change-log table); consume via DynamoDB Streams or polling
+  #   dynamodb:
+  #     table: feed-changes                             # table must already exist
+  #     region: us-east-1
+  #     # endpoint_url: http://localhost:4566           # for DynamoDB Local / LocalStack
+  #     # partition_key: feed_url                       # default feed_url
+  #     # sort_key: item_id                             # default item_id (re-publishing the same item overwrites the row)
+  #     # ttl_attribute: expires_at                     # must match the table's configured TTL attribute
+  #     # item_ttl: 720h                                # detected_at + item_ttl, written as Unix epoch seconds
+  #   dead_letter: dlq-main
   # - name: sns-main
   #   driver: sns
   #   sns:

@@ -1,9 +1,9 @@
 # rss2msg
 
 A Go service that polls RSS / Atom / JSON feeds, detects new and updated items,
-and publishes a canonical change envelope to one or more of fourteen sinks
-(Postgres, Kafka, RabbitMQ, SQS, SNS, GCP Pub/Sub, NATS, Azure Service Bus,
-Dapr, stdout, HTTP/webhook, gRPC, feed, composite). It is designed to run as a
+and publishes a canonical change envelope to one or more of fifteen sinks
+(Postgres, Kafka, RabbitMQ, SQS, SNS, DynamoDB, GCP Pub/Sub, NATS, Azure
+Service Bus, Dapr, stdout, HTTP/webhook, gRPC, feed, composite). It is designed to run as a
 long-lived daemon (`serve`) or as a single-shot job (`run-once`), and it can
 scale to multiple instances behind a shared coordinator (Postgres advisory
 locks or Redis lease) without leader election.
@@ -21,7 +21,7 @@ Full documentation lives in [`docs/`](./docs/index.md). Start there, or jump in:
 
 **How-to**
 - [Configure Feeds](./docs/how-to/configure-feeds.md) · [Dynamic Feed Sources](./docs/how-to/dynamic-feed-sources.md)
-- [Choose a Sink](./docs/how-to/choose-a-sink.md) · drivers: [postgres](./docs/how-to/sinks/postgres.md) · [kafka](./docs/how-to/sinks/kafka.md) · [sqs](./docs/how-to/sinks/sqs.md) · [sns](./docs/how-to/sinks/sns.md) · [gcp_pubsub](./docs/how-to/sinks/gcp-pubsub.md) · [rabbitmq](./docs/how-to/sinks/rabbitmq.md) · [nats](./docs/how-to/sinks/nats.md) · [azureservicebus](./docs/how-to/sinks/azureservicebus.md) · [dapr_pubsub](./docs/how-to/sinks/dapr-pubsub.md) · [stdout](./docs/how-to/sinks/stdout.md) · [http](./docs/how-to/sinks/http.md) · [grpc](./docs/how-to/sinks/grpc.md) · [feed](./docs/how-to/sinks/feed.md) · [composite](./docs/how-to/sinks/composite.md)
+- [Choose a Sink](./docs/how-to/choose-a-sink.md) · drivers: [postgres](./docs/how-to/sinks/postgres.md) · [kafka](./docs/how-to/sinks/kafka.md) · [sqs](./docs/how-to/sinks/sqs.md) · [sns](./docs/how-to/sinks/sns.md) · [dynamodb](./docs/how-to/sinks/dynamodb.md) · [gcp_pubsub](./docs/how-to/sinks/gcp-pubsub.md) · [rabbitmq](./docs/how-to/sinks/rabbitmq.md) · [nats](./docs/how-to/sinks/nats.md) · [azureservicebus](./docs/how-to/sinks/azureservicebus.md) · [dapr_pubsub](./docs/how-to/sinks/dapr-pubsub.md) · [stdout](./docs/how-to/sinks/stdout.md) · [http](./docs/how-to/sinks/http.md) · [grpc](./docs/how-to/sinks/grpc.md) · [feed](./docs/how-to/sinks/feed.md) · [composite](./docs/how-to/sinks/composite.md)
 - [Run Multiple Instances](./docs/how-to/run-multiple-instances.md)
 - [Run with Docker](./docs/how-to/run-with-docker.md) · [Deploy in Production](./docs/how-to/deploy.md)
 - [Secure Connections (TLS)](./docs/how-to/secure-connections-tls.md)
