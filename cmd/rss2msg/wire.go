@@ -6,6 +6,7 @@ import (
 
 	"github.com/iambod/rss2msg/internal/config"
 	"github.com/iambod/rss2msg/internal/coord"
+	coorddynamo "github.com/iambod/rss2msg/internal/coord/dynamodb"
 	coordmem "github.com/iambod/rss2msg/internal/coord/memory"
 	coordpg "github.com/iambod/rss2msg/internal/coord/postgres"
 	coordredis "github.com/iambod/rss2msg/internal/coord/redis"
@@ -228,6 +229,13 @@ func openCoordinator(ctx context.Context, cc config.CoordinationConfig, sc confi
 		})
 	case "redis":
 		return coordredis.New(ctx, redisCoordOptions(cc))
+	case "dynamodb":
+		return coorddynamo.New(ctx, coorddynamo.Options{
+			Table:         cc.DynamoDB.Table,
+			Region:        cc.DynamoDB.Region,
+			EndpointURL:   cc.DynamoDB.EndpointURL,
+			LeaseDuration: cc.DynamoDB.LeaseDuration,
+		})
 	default:
 		return nil, fmt.Errorf("unsupported coordination driver %q", driver)
 	}

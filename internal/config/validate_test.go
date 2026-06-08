@@ -429,6 +429,39 @@ func TestValidateAcceptsCoordinationRedis(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsCoordinationDynamoDB(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination.Driver = "dynamodb"
+	c.Coordination.DynamoDB.Table = "rss2msg-locks"
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsDynamoDBWithoutTable(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination.Driver = "dynamodb"
+	c.Coordination.DynamoDB.Table = ""
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "coordination.dynamodb.table") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsDynamoDBSubSecondLease(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination.Driver = "dynamodb"
+	c.Coordination.DynamoDB.Table = "rss2msg-locks"
+	c.Coordination.DynamoDB.LeaseDuration = 500 * time.Millisecond
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "lease_duration") {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestValidateRejectsRedisWithoutURL(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()
