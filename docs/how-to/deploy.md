@@ -82,8 +82,10 @@ scheduled `run-once` variant:
 They all start from the same model: keep secrets out of `config.yaml` (reference
 them as `${VAR}`), supply the file by baking a thin image (`FROM
 ghcr.io/iambod/rss2msg:latest` + `COPY config.yaml /etc/rss2msg/config.yaml`) or a
-platform-native volume/secret mount, and define health checks against the HTTP
-probe endpoints since the image has no shell.
+platform-native volume/secret mount, and wire health checks to the daemon's probe
+endpoints — either an orchestrator HTTP probe against `/readyz` on `:8080`, or the
+binary's own `rss2msg healthcheck` command (the image has no shell, so it probes
+itself over HTTP).
 
 ## 4. Scale out
 

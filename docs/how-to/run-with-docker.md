@@ -2,8 +2,8 @@
 title: Run with Docker
 type: how-to
 tags: [rss2msg/docs, operations, docker]
-summary: Build and run rss2msg with the multi-stage Dockerfile — a hot-reload development image, the distroless production image published to GHCR by the release pipeline, and a Docker Compose dev stack.
-updated: 2026-06-04
+summary: Build and run rss2msg with the multi-stage Dockerfile — a hot-reload development image, the distroless production image published to GHCR by the release pipeline, a Docker Compose dev stack, and the binary's built-in healthcheck.
+updated: 2026-06-08
 ---
 
 # Run with Docker
@@ -128,11 +128,43 @@ docker run --rm \
 ```
 
 The image runs as the `nonroot` user. It contains no shell or package manager, so
-a container-internal `docker`/Compose `healthcheck` command can't run inside it.
-Define health probes in your orchestrator against the HTTP endpoints on `8080` —
-`/healthz` (liveness), `/readyz` (readiness), `/startupz` (startup) — rather than
-via `docker exec`. See [Kubernetes Health Probes](kubernetes-health-probes.md) for
-what each endpoint means.
+container health probes can't shell out to `curl`/`wget`. The binary covers this
+itself — see below — and orchestrator-native probes (a Kubernetes liveness probe
+against `/healthz`, etc.) work as usual.
+
+## Health checks
+
+The serve daemon exposes Kubernetes-style probe endpoints — `/healthz` (liveness),
+`/readyz` (readiness, which also checks the state store and coordinator), and
+`/startupz` (startup) — on `health.listen` (default `:8080`). See
+[Kubernetes health probes](kubernetes-health-probes.md) for the endpoint details.
+
+Because the distroless image has no shell, `curl`, or `wget`, the classic
+`HEALTHCHECK CMD curl …` can't run. Instead the binary ships a `healthcheck`
+subcommand that probes its own endpoint over HTTP and exits `0` (healthy) or
+non-zero (unhealthy). It reads the same config as `serve`, so it targets whatever
+`health.listen` binds (rewriting a wildcard host like `:8080` to `127.0.0.1`):
+
+```bash
+# Inside the container, or via docker exec on a runtime that allows it:
+rss2msg healthcheck                 # readiness probe (default)
+rss2msg healthcheck --probe liveness
+rss2msg healthcheck --timeout 5s
+```
+
+The production image wires this into its `HEALTHCHECK` instruction, so
+`docker ps` and orchestrators that honor image health report status out of the box.
+To set it yourself in Compose, use the exec form (there's no shell to interpret a
+string command):
+
+```yaml
+healthcheck:
+  test: ["CMD", "rss2msg", "healthcheck"]
+  interval: 30s
+  timeout: 3s
+  start_period: 10s
+  retries: 3
+```
 
 ## Related
 
