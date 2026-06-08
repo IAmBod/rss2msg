@@ -1,0 +1,54 @@
+# Multiple rss2msg replicas sharing one Redis coordinator and one Postgres state store.
+#
+#   docker compose up
+#
+# The coordinator gates poll cycles across instances so a feed is polled by only one
+# replica at a time — no leader election, no duplicate publishes. Scale up or down with:
+#   docker compose up --scale rss2msg=5
+#
+# Tear down (and drop data) with: docker compose down -v
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: rss2msg
+      POSTGRES_PASSWORD: rss2msg
+      POSTGRES_DB: rss2msg
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rss2msg -d rss2msg"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rss2msg:
+    image: ${RSS2MSG_IMAGE:-ghcr.io/iambod/rss2msg:latest}
+    command: ["serve"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      POSTGRES_DSN: postgres://rss2msg:rss2msg@postgres:5432/rss2msg?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./config.yaml:/etc/rss2msg/config.yaml:ro
+    tmpfs:
+      - /tmp
+    deploy:
+      replicas: 3        # honored by `docker compose up`; override with --scale rss2msg=N
+    restart: unless-stopped
+
+volumes:
+  pgdata:

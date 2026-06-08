@@ -166,6 +166,23 @@ healthcheck:
   retries: 3
 ```
 
+## Example stacks
+
+The [`examples/compose/`](../../examples/compose/) directory holds self-contained,
+copy-pasteable Compose stacks for common deployment shapes — each runs the published
+image and comes with its config and a README:
+
+- [`minimal/`](../../examples/compose/minimal/) — one container, `stdout` sink, mounted config.
+- [`env-config/`](../../examples/compose/env-config/) — configuration from environment variables.
+- [`kafka/`](../../examples/compose/kafka/) · [`rabbitmq/`](../../examples/compose/rabbitmq/) — broker integrations with a consumer/queue to watch output land.
+- [`postgres/`](../../examples/compose/postgres/) — Postgres as both state store and sink.
+- [`horizontal-scaling/`](../../examples/compose/horizontal-scaling/) — multiple replicas behind a shared Redis coordinator.
+- [`observability/`](../../examples/compose/observability/) — Prometheus scraping `/metrics`, graphed in Grafana.
+
+Unlike the repo-root `docker-compose.yml` (a hot-reload **development** stack), these
+are **deployment-shaped**: they pull `ghcr.io/iambod/rss2msg:latest` rather than
+building from source.
+
 ## Related
 
 - [Deploy in Production](deploy.md) — config resolution, secrets, scaling, observability.

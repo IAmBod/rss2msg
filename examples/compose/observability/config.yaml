@@ -1,0 +1,29 @@
+log:
+  level: info
+  format: console
+
+telemetry:
+  service_name: rss2msg
+  traces:  { enabled: false }
+  metrics:
+    enabled: true          # build the OTEL meter provider...
+  prometheus:
+    enabled: true          # ...and expose it at /metrics on the listen address below
+    listen: ":9090"
+
+state:
+  driver: sqlite
+  sqlite:
+    path: /tmp/rss2msg.db
+
+sinks:
+  - name: default
+    driver: stdout
+    stdout:
+      format: json
+
+feeds:
+  - url: https://hnrss.org/frontpage
+    interval: 1m
+  - url: https://hnrss.org/newest
+    interval: 1m

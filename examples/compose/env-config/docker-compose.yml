@@ -1,0 +1,36 @@
+# rss2msg configured from the environment (12-factor style).
+#
+#   docker compose up
+#
+# Two mechanisms are at play:
+#   1. RSS2MSG_* overrides set scalar config fields directly (no file entry needed).
+#      The path separator is "__": RSS2MSG_LOG__LEVEL -> log.level.
+#   2. ${VAR} substitution fills placeholders in the mounted config template. This is
+#      the only way to drive structural blocks (feeds, sinks) from the environment,
+#      since RSS2MSG_* overrides do not cover feeds / sinks / coordination.
+#
+# Values come from the `environment:` block below (and the optional .env file).
+
+services:
+  rss2msg:
+    image: ${RSS2MSG_IMAGE:-ghcr.io/iambod/rss2msg:latest}
+    command: ["serve"]
+    volumes:
+      # A thin template whose every value is a ${VAR} placeholder.
+      - ./config.template.yaml:/etc/rss2msg/config.yaml:ro
+    tmpfs:
+      - /tmp
+    environment:
+      # (1) scalar config via RSS2MSG_* overrides — no config-file entry required.
+      # These work because each has a built-in default; keys without a default
+      # (e.g. state.*) must live in the config file instead.
+      RSS2MSG_LOG__LEVEL: info
+      RSS2MSG_LOG__FORMAT: console
+      RSS2MSG_TELEMETRY__TRACES__ENABLED: "false"
+      RSS2MSG_TELEMETRY__METRICS__ENABLED: "false"
+      # (2) string values substituted into config.template.yaml via ${VAR}.
+      # Note: ${VAR} substitution only applies to STRING fields, so the feed interval
+      # (a duration) stays literal in the template — it can't be env-substituted.
+      FEED_URL: https://hnrss.org/frontpage
+      SINK_FORMAT: pretty
+    restart: unless-stopped

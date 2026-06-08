@@ -1,0 +1,25 @@
+log:
+  level: info
+  format: console
+
+telemetry:
+  traces:  { enabled: false }
+  metrics: { enabled: false }
+
+state:
+  driver: sqlite
+  sqlite:
+    path: /tmp/rss2msg.db
+
+sinks:
+  - name: default
+    driver: kafka
+    kafka:
+      brokers: ["kafka:9092"]
+      topic: feed.changes
+      acks: all            # leader + in-sync replicas; safest durability
+      # compression: snappy   # optional: none (default) | gzip | snappy | lz4 | zstd
+
+feeds:
+  - url: https://hnrss.org/frontpage
+    interval: 1m

@@ -1,0 +1,19 @@
+# Minimal rss2msg deployment: one container, a stdout sink, config from a mounted file.
+#
+#   docker compose up
+#
+# Watch the change envelopes print to the log, then tear down with `docker compose down`.
+
+services:
+  rss2msg:
+    image: ${RSS2MSG_IMAGE:-ghcr.io/iambod/rss2msg:latest}
+    command: ["serve"]
+    volumes:
+      - ./config.yaml:/etc/rss2msg/config.yaml:ro
+    # The image runs as a non-root user with a read-only-friendly distroless
+    # filesystem, so point SQLite (config: state.sqlite.path) at a writable tmpfs.
+    # State is ephemeral here — on restart every current item is re-emitted as new,
+    # which is fine for a demo. The postgres/ example shows durable shared state.
+    tmpfs:
+      - /tmp
+    restart: unless-stopped

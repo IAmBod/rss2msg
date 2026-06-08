@@ -1,0 +1,62 @@
+# rss2msg publishing to a single-node Kafka broker (KRaft mode — no ZooKeeper).
+#
+#   docker compose up
+#
+# The `consumer` service tails the topic so you can watch change envelopes arrive.
+# Tear down (and drop Kafka's data) with: docker compose down -v
+
+services:
+  kafka:
+    image: confluentinc/cp-kafka:7.8.0
+    ports:
+      - "9092:9092"        # exposed on the host for ad-hoc tooling; the app uses kafka:9092
+    environment:
+      # Single-node KRaft (combined broker + controller). CLUSTER_ID is required;
+      # this is an arbitrary fixed value so restarts reuse the same storage.
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  rss2msg:
+    image: ${RSS2MSG_IMAGE:-ghcr.io/iambod/rss2msg:latest}
+    command: ["serve"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./config.yaml:/etc/rss2msg/config.yaml:ro
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+
+  # Throwaway console consumer so you can see what rss2msg published.
+  consumer:
+    image: confluentinc/cp-kafka:7.8.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command:
+      - kafka-console-consumer
+      - --bootstrap-server
+      - kafka:9092
+      - --topic
+      - feed.changes
+      - --from-beginning
+    restart: unless-stopped

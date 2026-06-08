@@ -1,0 +1,45 @@
+# rss2msg using Postgres for BOTH the state store and a sink (the change-log pattern).
+#
+#   docker compose up
+#
+# rss2msg auto-creates its tables (state: seen_items/feed_meta; sink: feed_changes).
+# Query the change log:
+#   docker compose exec postgres psql -U rss2msg -c \
+#     'SELECT feed_url, kind, detected_at FROM feed_changes ORDER BY detected_at DESC LIMIT 10;'
+#
+# Tear down (and drop the data volume) with: docker compose down -v
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: rss2msg
+      POSTGRES_PASSWORD: rss2msg
+      POSTGRES_DB: rss2msg
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rss2msg -d rss2msg"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rss2msg:
+    image: ${RSS2MSG_IMAGE:-ghcr.io/iambod/rss2msg:latest}
+    command: ["serve"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Injected as a secret, then referenced as ${POSTGRES_DSN} in config.yaml.
+      POSTGRES_DSN: postgres://rss2msg:rss2msg@postgres:5432/rss2msg?sslmode=disable
+    volumes:
+      - ./config.yaml:/etc/rss2msg/config.yaml:ro
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+
+volumes:
+  pgdata:

@@ -1,0 +1,24 @@
+log:
+  level: info
+  format: console        # human-readable lines for the demo; use json in production
+
+# Disable the OTLP tracer/metrics exporters so there's nothing to wire up here.
+telemetry:
+  traces:  { enabled: false }
+  metrics: { enabled: false }
+
+state:
+  driver: sqlite
+  sqlite:
+    path: /tmp/rss2msg.db   # writable tmpfs (see docker-compose.yml)
+
+sinks:
+  - name: default
+    driver: stdout
+    stdout:
+      format: pretty       # indented JSON; use "json" for one NDJSON line per change
+
+feeds:
+  - url: https://hnrss.org/frontpage
+    interval: 1m           # poll once a minute; raise this for real feeds
+    # no `sinks:` list → falls back to the sink named "default"

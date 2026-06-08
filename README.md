@@ -26,6 +26,7 @@ Full documentation lives in [`docs/`](./docs/index.md). Start there, or jump in:
 - [Run Multiple Instances](./docs/how-to/run-multiple-instances.md)
 - [Run with Docker](./docs/how-to/run-with-docker.md) · [Deploy in Production](./docs/how-to/deploy.md)
 - [Secure Connections (TLS)](./docs/how-to/secure-connections-tls.md)
+- [Docker Compose examples](./examples/compose/) — copy-pasteable stacks (minimal, Kafka, RabbitMQ, Postgres, horizontal scaling, observability).
 
 **Reference**
 - [Configuration](./docs/reference/configuration.md) · [Change Envelope](./docs/reference/change-envelope.md) · [Wire Formats](./docs/reference/wire-formats.md) · [Telemetry](./docs/reference/telemetry.md) · [CLI](./docs/reference/cli.md)
