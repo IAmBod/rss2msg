@@ -55,18 +55,38 @@ func (a *Aggregator) Trigger() {
 // Changes signals when the desired set may have changed.
 func (a *Aggregator) Changes() <-chan struct{} { return a.out }
 
-// Desired reads every source in order and returns the merged, deduped feed list.
-// The mutex is intentionally held across all source Feeds calls to serialise
-// reconciles; this is safe because the daemon runs a single reconcile loop.
+// Desired fetches every source concurrently, then merges their results in source
+// order into the deduped feed list. The mutex is held across the whole call to
+// serialise reconciles (the daemon runs a single reconcile loop); the fan-out
+// parallelises the individual Feeds calls within one reconcile, so startup and
+// reload latency is the slowest source rather than the sum of all sources.
 func (a *Aggregator) Desired(ctx context.Context) ([]config.FeedConfig, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	// Fetch concurrently. Each goroutine writes its own slot, so no result needs
+	// locking; precedence is restored by merging in source order below.
+	type fetched struct {
+		feeds []config.FeedConfig
+		err   error
+	}
+	results := make([]fetched, len(a.sources))
+	var wg sync.WaitGroup
+	for i, s := range a.sources {
+		wg.Add(1)
+		go func(i int, s Source) {
+			defer wg.Done()
+			feeds, err := s.Feeds(ctx)
+			results[i] = fetched{feeds: feeds, err: err}
+		}(i, s)
+	}
+	wg.Wait()
+
 	seen := make(map[string]struct{})
 	var merged []config.FeedConfig
-	for _, s := range a.sources {
-		feeds, err := s.Feeds(ctx)
-		if err != nil {
+	for i, s := range a.sources {
+		feeds := results[i].feeds
+		if results[i].err != nil {
 			feeds = a.lastGood[s.Name()] // keep last-known-good; nil if never succeeded
 		} else {
 			a.lastGood[s.Name()] = feeds
