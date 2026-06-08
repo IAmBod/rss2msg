@@ -65,5 +65,11 @@ COPY $TARGETPLATFORM/rss2msg /usr/local/bin/rss2msg
 # a feed sink is configured; 9090: Prometheus /metrics.
 EXPOSE 8080 9090
 USER nonroot:nonroot
+# The distroless base ships no shell, curl, or wget, so the classic
+# `HEALTHCHECK CMD curl …` cannot run. Instead the binary probes its own health
+# endpoint and exits 0/1 — see `rss2msg healthcheck`. It reads the same config as
+# `serve`, so it targets whatever address `health.listen` binds (default :8080).
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD ["/usr/local/bin/rss2msg", "healthcheck"]
 ENTRYPOINT ["/usr/local/bin/rss2msg"]
 CMD ["serve"]
