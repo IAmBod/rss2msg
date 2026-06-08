@@ -20,6 +20,7 @@ Start here. Pages are grouped the way you use them.
 - [Feeds from CMS Platforms](how-to/feeds-from-cms-platforms.md)
 - [Dynamic Feed Sources](how-to/dynamic-feed-sources.md)
 - [Choose a Sink](how-to/choose-a-sink.md)
+- [Choose a State Store](how-to/state-stores.md)
 - [Integrate with External Systems](how-to/integrations.md)
     - [Zapier](how-to/integrations/zapier.md)
     - [n8n](how-to/integrations/n8n.md)

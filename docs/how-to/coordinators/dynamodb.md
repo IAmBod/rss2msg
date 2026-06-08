@@ -19,7 +19,7 @@ expiry-based — a peer reclaims a crashed instance's lock once `lease_expiry` p
 > [!warning]
 > **Pair it with a shared state store.** The coordinator only serialises *polling*;
 > deduplication of already-seen items lives in the
-> [state store](../../reference/configuration.md#state). Set `state.driver: postgres`
+> [state store](../state-stores.md). Set `state.driver: postgres`
 > so every instance shares one dedup set — otherwise each instance keeps its own
 > seen-items set and republishes items its peers already sent. Validation warns if it
 > sees a distributed coordinator paired with `state.driver: sqlite`.
@@ -54,4 +54,4 @@ the conditional write.
 ## Related
 
 - [Run Multiple Instances](../run-multiple-instances.md) — the coordinator overview, comparison table, and lock mechanics.
-- [Configuration Reference](../../reference/configuration.md#state) — the state store.
+- [Choose a State Store](../state-stores.md) — the state store.
