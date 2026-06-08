@@ -256,6 +256,7 @@ type SinkConfig struct {
 	RabbitMQ        RabbitMQSinkConfig        `mapstructure:"rabbitmq"`
 	SQS             SQSSinkConfig             `mapstructure:"sqs"`
 	SNS             SNSSinkConfig             `mapstructure:"sns"`
+	DynamoDB        DynamoDBSinkConfig        `mapstructure:"dynamodb"`
 	Stdout          StdoutSinkConfig          `mapstructure:"stdout"`
 	HTTP            HTTPSinkConfig            `mapstructure:"http"`
 	Feed            FeedSinkConfig            `mapstructure:"feed"`
@@ -445,6 +446,23 @@ type SNSSinkConfig struct {
 	Region       string `mapstructure:"region"`
 	EndpointURL  string `mapstructure:"endpoint_url"`
 	MessageGroup string `mapstructure:"message_group"` // FIFO only: feed_url (default) | item_id | sink
+}
+
+// DynamoDBSinkConfig configures the DynamoDB sink (driver "dynamodb"). Each
+// change is written as a single idempotent PutItem keyed by
+// (partition=feed_url, sort=item_id) so re-publishing the same item overwrites
+// the row. DynamoDB is a datastore target, not pub/sub: downstream consumers
+// use DynamoDB Streams or polling.
+type DynamoDBSinkConfig struct {
+	Table        string `mapstructure:"table"`         // required: target table name
+	Region       string `mapstructure:"region"`        // optional; SDK default chain when empty
+	EndpointURL  string `mapstructure:"endpoint_url"`  // optional; DynamoDB Local / LocalStack
+	PartitionKey string `mapstructure:"partition_key"` // optional; default "feed_url"
+	SortKey      string `mapstructure:"sort_key"`      // optional; default "item_id"
+	// TTLAttribute, when set, adds a Number attribute (Unix epoch seconds) of
+	// detected_at + ItemTTL; must match the table's configured TTL attribute.
+	TTLAttribute string        `mapstructure:"ttl_attribute"`
+	ItemTTL      time.Duration `mapstructure:"item_ttl"`
 }
 
 // GCPPubSubSinkConfig configures the Google Cloud Pub/Sub sink (driver

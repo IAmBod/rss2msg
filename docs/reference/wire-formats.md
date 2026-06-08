@@ -14,6 +14,7 @@ updated: 2026-05-30
 | kafka    | `Key = item_id`          | JSON `Change` value | Headers: `feed_url`, `kind`, `schema_version`, `traceparent?`, `tracestate?`, `dlq_*?`. |
 | sqs      | n/a                      | JSON `Change` body  | MessageAttributes: same as Kafka headers.                         |
 | sns      | n/a                      | JSON `Change` body  | MessageAttributes: same as Kafka headers.                         |
+| dynamodb | `(feed_url, item_id)` PK | item attributes per `Change` field | Idempotent `PutItem` (upsert); optional Number TTL attribute. Consume via Streams/polling. |
 | gcp_pubsub | `OrderingKey` (optional) | JSON `Change` `Data` | Attributes: same as Kafka headers.                              |
 | azureservicebus | `MessageID = item_id` | JSON `Change` body | ApplicationProperties: same keys as Kafka headers; `ContentType: application/json`. |
 | dapr_pubsub | n/a (broker-defined) | JSON `Change` data (CloudEvent by default) | Metadata: same keys as Kafka headers, plus any static `metadata`. |

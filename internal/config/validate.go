@@ -46,6 +46,7 @@ var knownSinkDrivers = map[string]struct{}{
 	"rabbitmq":        {},
 	"sqs":             {},
 	"sns":             {},
+	"dynamodb":        {},
 	"stdout":          {},
 	"http":            {},
 	"grpc":            {},
@@ -446,6 +447,13 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 				if !fifo {
 					return *warnings, fmt.Errorf("sinks[%d] (sns %q): message_group is only valid for FIFO topics (topic_arn must end with .fifo)", i, s.Name)
 				}
+			}
+		case "dynamodb":
+			if strings.TrimSpace(s.DynamoDB.Table) == "" {
+				return *warnings, fmt.Errorf("sinks[%d] (dynamodb %q): dynamodb.table is required", i, s.Name)
+			}
+			if strings.TrimSpace(s.DynamoDB.TTLAttribute) == "" && s.DynamoDB.ItemTTL != 0 {
+				return *warnings, fmt.Errorf("sinks[%d] (dynamodb %q): item_ttl set but ttl_attribute is empty", i, s.Name)
 			}
 		case "gcp_pubsub":
 			if strings.TrimSpace(s.GCPPubSub.ProjectID) == "" {

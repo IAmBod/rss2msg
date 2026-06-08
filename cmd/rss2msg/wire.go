@@ -17,6 +17,7 @@ import (
 	sinkasb "github.com/iambod/rss2msg/internal/sink/azureservicebus"
 	compositesink "github.com/iambod/rss2msg/internal/sink/composite"
 	sinkdapr "github.com/iambod/rss2msg/internal/sink/dapr"
+	sinkdynamodb "github.com/iambod/rss2msg/internal/sink/dynamodb"
 	feedsink "github.com/iambod/rss2msg/internal/sink/feed"
 	sinkgcppubsub "github.com/iambod/rss2msg/internal/sink/gcppubsub"
 	sinkgrpc "github.com/iambod/rss2msg/internal/sink/grpc"
@@ -495,6 +496,17 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 			Region:       sc.SNS.Region,
 			EndpointURL:  sc.SNS.EndpointURL,
 			MessageGroup: sc.SNS.MessageGroup,
+		})
+	case "dynamodb":
+		return sinkdynamodb.New(ctx, sinkdynamodb.Options{
+			Name:         sc.Name,
+			Table:        sc.DynamoDB.Table,
+			Region:       sc.DynamoDB.Region,
+			EndpointURL:  sc.DynamoDB.EndpointURL,
+			PartitionKey: sc.DynamoDB.PartitionKey,
+			SortKey:      sc.DynamoDB.SortKey,
+			TTLAttribute: sc.DynamoDB.TTLAttribute,
+			ItemTTL:      sc.DynamoDB.ItemTTL,
 		})
 	case "feed":
 		f := sc.Feed

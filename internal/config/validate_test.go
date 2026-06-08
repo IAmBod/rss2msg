@@ -186,6 +186,41 @@ func TestValidateAcceptsSQSSink(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsDynamoDBSink(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "ddb-x", Driver: "dynamodb",
+		DynamoDB: DynamoDBSinkConfig{Table: "rss2msg-changes"},
+	})
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsDynamoDBWithoutTable(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{Name: "ddb-x", Driver: "dynamodb"})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "table") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsDynamoDBItemTTLWithoutAttribute(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "ddb-x", Driver: "dynamodb",
+		DynamoDB: DynamoDBSinkConfig{Table: "t", ItemTTL: time.Hour},
+	})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "ttl_attribute") {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestValidateRejectsSQSWithoutQueueURL(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()
@@ -439,7 +474,7 @@ func TestValidateAcceptsCoordinationDynamoDB(t *testing.T) {
 	}
 }
 
-func TestValidateRejectsDynamoDBWithoutTable(t *testing.T) {
+func TestValidateRejectsCoordinationDynamoDBWithoutTable(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()
 	c.Coordination.Driver = "dynamodb"
