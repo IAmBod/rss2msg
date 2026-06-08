@@ -137,9 +137,21 @@ type RuntimeConfig struct {
 }
 
 type CoordinationConfig struct {
-	Driver   string                  `mapstructure:"driver"`
-	Postgres CoordinationPGConfig    `mapstructure:"postgres"`
-	Redis    CoordinationRedisConfig `mapstructure:"redis"`
+	Driver   string                     `mapstructure:"driver"`
+	Postgres CoordinationPGConfig       `mapstructure:"postgres"`
+	Redis    CoordinationRedisConfig    `mapstructure:"redis"`
+	DynamoDB CoordinationDynamoDBConfig `mapstructure:"dynamodb"`
+}
+
+// CoordinationDynamoDBConfig configures the DynamoDB lease coordinator. The
+// lock table must have a partition key named "pk". lease_duration must safely
+// exceed your worst-case per-feed poll time (default 60s); if a poll outruns
+// the lease, a peer can steal the lock mid-poll and both instances poll.
+type CoordinationDynamoDBConfig struct {
+	Table         string        `mapstructure:"table"`          // required
+	Region        string        `mapstructure:"region"`         // optional; SDK default chain when empty
+	EndpointURL   string        `mapstructure:"endpoint_url"`   // optional; LocalStack/testing
+	LeaseDuration time.Duration `mapstructure:"lease_duration"` // 0 -> 60s
 }
 
 type CoordinationPGConfig struct {
