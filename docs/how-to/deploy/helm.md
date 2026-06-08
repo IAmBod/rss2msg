@@ -3,7 +3,7 @@ title: Deploy with the Helm chart
 type: how-to
 tags: [rss2msg/docs, operations, deployment, kubernetes, helm]
 summary: Install rss2msg on Kubernetes with the bundled Helm chart — pick a serve Deployment or a run-once CronJob, render config into a ConfigMap, inject secrets, and expose Prometheus metrics.
-updated: 2026-06-01
+updated: 2026-06-09
 ---
 
 # Deploy with the Helm chart
@@ -23,7 +23,7 @@ helm install rss2msg ./deploy/helm/rss2msg -f my-values.yaml
 Pin the image in production (the tag defaults to the chart's `appVersion`):
 
 ```bash
-helm install rss2msg ./deploy/helm/rss2msg --set image.tag=v0.0.2 -f my-values.yaml
+helm install rss2msg ./deploy/helm/rss2msg --set image.tag=v0.1.0 -f my-values.yaml
 ```
 
 ## Choose a workload mode

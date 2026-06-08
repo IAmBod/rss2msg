@@ -3,7 +3,7 @@ title: rss2msg Documentation
 type: index
 tags: [rss2msg/docs, moc]
 summary: Map of Content for rss2msg end-user, operator, and developer documentation.
-updated: 2026-05-31
+updated: 2026-06-09
 ---
 
 # rss2msg Documentation
@@ -28,6 +28,7 @@ Start here. Pages are grouped the way you use them.
     - [AWS Lambda](how-to/deploy/aws-lambda.md)
     - [Azure Container Apps](how-to/deploy/azure-container-apps.md)
     - [GCP Cloud Run](how-to/deploy/gcp-cloud-run.md)
+    - [Helm chart](how-to/deploy/helm.md)
 - [Kubernetes Health Probes](how-to/kubernetes-health-probes.md)
 - [Run with Docker](how-to/run-with-docker.md)
 - [Run Multiple Instances](how-to/run-multiple-instances.md)

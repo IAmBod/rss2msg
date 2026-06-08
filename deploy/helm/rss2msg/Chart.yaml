@@ -5,7 +5,7 @@ type: application
 # version is the chart version; bump on any chart change (SemVer).
 version: 0.1.0
 # appVersion tracks the rss2msg image tag this chart was validated against.
-appVersion: "0.0.2"
+appVersion: "0.1.0"
 home: https://github.com/IAmBod/rss2msg
 sources:
   - https://github.com/IAmBod/rss2msg
