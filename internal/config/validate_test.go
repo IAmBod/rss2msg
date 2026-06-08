@@ -739,6 +739,61 @@ func TestValidateRejectsStateSQLiteMissingPath(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsStateDynamoDB(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.State = StateConfig{Driver: "dynamodb", DynamoDB: DynamoDBStateConfig{Table: "rss2msg-state"}}
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateAcceptsStateDynamoDBWithTTL(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.State = StateConfig{Driver: "dynamodb", DynamoDB: DynamoDBStateConfig{
+		Table: "t", TTLAttribute: "expires_at", ItemTTL: 720 * time.Hour,
+	}}
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsStateDynamoDBMissingTable(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.State = StateConfig{Driver: "dynamodb"}
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "state.dynamodb.table") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsStateDynamoDBHalfTTL(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.State = StateConfig{Driver: "dynamodb", DynamoDB: DynamoDBStateConfig{Table: "t", TTLAttribute: "expires_at"}}
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "ttl_attribute and item_ttl") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidate_NoSQLiteStateWarningWithDynamoDBState(t *testing.T) {
+	// DynamoDB state is a shared, distributed-safe store, so pairing it with a
+	// distributed coordinator must not trip the single-instance warning.
+	c := sqliteStateScaleBase()
+	c.State = StateConfig{Driver: "dynamodb", DynamoDB: DynamoDBStateConfig{Table: "t"}}
+	c.Coordination = CoordinationConfig{Driver: "redis", Redis: CoordinationRedisConfig{URL: "redis://localhost:6379"}}
+	warnings, err := Validate(c)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if hasSQLiteStateScaleWarning(warnings) {
+		t.Fatalf("did not expect sqlite-state warning for dynamodb state, got %v", warnings)
+	}
+}
+
 func TestValidateAcceptsHTTPSinkWithDefaults(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()

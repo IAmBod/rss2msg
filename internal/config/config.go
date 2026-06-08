@@ -203,6 +203,7 @@ type StateConfig struct {
 	Driver   string                 `mapstructure:"driver"`
 	Postgres PostgresStateConfig    `mapstructure:"postgres"`
 	SQLite   SQLiteStateConfig      `mapstructure:"sqlite"`
+	DynamoDB DynamoDBStateConfig    `mapstructure:"dynamodb"`
 	Extra    map[string]interface{} `mapstructure:",remain"`
 }
 
@@ -221,6 +222,17 @@ type StatePGTLSConfig struct {
 
 type SQLiteStateConfig struct {
 	Path string `mapstructure:"path"`
+}
+
+// DynamoDBStateConfig configures the "dynamodb" state store: a shared,
+// distributed-safe table keyed by (feed_url, item_id). TTLAttribute + ItemTTL
+// opt into DynamoDB-native auto-pruning of old seen-items.
+type DynamoDBStateConfig struct {
+	Table        string        `mapstructure:"table"`         // required: table name
+	Region       string        `mapstructure:"region"`        // optional: AWS region (SDK default chain when empty)
+	EndpointURL  string        `mapstructure:"endpoint_url"`  // optional: LocalStack / DynamoDB Local
+	TTLAttribute string        `mapstructure:"ttl_attribute"` // optional: TTL attribute name on item rows
+	ItemTTL      time.Duration `mapstructure:"item_ttl"`      // optional: how long item rows live; requires ttl_attribute
 }
 
 type SinkConfig struct {
