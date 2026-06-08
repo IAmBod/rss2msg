@@ -26,6 +26,7 @@ run `task --list` for the full set:
 | `task build` | Compile `./cmd/rss2msg` → `./rss2msg`. |
 | `task test` | Unit tests: `go test -race ./...` (fast, no containers). |
 | `task test-integration` | Integration tests (`-tags=integration`); spins Postgres / Kafka / Redis / LocalStack via testcontainers — **requires Docker**. |
+| `task bench` | Run Go benchmarks for the hot paths (change detection, feed parsing, sink fan-out): `go test -bench=. -benchmem` (no containers). |
 | `task vet` | `go vet ./...` (dependency-free static check; always available). |
 | `task lint` | `golangci-lint run ./...` (the full lint gate CI runs; needs golangci-lint v2). |
 | `task tidy` | `go mod tidy`. |

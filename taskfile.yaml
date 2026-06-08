@@ -33,6 +33,11 @@ tasks:
     cmds:
       - '{{.GO}} test -race -tags=integration ./...'
 
+  bench:
+    desc: Run Go benchmarks for the hot paths (change detection, feed parsing, sink fan-out)
+    cmds:
+      - '{{.GO}} test -run=^$ -bench=. -benchmem ./...'
+
   vet:
     desc: Run go vet across all packages
     cmds:
