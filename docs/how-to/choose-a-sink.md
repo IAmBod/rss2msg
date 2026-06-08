@@ -17,7 +17,7 @@ Common fields on every sink:
 | field         | required | notes |
 | ------------- | -------- | ----- |
 | `name`        | yes      | Unique per config. Referenced by `feeds[].sinks` and `dead_letter`. |
-| `driver`      | yes      | One of `postgres`, `kafka`, `rabbitmq`, `nats`, `sqs`, `sns`, `dynamodb`, `gcp_pubsub`, `azureservicebus`, `dapr_pubsub`, `stdout`, `http`, `grpc`, `feed`, `composite`. |
+| `driver`      | yes      | One of `postgres`, `kafka`, `rabbitmq`, `nats`, `sqs`, `sns`, `dynamodb`, `gcp_pubsub`, `azureservicebus`, `cosmosdb`, `dapr_pubsub`, `stdout`, `http`, `grpc`, `feed`, `composite`. |
 | `dead_letter` | no       | Name of another declared sink. On retry exhaustion the change is delivered there once, with `dlq_from_sink`, `dlq_error`, and `dlq_attempts` annotations. A sink cannot be its own DLQ. |
 
 ## Drivers
@@ -33,6 +33,7 @@ Common fields on every sink:
 | rabbitmq  | AMQP routing (topic/direct/fanout)                                                       | [rabbitmq](sinks/rabbitmq.md)   |
 | nats      | NATS subjects; core fire-and-forget or JetStream persisted+acked                         | [nats](sinks/nats.md)           |
 | azureservicebus | Azure queue/topic, SAS or Azure AD auth                                            | [azureservicebus](sinks/azureservicebus.md) |
+| cosmosdb  | Azure Cosmos DB (NoSQL) document store, idempotent on item id, key or Azure AD auth      | [cosmosdb](sinks/cosmosdb.md)   |
 | dapr_pubsub | any broker, chosen by Dapr component YAML (one sink, 20+ brokers)                       | [dapr_pubsub](sinks/dapr-pubsub.md) |
 | stdout    | local dev, debugging, ad-hoc pipelines                                                   | [stdout](sinks/stdout.md)       |
 | http      | webhooks (Slack, Discord, custom receivers)                                              | [http](sinks/http.md)           |

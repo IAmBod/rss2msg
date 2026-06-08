@@ -54,6 +54,7 @@ var knownSinkDrivers = map[string]struct{}{
 	"composite":       {},
 	"gcp_pubsub":      {},
 	"azureservicebus": {},
+	"cosmosdb":        {},
 	"dapr_pubsub":     {},
 	"nats":            {},
 }
@@ -539,6 +540,22 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 				return *warnings, fmt.Errorf("sinks[%d] (azureservicebus %q): one of queue or topic is required", i, s.Name)
 			case hasQueue && hasTopic:
 				return *warnings, fmt.Errorf("sinks[%d] (azureservicebus %q): queue and topic are mutually exclusive", i, s.Name)
+			}
+		case "cosmosdb":
+			c := s.CosmosDB
+			hasEndpoint := strings.TrimSpace(c.Endpoint) != ""
+			hasConn := strings.TrimSpace(c.ConnectionString) != ""
+			switch {
+			case !hasEndpoint && !hasConn:
+				return *warnings, fmt.Errorf("sinks[%d] (cosmosdb %q): one of endpoint or connection_string is required", i, s.Name)
+			case hasEndpoint && hasConn:
+				return *warnings, fmt.Errorf("sinks[%d] (cosmosdb %q): endpoint and connection_string are mutually exclusive", i, s.Name)
+			}
+			if strings.TrimSpace(c.Database) == "" {
+				return *warnings, fmt.Errorf("sinks[%d] (cosmosdb %q): cosmosdb.database is required", i, s.Name)
+			}
+			if c.Throughput < 0 {
+				return *warnings, fmt.Errorf("sinks[%d] (cosmosdb %q): cosmosdb.throughput must not be negative", i, s.Name)
 			}
 		case "dapr_pubsub":
 			if strings.TrimSpace(s.DaprPubSub.PubsubName) == "" {

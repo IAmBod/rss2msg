@@ -16,6 +16,7 @@ import (
 	"github.com/iambod/rss2msg/internal/sink"
 	sinkasb "github.com/iambod/rss2msg/internal/sink/azureservicebus"
 	compositesink "github.com/iambod/rss2msg/internal/sink/composite"
+	sinkcosmos "github.com/iambod/rss2msg/internal/sink/cosmosdb"
 	sinkdapr "github.com/iambod/rss2msg/internal/sink/dapr"
 	sinkdynamodb "github.com/iambod/rss2msg/internal/sink/dynamodb"
 	feedsink "github.com/iambod/rss2msg/internal/sink/feed"
@@ -586,6 +587,16 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 			Namespace:        sc.AzureServiceBus.Namespace,
 			Queue:            sc.AzureServiceBus.Queue,
 			Topic:            sc.AzureServiceBus.Topic,
+		})
+	case "cosmosdb":
+		return sinkcosmos.New(ctx, sinkcosmos.Options{
+			Name:             sc.Name,
+			Endpoint:         sc.CosmosDB.Endpoint,
+			ConnectionString: sc.CosmosDB.ConnectionString,
+			Database:         sc.CosmosDB.Database,
+			Container:        sc.CosmosDB.Container,
+			CreateIfMissing:  sc.CosmosDB.CreateIfMissing,
+			Throughput:       sc.CosmosDB.Throughput,
 		})
 	case "composite":
 		return compositesink.New(compositesink.Options{
