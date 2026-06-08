@@ -3,7 +3,7 @@ title: Run with Docker
 type: how-to
 tags: [rss2msg/docs, operations, docker]
 summary: Build and run rss2msg with the multi-stage Dockerfile — a hot-reload development image, the distroless production image published to GHCR by the release pipeline, a Docker Compose dev stack, and the binary's built-in healthcheck.
-updated: 2026-06-03
+updated: 2026-06-08
 ---
 
 # Run with Docker
@@ -60,7 +60,8 @@ docker compose up --build            # or: task docker-up
 
 The app listens on the ports it's configured to use:
 
-- `8080` — feed-sink HTTP, when a [feed sink](sinks/feed.md) is configured.
+- `8080` — health probes (`/healthz`, `/readyz`, `/startupz`) on `serve`, and
+  feed-sink HTTP when a [feed sink](sinks/feed.md) is configured.
 - `9090` — Prometheus `/metrics`, when `telemetry.prometheus.enabled` is `true`.
 
 Need Postgres or Redis to exercise those drivers? Start the optional services with

@@ -32,6 +32,13 @@ services:
     ports:
       - "9090:9090"   # Prometheus /metrics, when telemetry.prometheus.enabled
       # - "8080:8080" # health probes / feed-sink HTTP, if you expose them
+    # The binary probes its own /readyz endpoint — no shell or curl needed.
+    healthcheck:
+      test: ["CMD", "rss2msg", "healthcheck"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
     depends_on:
       postgres:
         condition: service_healthy
@@ -80,11 +87,14 @@ docker compose up -d
 ## Notes
 
 - **Health checks.** The image is distroless with no shell or `curl`, so a
-  container-internal Compose `healthcheck` command can't run inside it. The
-  endpoints are HTTP — expose port `8080` and poll `/readyz` from outside, or rely
-  on `restart: unless-stopped` (the process exits non-zero on fatal errors). See
-  [Kubernetes Health Probes](../kubernetes-health-probes.md) for the endpoint
-  semantics.
+  classic `healthcheck` command can't shell out. The binary covers this itself:
+  `rss2msg healthcheck` probes its own endpoint over HTTP and exits `0`/non-zero,
+  which is what the Compose `healthcheck` above (and the image's built-in
+  `HEALTHCHECK`) run. It defaults to `/readyz`; use `--probe liveness` or
+  `--probe startup` for the others. `restart: unless-stopped` still covers fatal
+  exits. See [Run with Docker](../run-with-docker.md#health-checks) for the
+  subcommand and [Kubernetes Health Probes](../kubernetes-health-probes.md) for
+  endpoint semantics.
 - **One poller per feed set.** A single instance is the simplest setup. To run more
   than one replica, point them at a shared coordinator so they don't double-poll —
   see [Run Multiple Instances](../run-multiple-instances.md).

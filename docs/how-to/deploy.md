@@ -3,7 +3,7 @@ title: Deploy in Production
 type: how-to
 tags: [rss2msg/docs, operations, deployment]
 summary: Configure, validate, run, and observe rss2msg in production — config resolution, secrets, daemon vs job, and monitoring.
-updated: 2026-05-31
+updated: 2026-06-04
 ---
 
 # Deploy in Production
@@ -68,7 +68,8 @@ Docker Compose dev stack, and how to build a production image locally; see
 ### Platform recipes
 
 Step-by-step guides for the common runtimes — each covers packaging config,
-injecting secrets, health probes, and a scheduled `run-once` variant:
+injecting secrets, health probes (for the long-lived `serve` recipes), and a
+scheduled `run-once` variant:
 
 - [Docker Compose](deploy/docker-compose.md) — the published image as a service.
 - [Kubernetes](deploy/kubernetes.md) — ConfigMap, Secret, Deployment, Service, CronJob.
@@ -81,8 +82,10 @@ injecting secrets, health probes, and a scheduled `run-once` variant:
 They all start from the same model: keep secrets out of `config.yaml` (reference
 them as `${VAR}`), supply the file by baking a thin image (`FROM
 ghcr.io/iambod/rss2msg:latest` + `COPY config.yaml /etc/rss2msg/config.yaml`) or a
-platform-native volume/secret mount, and define health checks against the HTTP
-probe endpoints since the image has no shell.
+platform-native volume/secret mount, and wire health checks to the daemon's probe
+endpoints — either an orchestrator HTTP probe against `/readyz` on `:8080`, or the
+binary's own `rss2msg healthcheck` command (the image has no shell, so it probes
+itself over HTTP).
 
 ## 4. Scale out
 
