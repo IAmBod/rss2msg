@@ -76,16 +76,30 @@ Run it as an ECS **service** with `desiredCount: 1`.
 
 ## Health checks
 
-The image is distroless with no shell, so an ECS container-level `healthCheck`
-(which runs a command inside the container) can't work. Instead:
+The image is distroless with no shell, so the ECS container `healthCheck` can't
+shell out to `curl`. The binary probes itself instead — `rss2msg healthcheck`
+GETs its own endpoint over HTTP and exits `0`/non-zero — so set the container
+health check to run it (use the exec form; there's no shell):
 
-- If the service sits behind an Application Load Balancer, set the target group
-  health check to `GET /readyz` on port `8080`.
-- Otherwise omit the check — ECS restarts the task when the process exits, and
-  `serve` exits non-zero on fatal errors.
+```json
+"healthCheck": {
+  "command": ["CMD", "rss2msg", "healthcheck"],
+  "interval": 30,
+  "timeout": 5,
+  "startPeriod": 10,
+  "retries": 3
+}
+```
 
-See [Kubernetes Health Probes](../kubernetes-health-probes.md) for the meaning of
-`/healthz`, `/readyz`, and `/startupz`.
+`healthcheck` defaults to `/readyz`; pass `--probe liveness` or `--probe startup`
+for the others. If the service also sits behind an Application Load Balancer, set
+the target group health check to `GET /readyz` on port `8080` as well. Either way
+ECS restarts the task when the process exits, and `serve` exits non-zero on fatal
+errors.
+
+See [Run with Docker](../run-with-docker.md#health-checks) for the `healthcheck`
+subcommand and [Kubernetes Health Probes](../kubernetes-health-probes.md) for the
+meaning of `/healthz`, `/readyz`, and `/startupz`.
 
 ## IAM for AWS sinks
 

@@ -3,7 +3,7 @@ title: Configuration Reference
 type: reference
 tags: [rss2msg/docs, configuration]
 summary: Loading order, environment variables, and every config field except sinks, coordination, and feeds.
-updated: 2026-06-02
+updated: 2026-06-03
 ---
 
 # Configuration Reference
@@ -43,6 +43,7 @@ telemetry:     # zerolog + OTEL traces/metrics
 http:          # global HTTP defaults for feed fetching
 retry:         # sink retry policy
 runtime:       # shutdown + run-once concurrency
+health:        # Kubernetes-style probe endpoints (serve)
 state:         # seen-item store (required)
 coordination:  # multi-instance gating (optional)
 sinks:         # list, at least one (Publisher destinations)
@@ -265,6 +266,35 @@ poll and re-detected on the next.
 | `shutdown_drain_timeout` | `30s`   | `serve` waits this long for in-flight publishes to finish on SIGINT/SIGTERM before forcing exit. |
 | `run_once_concurrency`   | `0`     | Bounded worker pool for `run-once`. `0` means "one per feed" (no pool). |
 | `deliver_timeout`        | `0s`    | Bounds a single sink delivery — all retry attempts plus the DLQ handoff — so one wedged sink can't stall a feed's poll loop. `0` (or omitted) disables it; a positive value (e.g. `60s`) caps each delivery. |
+
+## `health`
+
+Kubernetes-style probe endpoints served by the `serve` daemon. Omitting the
+block entirely yields the defaults below; the listener is not started under
+`run-once`. See [Kubernetes Health Probes](../how-to/kubernetes-health-probes.md)
+for probe semantics and a sample Deployment.
+
+```yaml
+health:
+  enabled: true
+  listen: ":8080"               # probe listener address
+  liveness_path: /healthz       # 200 while the process is alive
+  readiness_path: /readyz       # 200 when started, not draining, deps reachable
+  startup_path: /startupz       # 503 until boot completes, then 200
+```
+
+| field            | default      | notes |
+| ---------------- | ------------ | ----- |
+| `enabled`        | `true`       | `false` starts no probe listener. |
+| `listen`         | `:8080`      | Probe listener address. Required when `enabled: true`. |
+| `liveness_path`  | `/healthz`   | `200` while the process is alive. |
+| `readiness_path` | `/readyz`    | `200` when started, not draining, and dependencies are reachable. |
+| `startup_path`   | `/startupz`  | `503` until boot completes, then `200`. |
+
+Validation rules: each path must start with `/`; the three paths must be
+distinct; `listen` is required when `enabled: true`. If
+`telemetry.prometheus.enabled` is set and `health.listen` equals
+`telemetry.prometheus.listen`, validation warns that one server will fail to bind.
 
 ## `state`
 
