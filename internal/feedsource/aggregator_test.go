@@ -3,6 +3,7 @@ package feedsource
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -91,6 +92,42 @@ func TestAggregatorEmptySetAccepted(t *testing.T) {
 	}
 	if len(got) != 0 {
 		t.Fatalf("want empty set, got %+v", got)
+	}
+}
+
+// TestAggregatorFetchesSourcesConcurrently proves Desired fans out the per-source
+// Feeds calls. Each source enters a barrier (Done then Wait) that only releases
+// once every source is in-flight simultaneously; a sequential implementation would
+// block on the first source's Wait forever, so the test would time out.
+func TestAggregatorFetchesSourcesConcurrently(t *testing.T) {
+	const n = 3
+	var barrier sync.WaitGroup
+	barrier.Add(n)
+	mk := func(name, url string) *fakeSource {
+		return newFake(name, func() ([]config.FeedConfig, error) {
+			barrier.Done()
+			barrier.Wait() // all n sources must run concurrently to get past this
+			return []config.FeedConfig{feed(url, time.Minute)}, nil
+		})
+	}
+	agg := NewAggregator(mk("a", "https://a"), mk("b", "https://b"), mk("c", "https://c"))
+
+	done := make(chan []config.FeedConfig, 1)
+	go func() {
+		got, err := agg.Desired(context.Background())
+		if err != nil {
+			t.Error(err)
+		}
+		done <- got
+	}()
+
+	select {
+	case got := <-done:
+		if len(got) != n {
+			t.Fatalf("want %d merged feeds, got %d: %+v", n, len(got), got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Desired did not fetch sources concurrently (barrier deadlock)")
 	}
 }
 
