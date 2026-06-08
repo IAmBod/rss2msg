@@ -137,9 +137,21 @@ type RuntimeConfig struct {
 }
 
 type CoordinationConfig struct {
-	Driver   string                  `mapstructure:"driver"`
-	Postgres CoordinationPGConfig    `mapstructure:"postgres"`
-	Redis    CoordinationRedisConfig `mapstructure:"redis"`
+	Driver   string                     `mapstructure:"driver"`
+	Postgres CoordinationPGConfig       `mapstructure:"postgres"`
+	Redis    CoordinationRedisConfig    `mapstructure:"redis"`
+	DynamoDB CoordinationDynamoDBConfig `mapstructure:"dynamodb"`
+}
+
+// CoordinationDynamoDBConfig configures the DynamoDB lease coordinator. The
+// lock table must have a partition key named "pk". lease_duration must safely
+// exceed your worst-case per-feed poll time (default 60s); if a poll outruns
+// the lease, a peer can steal the lock mid-poll and both instances poll.
+type CoordinationDynamoDBConfig struct {
+	Table         string        `mapstructure:"table"`          // required
+	Region        string        `mapstructure:"region"`         // optional; SDK default chain when empty
+	EndpointURL   string        `mapstructure:"endpoint_url"`   // optional; LocalStack/testing
+	LeaseDuration time.Duration `mapstructure:"lease_duration"` // 0 -> 60s
 }
 
 type CoordinationPGConfig struct {
@@ -203,6 +215,7 @@ type StateConfig struct {
 	Driver   string                 `mapstructure:"driver"`
 	Postgres PostgresStateConfig    `mapstructure:"postgres"`
 	SQLite   SQLiteStateConfig      `mapstructure:"sqlite"`
+	DynamoDB DynamoDBStateConfig    `mapstructure:"dynamodb"`
 	Extra    map[string]interface{} `mapstructure:",remain"`
 }
 
@@ -223,6 +236,17 @@ type SQLiteStateConfig struct {
 	Path string `mapstructure:"path"`
 }
 
+// DynamoDBStateConfig configures the "dynamodb" state store: a shared,
+// distributed-safe table keyed by (feed_url, item_id). TTLAttribute + ItemTTL
+// opt into DynamoDB-native auto-pruning of old seen-items.
+type DynamoDBStateConfig struct {
+	Table        string        `mapstructure:"table"`         // required: table name
+	Region       string        `mapstructure:"region"`        // optional: AWS region (SDK default chain when empty)
+	EndpointURL  string        `mapstructure:"endpoint_url"`  // optional: LocalStack / DynamoDB Local
+	TTLAttribute string        `mapstructure:"ttl_attribute"` // optional: TTL attribute name on item rows
+	ItemTTL      time.Duration `mapstructure:"item_ttl"`      // optional: how long item rows live; requires ttl_attribute
+}
+
 type SinkConfig struct {
 	Name            string                    `mapstructure:"name"`
 	Driver          string                    `mapstructure:"driver"`
@@ -232,6 +256,7 @@ type SinkConfig struct {
 	RabbitMQ        RabbitMQSinkConfig        `mapstructure:"rabbitmq"`
 	SQS             SQSSinkConfig             `mapstructure:"sqs"`
 	SNS             SNSSinkConfig             `mapstructure:"sns"`
+	DynamoDB        DynamoDBSinkConfig        `mapstructure:"dynamodb"`
 	Stdout          StdoutSinkConfig          `mapstructure:"stdout"`
 	HTTP            HTTPSinkConfig            `mapstructure:"http"`
 	Feed            FeedSinkConfig            `mapstructure:"feed"`
@@ -422,6 +447,23 @@ type SNSSinkConfig struct {
 	Region       string `mapstructure:"region"`
 	EndpointURL  string `mapstructure:"endpoint_url"`
 	MessageGroup string `mapstructure:"message_group"` // FIFO only: feed_url (default) | item_id | sink
+}
+
+// DynamoDBSinkConfig configures the DynamoDB sink (driver "dynamodb"). Each
+// change is written as a single idempotent PutItem keyed by
+// (partition=feed_url, sort=item_id) so re-publishing the same item overwrites
+// the row. DynamoDB is a datastore target, not pub/sub: downstream consumers
+// use DynamoDB Streams or polling.
+type DynamoDBSinkConfig struct {
+	Table        string `mapstructure:"table"`         // required: target table name
+	Region       string `mapstructure:"region"`        // optional; SDK default chain when empty
+	EndpointURL  string `mapstructure:"endpoint_url"`  // optional; DynamoDB Local / LocalStack
+	PartitionKey string `mapstructure:"partition_key"` // optional; default "feed_url"
+	SortKey      string `mapstructure:"sort_key"`      // optional; default "item_id"
+	// TTLAttribute, when set, adds a Number attribute (Unix epoch seconds) of
+	// detected_at + ItemTTL; must match the table's configured TTL attribute.
+	TTLAttribute string        `mapstructure:"ttl_attribute"`
+	ItemTTL      time.Duration `mapstructure:"item_ttl"`
 }
 
 // GCPPubSubSinkConfig configures the Google Cloud Pub/Sub sink (driver

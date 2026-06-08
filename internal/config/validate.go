@@ -24,6 +24,7 @@ var reservedHeaders = map[string]struct{}{
 var knownStateDrivers = map[string]struct{}{
 	"postgres": {},
 	"sqlite":   {},
+	"dynamodb": {},
 }
 
 // knownZerologLevels is the set of level names zerolog.ParseLevel accepts; used
@@ -45,6 +46,7 @@ var knownSinkDrivers = map[string]struct{}{
 	"rabbitmq":        {},
 	"sqs":             {},
 	"sns":             {},
+	"dynamodb":        {},
 	"stdout":          {},
 	"http":            {},
 	"grpc":            {},
@@ -105,6 +107,7 @@ var knownCoordinationDrivers = map[string]struct{}{
 	"memory":   {},
 	"postgres": {},
 	"redis":    {},
+	"dynamodb": {},
 }
 
 // Validate checks config invariants. It returns a slice of non-fatal
@@ -138,6 +141,17 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 	case "sqlite":
 		if strings.TrimSpace(c.State.SQLite.Path) == "" {
 			return *warnings, fmt.Errorf("state.sqlite.path is required when state.driver=sqlite")
+		}
+	case "dynamodb":
+		if strings.TrimSpace(c.State.DynamoDB.Table) == "" {
+			return *warnings, fmt.Errorf("state.dynamodb.table is required when state.driver=dynamodb")
+		}
+		d := c.State.DynamoDB
+		if (strings.TrimSpace(d.TTLAttribute) == "") != (d.ItemTTL <= 0) {
+			return *warnings, fmt.Errorf("state.dynamodb.ttl_attribute and item_ttl must both be set or both empty")
+		}
+		if d.ItemTTL < 0 {
+			return *warnings, fmt.Errorf("state.dynamodb.item_ttl %v must not be negative", d.ItemTTL)
 		}
 	}
 
@@ -247,6 +261,15 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			return *warnings, fmt.Errorf("coordination.redis.tls.cert_file and key_file must both be set or both empty")
 		}
 	}
+	if c.Coordination.Driver == "dynamodb" {
+		d := c.Coordination.DynamoDB
+		if strings.TrimSpace(d.Table) == "" {
+			return *warnings, fmt.Errorf("coordination.dynamodb.table is required when coordination.driver=dynamodb")
+		}
+		if d.LeaseDuration != 0 && d.LeaseDuration < time.Second {
+			return *warnings, fmt.Errorf("coordination.dynamodb.lease_duration %v is below the 1s minimum", d.LeaseDuration)
+		}
+	}
 
 	if c.Runtime.DeliverTimeout < 0 {
 		return *warnings, fmt.Errorf("runtime.deliver_timeout %v must not be negative (0 disables it)", c.Runtime.DeliverTimeout)
@@ -258,7 +281,7 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 	// keeps its own seen-items set and republishes everything other instances
 	// already sent. Mirror the feed-sink multi-instance warning below.
 	if c.State.Driver == "sqlite" &&
-		(c.Coordination.Driver == "redis" || c.Coordination.Driver == "postgres") {
+		(c.Coordination.Driver == "redis" || c.Coordination.Driver == "postgres" || c.Coordination.Driver == "dynamodb") {
 		*warnings = append(*warnings, fmt.Sprintf(
 			"coordination.driver=%q looks multi-instance but state.driver=%q is a per-instance local file; cross-instance dedup is broken and items will be republished (use state.driver: postgres)",
 			c.Coordination.Driver, c.State.Driver))
@@ -425,6 +448,13 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 				if !fifo {
 					return *warnings, fmt.Errorf("sinks[%d] (sns %q): message_group is only valid for FIFO topics (topic_arn must end with .fifo)", i, s.Name)
 				}
+			}
+		case "dynamodb":
+			if strings.TrimSpace(s.DynamoDB.Table) == "" {
+				return *warnings, fmt.Errorf("sinks[%d] (dynamodb %q): dynamodb.table is required", i, s.Name)
+			}
+			if strings.TrimSpace(s.DynamoDB.TTLAttribute) == "" && s.DynamoDB.ItemTTL != 0 {
+				return *warnings, fmt.Errorf("sinks[%d] (dynamodb %q): item_ttl set but ttl_attribute is empty", i, s.Name)
 			}
 		case "gcp_pubsub":
 			if strings.TrimSpace(s.GCPPubSub.ProjectID) == "" {

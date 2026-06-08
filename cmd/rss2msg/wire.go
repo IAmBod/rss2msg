@@ -6,6 +6,7 @@ import (
 
 	"github.com/iambod/rss2msg/internal/config"
 	"github.com/iambod/rss2msg/internal/coord"
+	coorddynamo "github.com/iambod/rss2msg/internal/coord/dynamodb"
 	coordmem "github.com/iambod/rss2msg/internal/coord/memory"
 	coordpg "github.com/iambod/rss2msg/internal/coord/postgres"
 	coordredis "github.com/iambod/rss2msg/internal/coord/redis"
@@ -17,6 +18,7 @@ import (
 	compositesink "github.com/iambod/rss2msg/internal/sink/composite"
 	sinkcosmos "github.com/iambod/rss2msg/internal/sink/cosmosdb"
 	sinkdapr "github.com/iambod/rss2msg/internal/sink/dapr"
+	sinkdynamodb "github.com/iambod/rss2msg/internal/sink/dynamodb"
 	feedsink "github.com/iambod/rss2msg/internal/sink/feed"
 	sinkgcppubsub "github.com/iambod/rss2msg/internal/sink/gcppubsub"
 	sinkgrpc "github.com/iambod/rss2msg/internal/sink/grpc"
@@ -29,6 +31,7 @@ import (
 	sinksqs "github.com/iambod/rss2msg/internal/sink/sqs"
 	sinkstdout "github.com/iambod/rss2msg/internal/sink/stdout"
 	"github.com/iambod/rss2msg/internal/state"
+	statedynamodb "github.com/iambod/rss2msg/internal/state/dynamodb"
 	statepg "github.com/iambod/rss2msg/internal/state/postgres"
 	statesqlite "github.com/iambod/rss2msg/internal/state/sqlite"
 	"github.com/iambod/rss2msg/internal/telemetry"
@@ -229,6 +232,13 @@ func openCoordinator(ctx context.Context, cc config.CoordinationConfig, sc confi
 		})
 	case "redis":
 		return coordredis.New(ctx, redisCoordOptions(cc))
+	case "dynamodb":
+		return coorddynamo.New(ctx, coorddynamo.Options{
+			Table:         cc.DynamoDB.Table,
+			Region:        cc.DynamoDB.Region,
+			EndpointURL:   cc.DynamoDB.EndpointURL,
+			LeaseDuration: cc.DynamoDB.LeaseDuration,
+		})
 	default:
 		return nil, fmt.Errorf("unsupported coordination driver %q", driver)
 	}
@@ -408,6 +418,14 @@ func openStateStore(ctx context.Context, c config.StateConfig) (state.Store, err
 		})
 	case "sqlite":
 		return statesqlite.New(ctx, c.SQLite.Path)
+	case "dynamodb":
+		return statedynamodb.New(ctx, statedynamodb.Options{
+			Table:        c.DynamoDB.Table,
+			Region:       c.DynamoDB.Region,
+			EndpointURL:  c.DynamoDB.EndpointURL,
+			TTLAttribute: c.DynamoDB.TTLAttribute,
+			ItemTTL:      c.DynamoDB.ItemTTL,
+		})
 	default:
 		return nil, fmt.Errorf("unsupported state driver %q", c.Driver)
 	}
@@ -479,6 +497,17 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 			Region:       sc.SNS.Region,
 			EndpointURL:  sc.SNS.EndpointURL,
 			MessageGroup: sc.SNS.MessageGroup,
+		})
+	case "dynamodb":
+		return sinkdynamodb.New(ctx, sinkdynamodb.Options{
+			Name:         sc.Name,
+			Table:        sc.DynamoDB.Table,
+			Region:       sc.DynamoDB.Region,
+			EndpointURL:  sc.DynamoDB.EndpointURL,
+			PartitionKey: sc.DynamoDB.PartitionKey,
+			SortKey:      sc.DynamoDB.SortKey,
+			TTLAttribute: sc.DynamoDB.TTLAttribute,
+			ItemTTL:      sc.DynamoDB.ItemTTL,
 		})
 	case "feed":
 		f := sc.Feed

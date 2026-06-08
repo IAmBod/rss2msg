@@ -26,6 +26,7 @@ run `task --list` for the full set:
 | `task build` | Compile `./cmd/rss2msg` → `./rss2msg`. |
 | `task test` | Unit tests: `go test -race ./...` (fast, no containers). |
 | `task test-integration` | Integration tests (`-tags=integration`); spins Postgres / Kafka / Redis / LocalStack via testcontainers — **requires Docker**. |
+| `task bench` | Run Go benchmarks for the hot paths (change detection, feed parsing, sink fan-out): `go test -bench=. -benchmem` (no containers). |
 | `task vet` | `go vet ./...` (dependency-free static check; always available). |
 | `task lint` | `golangci-lint run ./...` (the full lint gate CI runs; needs golangci-lint v2). |
 | `task tidy` | `go mod tidy`. |
@@ -37,6 +38,14 @@ run `task --list` for the full set:
 The end-to-end suite lives in [`test/e2e`](test/e2e) and also needs Docker. The
 release pipeline (golangci-lint, git-cliff, GoReleaser, and the GitHub Actions
 workflows) is documented in [docs/development/releasing.md](docs/development/releasing.md).
+
+On every pull request, CI also runs a **benchmark regression gate**
+([`scripts/bench-compare.sh`](scripts/bench-compare.sh)): it benchmarks the PR tree
+and its merge base with benchstat and fails if a hot-path benchmark regresses beyond
+the threshold (default 10%). Significance is benchstat's job — it reports `~` for
+changes within runner noise — so the gate only trips on a statistically significant
+slowdown. Run it locally with `scripts/bench-compare.sh <base-ref>` (tune via
+`BENCH_THRESHOLD` / `BENCH_COUNT`).
 
 ## Parallel agents: worktrees and separate PRs
 

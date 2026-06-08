@@ -14,6 +14,7 @@ updated: 2026-05-30
 | kafka    | `Key = item_id`          | JSON `Change` value | Headers: `feed_url`, `kind`, `schema_version`, `traceparent?`, `tracestate?`, `dlq_*?`. |
 | sqs      | n/a                      | JSON `Change` body  | MessageAttributes: same as Kafka headers.                         |
 | sns      | n/a                      | JSON `Change` body  | MessageAttributes: same as Kafka headers.                         |
+| dynamodb | `(feed_url, item_id)` PK | item attributes per `Change` field | Idempotent `PutItem` (upsert); optional Number TTL attribute. Consume via Streams/polling. |
 | gcp_pubsub | `OrderingKey` (optional) | JSON `Change` `Data` | Attributes: same as Kafka headers.                              |
 | azureservicebus | `MessageID = item_id` | JSON `Change` body | ApplicationProperties: same keys as Kafka headers; `ContentType: application/json`. |
 | cosmosdb | `id = sha256(feed_url \0 item_id)`, partition `/feed_url` | JSON `Change` document (with added `id`) | Stored as a document; idempotent on `id` (409 Conflict swallowed). |

@@ -186,6 +186,41 @@ func TestValidateAcceptsSQSSink(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsDynamoDBSink(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "ddb-x", Driver: "dynamodb",
+		DynamoDB: DynamoDBSinkConfig{Table: "rss2msg-changes"},
+	})
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsDynamoDBWithoutTable(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{Name: "ddb-x", Driver: "dynamodb"})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "table") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsDynamoDBItemTTLWithoutAttribute(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "ddb-x", Driver: "dynamodb",
+		DynamoDB: DynamoDBSinkConfig{Table: "t", ItemTTL: time.Hour},
+	})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "ttl_attribute") {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestValidateRejectsSQSWithoutQueueURL(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()
@@ -426,6 +461,39 @@ func TestValidateAcceptsCoordinationRedis(t *testing.T) {
 	c.Coordination.Redis.URL = "redis://localhost:6379/0"
 	if _, err := Validate(c); err != nil {
 		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateAcceptsCoordinationDynamoDB(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination.Driver = "dynamodb"
+	c.Coordination.DynamoDB.Table = "rss2msg-locks"
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsCoordinationDynamoDBWithoutTable(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination.Driver = "dynamodb"
+	c.Coordination.DynamoDB.Table = ""
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "coordination.dynamodb.table") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsDynamoDBSubSecondLease(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Coordination.Driver = "dynamodb"
+	c.Coordination.DynamoDB.Table = "rss2msg-locks"
+	c.Coordination.DynamoDB.LeaseDuration = 500 * time.Millisecond
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "lease_duration") {
+		t.Fatalf("got %v", err)
 	}
 }
 
@@ -701,6 +769,61 @@ func TestValidateRejectsStateSQLiteMissingPath(t *testing.T) {
 	_, err := Validate(c)
 	if err == nil || !strings.Contains(err.Error(), "state.sqlite.path") {
 		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateAcceptsStateDynamoDB(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.State = StateConfig{Driver: "dynamodb", DynamoDB: DynamoDBStateConfig{Table: "rss2msg-state"}}
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateAcceptsStateDynamoDBWithTTL(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.State = StateConfig{Driver: "dynamodb", DynamoDB: DynamoDBStateConfig{
+		Table: "t", TTLAttribute: "expires_at", ItemTTL: 720 * time.Hour,
+	}}
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsStateDynamoDBMissingTable(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.State = StateConfig{Driver: "dynamodb"}
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "state.dynamodb.table") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsStateDynamoDBHalfTTL(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.State = StateConfig{Driver: "dynamodb", DynamoDB: DynamoDBStateConfig{Table: "t", TTLAttribute: "expires_at"}}
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "ttl_attribute and item_ttl") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidate_NoSQLiteStateWarningWithDynamoDBState(t *testing.T) {
+	// DynamoDB state is a shared, distributed-safe store, so pairing it with a
+	// distributed coordinator must not trip the single-instance warning.
+	c := sqliteStateScaleBase()
+	c.State = StateConfig{Driver: "dynamodb", DynamoDB: DynamoDBStateConfig{Table: "t"}}
+	c.Coordination = CoordinationConfig{Driver: "redis", Redis: CoordinationRedisConfig{URL: "redis://localhost:6379"}}
+	warnings, err := Validate(c)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if hasSQLiteStateScaleWarning(warnings) {
+		t.Fatalf("did not expect sqlite-state warning for dynamodb state, got %v", warnings)
 	}
 }
 
