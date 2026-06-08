@@ -28,6 +28,7 @@ import (
 	sinksqs "github.com/iambod/rss2msg/internal/sink/sqs"
 	sinkstdout "github.com/iambod/rss2msg/internal/sink/stdout"
 	"github.com/iambod/rss2msg/internal/state"
+	statedynamodb "github.com/iambod/rss2msg/internal/state/dynamodb"
 	statepg "github.com/iambod/rss2msg/internal/state/postgres"
 	statesqlite "github.com/iambod/rss2msg/internal/state/sqlite"
 	"github.com/iambod/rss2msg/internal/telemetry"
@@ -407,6 +408,14 @@ func openStateStore(ctx context.Context, c config.StateConfig) (state.Store, err
 		})
 	case "sqlite":
 		return statesqlite.New(ctx, c.SQLite.Path)
+	case "dynamodb":
+		return statedynamodb.New(ctx, statedynamodb.Options{
+			Table:        c.DynamoDB.Table,
+			Region:       c.DynamoDB.Region,
+			EndpointURL:  c.DynamoDB.EndpointURL,
+			TTLAttribute: c.DynamoDB.TTLAttribute,
+			ItemTTL:      c.DynamoDB.ItemTTL,
+		})
 	default:
 		return nil, fmt.Errorf("unsupported state driver %q", c.Driver)
 	}
