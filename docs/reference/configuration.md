@@ -87,6 +87,11 @@ telemetry:
     sample_rate: 1.0
     traces_sample_rate: 0.0
     debug: false
+  posthog:
+    enabled: false
+    # api_key: ${POSTHOG_API_KEY}
+    endpoint: https://us.i.posthog.com
+    level: error
   cloudwatch:
     enabled: false
     # region: us-east-1
