@@ -24,6 +24,7 @@ var reservedHeaders = map[string]struct{}{
 var knownStateDrivers = map[string]struct{}{
 	"postgres": {},
 	"sqlite":   {},
+	"dynamodb": {},
 }
 
 // knownZerologLevels is the set of level names zerolog.ParseLevel accepts; used
@@ -137,6 +138,17 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 	case "sqlite":
 		if strings.TrimSpace(c.State.SQLite.Path) == "" {
 			return *warnings, fmt.Errorf("state.sqlite.path is required when state.driver=sqlite")
+		}
+	case "dynamodb":
+		if strings.TrimSpace(c.State.DynamoDB.Table) == "" {
+			return *warnings, fmt.Errorf("state.dynamodb.table is required when state.driver=dynamodb")
+		}
+		d := c.State.DynamoDB
+		if (strings.TrimSpace(d.TTLAttribute) == "") != (d.ItemTTL <= 0) {
+			return *warnings, fmt.Errorf("state.dynamodb.ttl_attribute and item_ttl must both be set or both empty")
+		}
+		if d.ItemTTL < 0 {
+			return *warnings, fmt.Errorf("state.dynamodb.item_ttl %v must not be negative", d.ItemTTL)
 		}
 	}
 

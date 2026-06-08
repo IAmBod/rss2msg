@@ -117,7 +117,7 @@ coordination:
   #     insecure_skip_verify: false             # true = disable cert verification (test only)
 
 state:
-  driver: sqlite   # postgres | sqlite
+  driver: sqlite   # postgres | sqlite | dynamodb
   sqlite:
     path: ./rss2msg.db    # filesystem path; ":memory:" and "?_pragma=..." are accepted
   # postgres:
@@ -128,6 +128,12 @@ state:
   #     key_file:  /etc/ssl/pg-client.key
   #     server_name: pg.internal             # SNI / cert-verify hostname override
   #     insecure_skip_verify: false          # true = disable cert verification (test only)
+  # dynamodb:                # shared, distributed-safe store (good with a redis/postgres coordinator)
+  #   table: rss2msg-state   # required; table with PK feed_url (S) + SK item_id (S), provisioned out of band
+  #   region: us-east-1      # optional; SDK default chain (env / shared config) when empty
+  #   endpoint_url:          # optional; LocalStack / DynamoDB Local override
+  #   ttl_attribute: expires_at   # optional; enables DynamoDB-native pruning of old seen-items
+  #   item_ttl: 720h              # required iff ttl_attribute is set; how long item rows live
 
 sinks:
   # A composite fans every change out to its children. Used as `default`, so

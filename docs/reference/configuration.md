@@ -305,7 +305,7 @@ subsequent polls send conditional requests.
 
 ```yaml
 state:
-  driver: postgres        # postgres | sqlite
+  driver: postgres        # postgres | sqlite | dynamodb
   postgres:
     dsn: ${POSTGRES_DSN}
     tls:                  # rejected if DSN has sslmode=disable
@@ -316,19 +316,31 @@ state:
       insecure_skip_verify: false
   # sqlite:
   #   path: ./rss2msg.db
+  # dynamodb:
+  #   table: rss2msg-state    # PK feed_url (S) + SK item_id (S), provisioned out of band
+  #   region: us-east-1
+  #   endpoint_url:           # LocalStack / DynamoDB Local override
+  #   ttl_attribute: expires_at
+  #   item_ttl: 720h
 ```
 
-| field              | required             | notes |
-| ------------------ | -------------------- | ----- |
-| `driver`           | yes                  | `postgres` or `sqlite`. |
-| `postgres.dsn`     | yes (driver=postgres) | Standard `postgres://` DSN. The store applies its migrations idempotently on `New`. |
-| `postgres.tls.*`   | no                   | Optional structured TLS config. Same field surface as `coordination.postgres.tls` — see [Secure Connections (TLS)](../how-to/secure-connections-tls.md) for the full table. Rejected when the DSN sets `sslmode=disable`. |
-| `sqlite.path`      | yes (driver=sqlite)  | Filesystem path passed verbatim to the `modernc.org/sqlite` driver. `:memory:` and `?_pragma=…` query strings are accepted. |
+| field                    | required                | notes |
+| ------------------------ | ----------------------- | ----- |
+| `driver`                 | yes                     | `postgres`, `sqlite`, or `dynamodb`. |
+| `postgres.dsn`           | yes (driver=postgres)   | Standard `postgres://` DSN. The store applies its migrations idempotently on `New`. |
+| `postgres.tls.*`         | no                      | Optional structured TLS config. Same field surface as `coordination.postgres.tls` — see [Secure Connections (TLS)](../how-to/secure-connections-tls.md) for the full table. Rejected when the DSN sets `sslmode=disable`. |
+| `sqlite.path`            | yes (driver=sqlite)     | Filesystem path passed verbatim to the `modernc.org/sqlite` driver. `:memory:` and `?_pragma=…` query strings are accepted. |
+| `dynamodb.table`         | yes (driver=dynamodb)   | DynamoDB table name. Provision it out of band with partition key `feed_url` (String) and sort key `item_id` (String); the store does not create it. |
+| `dynamodb.region`        | no                      | AWS region. Empty uses the SDK default chain (env, shared config, instance metadata). |
+| `dynamodb.endpoint_url`  | no                      | Service endpoint override for LocalStack / DynamoDB Local. |
+| `dynamodb.ttl_attribute` | no                      | Names the DynamoDB TTL attribute (epoch seconds) written on item rows. Must match the table's `TimeToLiveSpecification` for auto-pruning to take effect. Requires `item_ttl`. |
+| `dynamodb.item_ttl`      | yes (with ttl_attribute) | How long an item row lives after its last seen time, e.g. `720h`. Must be set together with `ttl_attribute`. |
 
 | driver     | concurrency / scope                                              | when to use |
 | ---------- | ---------------------------------------------------------------- | ----------- |
 | `postgres` | Shared across instances; writers serialised by the DB.           | Production, multi-instance, or when state already lives in Postgres. |
 | `sqlite`   | Single file on local disk. WAL + busy-timeout enabled by default; the store uses one connection so writes are serialised in-process. Not shared between processes/nodes. | Single-instance deployments, local dev, edge / embedded contexts. |
+| `dynamodb` | Shared, distributed-safe table; strongly-consistent reads. A feed's meta and items share a partition (`feed_url`) with the meta row under a reserved `#META` sort key. Optional TTL auto-pruning of old seen-items. | Production, multi-instance, AWS-native / serverless deployments. |
 
 Schema created on first start (idempotent `CREATE TABLE IF NOT EXISTS`). The
 Postgres DDL is shown; the SQLite store uses the same logical schema with
