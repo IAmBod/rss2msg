@@ -39,6 +39,14 @@ The end-to-end suite lives in [`test/e2e`](test/e2e) and also needs Docker. The
 release pipeline (golangci-lint, git-cliff, GoReleaser, and the GitHub Actions
 workflows) is documented in [docs/development/releasing.md](docs/development/releasing.md).
 
+On every pull request, CI also runs a **benchmark regression gate**
+([`scripts/bench-compare.sh`](scripts/bench-compare.sh)): it benchmarks the PR tree
+and its merge base with benchstat and fails if a hot-path benchmark regresses beyond
+the threshold (default 10%). Significance is benchstat's job — it reports `~` for
+changes within runner noise — so the gate only trips on a statistically significant
+slowdown. Run it locally with `scripts/bench-compare.sh <base-ref>` (tune via
+`BENCH_THRESHOLD` / `BENCH_COUNT`).
+
 ## Parallel agents: worktrees and separate PRs
 
 **Multiple Claude instances run on this repo in parallel.** To avoid stepping on each
