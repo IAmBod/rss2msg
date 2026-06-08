@@ -52,16 +52,16 @@ func pollHandler(pipes []scheduler.FeedPipeline, defaultConcurrency int) func(co
 	}
 }
 
-// effectiveArgs injects an implicit "lambda" subcommand when the process is
-// running inside the Lambda execution environment (AWS_LAMBDA_RUNTIME_API is set
-// only there) and no explicit subcommand was given. This lets a bare binary —
-// a zip custom-runtime `bootstrap`, or a container with no command — start the
+// effectiveArgs injects an implicit subcommand (resolved by implicitSubcommand
+// from the serverless execution environment) when no explicit subcommand was
+// given. This lets a bare binary — a zip custom-runtime `bootstrap`, an Azure
+// Functions custom handler, or a container with no command — start the right
 // handler automatically, while any explicit subcommand is left untouched.
-func effectiveArgs(args []string, lambdaRuntimeAPI string) []string {
-	if lambdaRuntimeAPI == "" || len(args) > 1 {
+func effectiveArgs(args []string, implicit string) []string {
+	if implicit == "" || len(args) > 1 {
 		return args
 	}
-	return append(args, "lambda")
+	return append(args, implicit)
 }
 
 // newLambdaCmd is the entry point used inside the AWS Lambda execution

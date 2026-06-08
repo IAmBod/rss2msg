@@ -2,8 +2,8 @@
 title: CLI
 type: reference
 tags: [rss2msg/docs, cli]
-summary: The serve, run-once, lambda, validate-config, generate-config, healthcheck, and version commands, their flags, and signal handling.
-updated: 2026-06-03
+summary: The serve, run-once, lambda, azure-functions, validate-config, generate-config, healthcheck, and version commands, their flags, and signal handling.
+updated: 2026-06-09
 ---
 
 # CLI
@@ -15,6 +15,7 @@ Commands
   serve              Run as a long-lived daemon; one goroutine per feed
   run-once           Poll every feed once and exit (bounded worker pool)
   lambda             Run as an AWS Lambda function; one poll cycle per invocation
+  azure-functions    Run as an Azure Functions custom handler; one poll cycle per invocation
   validate-config    Parse config, dial state + each sink, exit 0/1
   generate-config    Print an annotated, runnable reference config
   healthcheck        Probe the health endpoint over HTTP, exit 0/1
@@ -65,6 +66,14 @@ once, then polls every feed once per invocation (the `run-once` work, bounded by
 explicit subcommand the binary auto-starts this command, so a bare custom-runtime
 `bootstrap` or a command-less container image needs no wrapper. See
 [Deploy on AWS Lambda](../how-to/deploy/aws-lambda.md).
+
+`azure-functions` (alias `azure`) runs rss2msg as an Azure Functions custom handler:
+it does the cold-start wiring once, then serves an HTTP endpoint the Functions host
+invokes once per trigger firing, polling every feed once per request (bounded by
+[`runtime.run_once_concurrency`](configuration.md#runtime)). It listens on
+`127.0.0.1` at the port the host provides via `FUNCTIONS_CUSTOMHANDLER_PORT` (default
+`8080` otherwise). Inside the Functions host with no explicit subcommand the binary
+auto-starts this command. See [Deploy on Azure Functions](../how-to/deploy/azure-functions.md).
 
 `serve` exits cleanly on SIGINT/SIGTERM and waits up to
 [`runtime.shutdown_drain_timeout`](configuration.md#runtime) for in-flight publishes to finish.
