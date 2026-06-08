@@ -137,7 +137,7 @@ against `/healthz`, etc.) work as usual.
 The serve daemon exposes Kubernetes-style probe endpoints — `/healthz` (liveness),
 `/readyz` (readiness, which also checks the state store and coordinator), and
 `/startupz` (startup) — on `health.listen` (default `:8080`). See
-[Kubernetes health probes](kubernetes-health-probes.md) for the endpoint details.
+[Kubernetes health probes](configure-kubernetes-health-probes.md) for the endpoint details.
 
 Because the distroless image has no shell, `curl`, or `wget`, the classic
 `HEALTHCHECK CMD curl …` can't run. Instead the binary ships a `healthcheck`

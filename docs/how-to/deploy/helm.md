@@ -32,7 +32,7 @@ helm install rss2msg ./deploy/helm/rss2msg --set image.tag=v0.1.0 -f my-values.y
 
 - `mode: deployment` (default) runs a long-lived `serve` daemon with startup,
   liveness, and readiness probes (see
-  [Kubernetes Health Probes](../kubernetes-health-probes.md)) and a metrics Service.
+  [Configure Kubernetes Health Probes](../configure-kubernetes-health-probes.md)) and a metrics Service.
 - `mode: cronjob` runs `run-once` on `cronjob.schedule`, polling every feed once and
   exiting — the same scheduled pattern as the
   [Kubernetes CronJob recipe](kubernetes.md#5-scheduled-runs-with-a-cronjob).
@@ -105,7 +105,7 @@ helm template rss2msg ./deploy/helm/rss2msg -f my-values.yaml
 ## Related
 
 - [Deploy on Kubernetes](kubernetes.md) — the raw manifests this chart packages.
-- [Kubernetes Health Probes](../kubernetes-health-probes.md) — probe endpoint semantics.
+- [Configure Kubernetes Health Probes](../configure-kubernetes-health-probes.md) — probe endpoint semantics.
 - [Run Multiple Instances](../run-multiple-instances.md) — shared coordinator for multiple replicas.
 - [Telemetry](../../reference/telemetry.md) — Prometheus listener and metrics.
 - [Deploy in Production](../deploy.md) — config resolution, secrets, observability.

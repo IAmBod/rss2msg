@@ -1,12 +1,12 @@
 ---
-title: Feeds from CMS Platforms
+title: Get Feeds from CMS Platforms
 type: how-to
 tags: [rss2msg/docs, feeds, cms]
 summary: Find the RSS/Atom feed URL published by common CMS and publishing platforms, and point rss2msg at it.
 updated: 2026-06-09
 ---
 
-# Feeds from CMS Platforms
+# Get Feeds from CMS Platforms
 
 Most content management and publishing platforms expose an RSS or Atom feed at a
 predictable, platform-specific URL. rss2msg polls any such URL — to the service it
@@ -87,6 +87,6 @@ available if a platform's feed needs authentication — see
 ## Related
 
 - [Configure Feeds](configure-feeds.md) — the `feeds[]` fields these URLs go into.
-- [Dynamic Feed Sources](dynamic-feed-sources.md) — load the feed list at runtime instead of hard-coding it.
+- [Load Feeds Dynamically](load-feeds-dynamically.md) — load the feed list at runtime instead of hard-coding it.
 - [Getting Started](../getting-started.md) — your first feed end to end.
 - [`config.example.full.yaml`](../../examples/config.example.full.yaml) — a runnable example with a large real-world feed list.

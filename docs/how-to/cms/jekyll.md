@@ -29,9 +29,9 @@ feeds:
 ```
 
 If a documented path 404s, fall back to the page's autodiscovery `<link>` — see
-[Finding any feed URL](../feeds-from-cms-platforms.md#finding-any-feed-url).
+[Finding any feed URL](../get-feeds-from-cms-platforms.md#finding-any-feed-url).
 
 ## Related
 
-- [Feeds from CMS Platforms](../feeds-from-cms-platforms.md) — the platform index and feed-URL shortcuts.
+- [Get Feeds from CMS Platforms](../get-feeds-from-cms-platforms.md) — the platform index and feed-URL shortcuts.
 - [Configure Feeds](../configure-feeds.md) — the `feeds[]` fields these URLs go into.

@@ -15,7 +15,7 @@ always grants the lease).
 > [!warning]
 > **A distributed coordinator needs a shared state store.** The coordinator only
 > serialises *polling*; deduplication of already-seen items lives in the
-> [state store](state-stores.md). The `sqlite` state store is a
+> [state store](choose-a-state-store.md). The `sqlite` state store is a
 > local per-instance file, so each instance keeps its own seen-items set: instance B
 > will republish every item instance A already sent. When you set
 > `coordination.driver` to `redis`, `postgres`, or `dynamodb`, also set
@@ -75,5 +75,5 @@ via separate scrape targets. See
 - [Redis coordinator](coordinators/redis.md) — TTL lock with single/sentinel/cluster topologies.
 - [DynamoDB coordinator](coordinators/dynamodb.md) — conditional-write lease.
 - [Secure Connections (TLS)](secure-connections-tls.md) — TLS for the postgres/redis coordinators.
-- [Choose a State Store](state-stores.md) — the state store, which the postgres coordinator's DSN falls back to.
+- [Choose a State Store](choose-a-state-store.md) — the state store, which the postgres coordinator's DSN falls back to.
 - [Operational Notes](../explanation/operations.md) — no-leader-election semantics and crash recovery.

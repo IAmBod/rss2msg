@@ -50,7 +50,7 @@ sinks:         # list, at least one (Publisher destinations)
 feeds:         # list, at least one
 ```
 
-- [`state`](../how-to/state-stores.md) — seen-item store (required).
+- [`state`](../how-to/choose-a-state-store.md) — seen-item store (required).
 - [`coordination`](../how-to/run-multiple-instances.md) — multi-instance gating (optional).
 - [`sinks`](../how-to/choose-a-sink.md) — list, at least one (Publisher destinations).
 - [`feeds`](../how-to/configure-feeds.md) — list, at least one.
@@ -272,7 +272,7 @@ poll and re-detected on the next.
 
 Kubernetes-style probe endpoints served by the `serve` daemon. Omitting the
 block entirely yields the defaults below; the listener is not started under
-`run-once`. See [Kubernetes Health Probes](../how-to/kubernetes-health-probes.md)
+`run-once`. See [Configure Kubernetes Health Probes](../how-to/configure-kubernetes-health-probes.md)
 for probe semantics and a sample Deployment.
 
 ```yaml
@@ -302,6 +302,6 @@ distinct; `listen` is required when `enabled: true`. If
 - [CLI](cli.md) — flags that point at this config file.
 - [Configure Feeds](../how-to/configure-feeds.md) — the `feeds` list.
 - [Choose a Sink](../how-to/choose-a-sink.md) — the `sinks` list.
-- [Choose a State Store](../how-to/state-stores.md) — the `state` block.
+- [Choose a State Store](../how-to/choose-a-state-store.md) — the `state` block.
 - [Run Multiple Instances](../how-to/run-multiple-instances.md) — the `coordination` block.
 - [Secure Connections (TLS)](../how-to/secure-connections-tls.md) — TLS for Postgres state and coordination.

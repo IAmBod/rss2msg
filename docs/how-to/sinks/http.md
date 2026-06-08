@@ -48,4 +48,4 @@ Request layout:
 - [Secure Connections (TLS)](../secure-connections-tls.md#sinks) — custom CA / mTLS for this sink.
 - [Sink Wire Formats](../../reference/wire-formats.md) — on-the-wire layout.
 - [Change Envelope](../../reference/change-envelope.md) — the payload body.
-- [Integrate with External Systems](../integrations.md) — drive Zapier, n8n, and other automation platforms with this sink.
+- [Integrate with External Systems](../integrate-with-external-systems.md) — drive Zapier, n8n, and other automation platforms with this sink.

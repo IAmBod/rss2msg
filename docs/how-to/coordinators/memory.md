@@ -30,9 +30,9 @@ no `coordination` block use it implicitly.
 
 To scale horizontally, switch to a distributed coordinator
 ([postgres](postgres.md), [redis](redis.md), or [dynamodb](dynamodb.md)) and pair it
-with a shared [state store](../state-stores.md).
+with a shared [state store](../choose-a-state-store.md).
 
 ## Related
 
 - [Run Multiple Instances](../run-multiple-instances.md) — the coordinator overview, comparison table, and lock mechanics.
-- [Choose a State Store](../state-stores.md) — the state store.
+- [Choose a State Store](../choose-a-state-store.md) — the state store.

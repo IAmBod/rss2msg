@@ -17,7 +17,7 @@ instance releases its leases after `lock_ttl`. There is no leader election.
 > [!warning]
 > **Pair it with a shared state store.** The coordinator only serialises *polling*;
 > deduplication of already-seen items lives in the
-> [state store](../state-stores.md). Set `state.driver: postgres`
+> [state store](../choose-a-state-store.md). Set `state.driver: postgres`
 > so every instance shares one dedup set — otherwise each instance keeps its own
 > seen-items set and republishes items its peers already sent. Validation warns if it
 > sees a distributed coordinator paired with `state.driver: sqlite`.
@@ -148,4 +148,4 @@ coordination:
 
 - [Run Multiple Instances](../run-multiple-instances.md) — the coordinator overview, comparison table, and lock mechanics.
 - [Secure Connections (TLS)](../secure-connections-tls.md) — TLS for the Redis coordinator.
-- [Choose a State Store](../state-stores.md) — the state store.
+- [Choose a State Store](../choose-a-state-store.md) — the state store.

@@ -40,6 +40,6 @@ See [Run Multiple Instances](../run-multiple-instances.md).
 
 ## Related
 
-- [Choose a State Store](../state-stores.md) — the overview, comparison table, and shared schema.
+- [Choose a State Store](../choose-a-state-store.md) — the overview, comparison table, and shared schema.
 - [Secure Connections (TLS)](../secure-connections-tls.md) — TLS for the Postgres state store.
 - [Run Multiple Instances](../run-multiple-instances.md) — sharing this store and DSN across instances.

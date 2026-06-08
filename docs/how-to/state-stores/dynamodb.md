@@ -37,5 +37,5 @@ state:
 
 ## Related
 
-- [Choose a State Store](../state-stores.md) — the overview, comparison table, and shared schema.
+- [Choose a State Store](../choose-a-state-store.md) — the overview, comparison table, and shared schema.
 - [Run Multiple Instances](../run-multiple-instances.md) — pairing a shared store with a distributed coordinator.

@@ -14,7 +14,7 @@ change is POSTed as a JSON [Change envelope](../../reference/change-envelope.md)
 the node's URL.
 
 First set up the sink as shown in
-[Integrate with External Systems](../integrations.md#configure-the-http-sink), then
+[Integrate with External Systems](../integrate-with-external-systems.md#configure-the-http-sink), then
 point its `http.url` at the Webhook node URL below.
 
 ## Steps
@@ -39,7 +39,7 @@ point its `http.url` at the Webhook node URL below.
 
 ## Related
 
-- [Integrate with External Systems](../integrations.md) — the shared HTTP-sink setup and reliability options.
+- [Integrate with External Systems](../integrate-with-external-systems.md) — the shared HTTP-sink setup and reliability options.
 - [Connect Zapier](zapier.md) — the same flow on Zapier.
 - [HTTP sink](../sinks/http.md) — every field, header, and success-code detail.
 - [Change Envelope](../../reference/change-envelope.md) — the JSON payload fields to map.

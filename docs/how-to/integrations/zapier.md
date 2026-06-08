@@ -13,7 +13,7 @@ drives it with the [HTTP sink](../sinks/http.md): every detected change is POSTe
 a JSON [Change envelope](../../reference/change-envelope.md) to a Catch Hook URL.
 
 First set up the sink as shown in
-[Integrate with External Systems](../integrations.md#configure-the-http-sink), then
+[Integrate with External Systems](../integrate-with-external-systems.md#configure-the-http-sink), then
 point its `http.url` at the Catch Hook URL below.
 
 ## Steps
@@ -40,7 +40,7 @@ point its `http.url` at the Catch Hook URL below.
 
 ## Related
 
-- [Integrate with External Systems](../integrations.md) — the shared HTTP-sink setup and reliability options.
+- [Integrate with External Systems](../integrate-with-external-systems.md) — the shared HTTP-sink setup and reliability options.
 - [Connect n8n](n8n.md) — the same flow on n8n.
 - [HTTP sink](../sinks/http.md) — every field, header, and success-code detail.
 - [Change Envelope](../../reference/change-envelope.md) — the JSON payload fields to map.
