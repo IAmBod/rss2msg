@@ -2,7 +2,7 @@
 title: Configuration Reference
 type: reference
 tags: [rss2msg/docs, configuration]
-summary: Loading order, environment variables, and every config field except sinks, coordination, state, and feeds.
+summary: Loading order, environment variables, and every config field except sinks, coordination, state, feeds, and feed_sources.
 updated: 2026-06-09
 ---
 
@@ -47,13 +47,15 @@ health:        # Kubernetes-style probe endpoints (serve)
 state:         # seen-item store (required)
 coordination:  # multi-instance gating (optional)
 sinks:         # list, at least one (Publisher destinations)
-feeds:         # list, at least one
+feeds:         # static feed list (at least one of feeds / feed_sources)
+feed_sources:  # dynamic feed list, reconciled at runtime (optional)
 ```
 
 - [`state`](../how-to/choose-a-state-store.md) — seen-item store (required).
 - [`coordination`](../how-to/run-multiple-instances.md) — multi-instance gating (optional).
 - [`sinks`](../how-to/choose-a-sink.md) — list, at least one (Publisher destinations).
-- [`feeds`](../how-to/configure-feeds.md) — list, at least one.
+- [`feeds`](../how-to/configure-feeds.md) — the static feed list (at least one of `feeds` / `feed_sources`).
+- [`feed_sources`](../how-to/load-feeds-dynamically.md) — dynamic feed list reconciled at runtime (optional).
 
 ## `log`
 
@@ -301,6 +303,7 @@ distinct; `listen` is required when `enabled: true`. If
 
 - [CLI](cli.md) — flags that point at this config file.
 - [Configure Feeds](../how-to/configure-feeds.md) — the `feeds` list.
+- [Load Feeds Dynamically](../how-to/load-feeds-dynamically.md) — the `feed_sources` list.
 - [Choose a Sink](../how-to/choose-a-sink.md) — the `sinks` list.
 - [Choose a State Store](../how-to/choose-a-state-store.md) — the `state` block.
 - [Run Multiple Instances](../how-to/run-multiple-instances.md) — the `coordination` block.
