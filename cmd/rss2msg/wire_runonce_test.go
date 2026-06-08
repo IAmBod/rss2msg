@@ -129,6 +129,49 @@ func TestRunOnceCommandEndToEnd(t *testing.T) {
 	require.Equal(t, change.ContentHash, item.ContentHash)
 }
 
+// TestRunOnceResolvesFeedSources proves the one-shot modes (run-once, lambda)
+// resolve dynamic feed_sources, not just the static feeds: block. The feed here
+// is supplied by a file feed source; there is no feeds: entry. Both modes share
+// buildOneShotPipelines, so this also covers the lambda handler's feed set.
+func TestRunOnceResolvesFeedSources(t *testing.T) {
+	feedURL := serveFeedRSS(t, runOnceFeed)
+	statePath := filepath.Join(t.TempDir(), "state.db")
+
+	feedsFile := filepath.Join(t.TempDir(), "feeds.json")
+	require.NoError(t, os.WriteFile(feedsFile,
+		[]byte(fmt.Sprintf(`[{"url":%q,"interval":"1m"}]`, feedURL)), 0o600))
+
+	cfgBody := fmt.Sprintf(`log:
+  level: error
+  format: json
+coordination:
+  driver: memory
+state:
+  driver: sqlite
+  sqlite:
+    path: %s
+sinks:
+  - name: default
+    driver: stdout
+    stdout:
+      target: stdout
+      format: json
+feed_sources:
+  - type: file
+    path: %s
+`, statePath, feedsFile)
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(cfgPath, []byte(cfgBody), 0o600))
+
+	out := captureStdout(t, func() {
+		root := newRootCmd()
+		root.SetArgs([]string{"run-once", "--config", cfgPath})
+		require.NoError(t, root.ExecuteContext(context.Background()))
+	})
+	require.Contains(t, out, `"kind":"new"`,
+		"a feed from a file feed_source should be polled and published")
+}
+
 func TestValidateConfigCommandEndToEnd(t *testing.T) {
 	feed := serveFeedRSS(t, runOnceFeed)
 	statePath := filepath.Join(t.TempDir(), "state.db")

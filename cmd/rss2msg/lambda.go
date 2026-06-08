@@ -92,9 +92,12 @@ external state store (postgres or dynamodb) and a distributed coordinator
 				w.Close()
 			}()
 
-			pipes := make([]scheduler.FeedPipeline, 0, len(w.pipelines))
-			for _, p := range w.pipelines {
-				pipes = append(pipes, p)
+			// Resolve the feed list (cfg.Feeds + feed_sources) once at cold
+			// start; warm invocations reuse this pipeline set and its
+			// connections. Each cold start re-reads any dynamic feed_sources.
+			pipes, err := buildOneShotPipelines(ctx, cfg, w)
+			if err != nil {
+				return err
 			}
 
 			// StartWithOptions returns when ctx is cancelled (SIGTERM on

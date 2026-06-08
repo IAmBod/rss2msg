@@ -137,9 +137,9 @@ func newRunOnceCmd(opts *rootOpts) *cobra.Command {
 				_ = tel.Shutdown(context.Background())
 				w.Close()
 			}()
-			pipes := make([]scheduler.FeedPipeline, 0, len(w.pipelines))
-			for _, p := range w.pipelines {
-				pipes = append(pipes, p)
+			pipes, err := buildOneShotPipelines(ctx, cfg, w)
+			if err != nil {
+				return err
 			}
 			return scheduler.RunOnce(ctx, scheduler.RunOnceConfig{
 				Pipelines:   pipes,

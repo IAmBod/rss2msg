@@ -40,8 +40,12 @@ The binary also **auto-starts the handler**: when it runs inside Lambda
 or a container image with no command — start the handler with no wrapper, while
 `rss2msg serve`/`run-once`/etc. still work when given explicitly.
 
-The handler polls the static `feeds:` list (same as `run-once`). A Postgres-backed
-dynamic feed list resolved at cold start is a planned follow-up.
+The handler resolves the feed list the same way `run-once` does: the static
+`feeds:` block **plus** any [`feed_sources`](../dynamic-feed-sources.md) (file,
+Postgres), read once at cold start. Each cold start re-reads dynamic sources, so a
+Postgres-backed feed table picks up adds and removals between invocations. If a
+source is unreachable the invocation fails (and is retried) rather than polling a
+partial set.
 
 ## Constraints to plan around
 
