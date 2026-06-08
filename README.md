@@ -6,7 +6,7 @@ and publishes a canonical change envelope to one or more of fifteen sinks
 Service Bus, Dapr, stdout, HTTP/webhook, gRPC, feed, composite). It is designed to run as a
 long-lived daemon (`serve`) or as a single-shot job (`run-once`), and it can
 scale to multiple instances behind a shared coordinator (Postgres advisory
-locks or Redis lease) without leader election.
+locks, Redis lease, or DynamoDB lease) without leader election.
 
 > **Architecture:** `feeds → fetcher/detector → state store → sinks`, with a coordinator gating poll cycles across instances. See the interactive [pipeline canvas](./docs/explanation/architecture.canvas) (opens in Obsidian).
 

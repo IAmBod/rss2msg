@@ -2,8 +2,8 @@
 title: Run Multiple Instances
 type: how-to
 tags: [rss2msg/docs, coordination, scaling]
-summary: Gate poll cycles across horizontally-scaled instances with the memory, postgres, or redis coordinator.
-updated: 2026-06-02
+summary: Gate poll cycles across horizontally-scaled instances with the memory, postgres, redis, or dynamodb coordinator.
+updated: 2026-06-08
 ---
 
 # Run Multiple Instances
@@ -18,13 +18,13 @@ always grants the lease).
 > [state store](../reference/configuration.md#state). The `sqlite` state store is a
 > local per-instance file, so each instance keeps its own seen-items set: instance B
 > will republish every item instance A already sent. When you set
-> `coordination.driver` to `redis` or `postgres`, also set `state.driver: postgres`
-> so every instance shares one dedup set. Validation emits a warning if it sees a
-> distributed coordinator paired with `state.driver: sqlite`.
+> `coordination.driver` to `redis`, `postgres`, or `dynamodb`, also set
+> `state.driver: postgres` so every instance shares one dedup set. Validation emits a
+> warning if it sees a distributed coordinator paired with `state.driver: sqlite`.
 
 ```yaml
 coordination:
-  driver: memory   # memory | postgres | redis ; default memory
+  driver: memory   # memory | postgres | redis | dynamodb ; default memory
   postgres:
     dsn: ${POSTGRES_DSN}     # falls back to state.postgres.dsn
     tls:                     # rejected if DSN has sslmode=disable
@@ -60,15 +60,30 @@ coordination:
       key_file: /etc/ssl/redis-client.key
       server_name: redis.internal   # set this for sentinel/cluster (no URL to derive SNI from)
       insecure_skip_verify: false
+  dynamodb:
+    table: rss2msg-coord-locks   # required; lock table with partition key "pk"
+    region: us-east-1            # optional; SDK default chain when empty
+    endpoint_url: ${AWS_ENDPOINT_URL}  # optional; LocalStack / VPC endpoint override
+    lease_duration: 60s          # optional, default 60s; MUST exceed worst-case poll time
 ```
 
 For TLS field details on the `postgres.tls` and `redis.tls` blocks, see [Secure Connections (TLS)](secure-connections-tls.md).
+
+The DynamoDB coordinator resolves AWS credentials via the default SDK chain (env,
+shared config, IRSA / instance profile). The lock table must already exist with a
+partition-key attribute named `pk` (type `S`); the coordinator does not create it.
+`lease_duration` **must safely exceed your worst-case per-feed poll time** — if a
+poll outruns the lease, a peer may steal the lock mid-poll and both instances poll
+the same feed concurrently. The coordinator does **not** rely on DynamoDB native TTL
+for lock liveness (native TTL deletion can lag up to ~48h); expiry is enforced inside
+the conditional write.
 
 | driver     | mechanism | crash recovery | notes |
 | ---------- | --------- | -------------- | ----- |
 | `memory`   | always grants the lease | n/a | Default. Use for single-instance deployments. |
 | `postgres` | `pg_try_advisory_lock(int64(sha256(feed_url)[:8]))` per connection | automatic — advisory locks die with the session | Reuses the state DSN by default. No leader election. |
 | `redis`    | `SET key token NX EX <lock_ttl>`, background renewal goroutine refreshes via CAS-checked `PEXPIRE`, release via CAS-checked `DEL`. Key = `rss2msg:coord:<hex(sha256(feed_url))>` | TTL-based — crashed instances release their leases after `lock_ttl` | Three topology modes: `single` (default), `sentinel` (tested), `cluster` (best-effort). |
+| `dynamodb` | conditional `PutItem` of a lease item `{pk, owner, lease_expiry}` with condition `attribute_not_exists(pk) OR lease_expiry < now`; release is a conditional `DeleteItem` on `owner = :me`. Key = `rss2msg:coord:<feed_url>` | expiry-based — a peer reclaims a crashed instance's lock once `lease_expiry` passes (after `lease_duration`) | Per-process owner token (`hostname-pid-randomhex`). Table partition key must be `pk`. No native-TTL reliance. |
 
 ## Redis coordination modes
 

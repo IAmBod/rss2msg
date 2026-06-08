@@ -51,6 +51,21 @@ coordination:
   #     key_file:  /etc/ssl/redis-client.key
   #     server_name: redis.internal             # SNI / cert-verify hostname override
   #     insecure_skip_verify: false             # true = disable cert verification (test only)
+  #
+  # Or use DynamoDB for multi-instance deployments on AWS. Leases are conditional
+  # writes carrying an explicit lease_expiry; a peer may reclaim the lock only
+  # after that expiry (no reliance on DynamoDB native TTL, which can lag ~48h).
+  # dynamodb:
+  #   table: rss2msg-coord-locks  # required; lock table with partition key "pk"
+  #   region: us-east-1           # optional; SDK default chain when empty
+  #   endpoint_url: ${AWS_ENDPOINT_URL}  # optional; LocalStack / VPC endpoint override
+  #   lease_duration: 60s         # optional, default 60s. MUST safely exceed your
+  #                               # worst-case per-feed poll time — if a poll outruns
+  #                               # the lease, a peer can steal the lock mid-poll and
+  #                               # both instances poll the same feed concurrently.
+  #   # AWS credentials resolve via the default SDK chain (env, shared config,
+  #   # IRSA / instance profile). The table must already exist (partition key
+  #   # attribute named "pk", type S).
 
 # Persist per-feed processing state to a local SQLite file.
 state:
