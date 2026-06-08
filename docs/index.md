@@ -3,7 +3,7 @@ title: rss2msg Documentation
 type: index
 tags: [rss2msg/docs, moc]
 summary: Map of Content for rss2msg end-user, operator, and developer documentation.
-updated: 2026-05-31
+updated: 2026-06-09
 ---
 
 # rss2msg Documentation
@@ -17,10 +17,13 @@ Start here. Pages are grouped the way you use them.
 ## How-to guides
 
 - [Configure Feeds](how-to/configure-feeds.md)
-- [Feeds from CMS Platforms](how-to/feeds-from-cms-platforms.md)
-- [Dynamic Feed Sources](how-to/dynamic-feed-sources.md)
+- [Get Feeds from CMS Platforms](how-to/get-feeds-from-cms-platforms.md)
+- [Load Feeds Dynamically](how-to/load-feeds-dynamically.md)
 - [Choose a Sink](how-to/choose-a-sink.md)
-- [Connect Zapier and n8n](how-to/connect-zapier-and-n8n.md)
+- [Choose a State Store](how-to/choose-a-state-store.md)
+- [Integrate with External Systems](how-to/integrate-with-external-systems.md)
+    - [Zapier](how-to/integrations/zapier.md)
+    - [n8n](how-to/integrations/n8n.md)
 - [Deploy in Production](how-to/deploy.md)
     - [Docker Compose](how-to/deploy/docker-compose.md)
     - [Kubernetes](how-to/deploy/kubernetes.md)
@@ -28,7 +31,8 @@ Start here. Pages are grouped the way you use them.
     - [AWS Lambda](how-to/deploy/aws-lambda.md)
     - [Azure Container Apps](how-to/deploy/azure-container-apps.md)
     - [GCP Cloud Run](how-to/deploy/gcp-cloud-run.md)
-- [Kubernetes Health Probes](how-to/kubernetes-health-probes.md)
+    - [Helm chart](how-to/deploy/helm.md)
+- [Configure Kubernetes Health Probes](how-to/configure-kubernetes-health-probes.md)
 - [Run with Docker](how-to/run-with-docker.md)
 - [Run Multiple Instances](how-to/run-multiple-instances.md)
 - [Secure Connections (TLS)](how-to/secure-connections-tls.md)

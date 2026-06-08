@@ -1,12 +1,12 @@
 ---
-title: Kubernetes Health Probes
+title: Configure Kubernetes Health Probes
 type: how-to
 tags: [rss2msg/docs, operations, kubernetes]
 summary: Configure the serve daemon's liveness, readiness, and startup HTTP probes and wire them into a Kubernetes Deployment.
-updated: 2026-06-01
+updated: 2026-06-09
 ---
 
-# Kubernetes Health Probes
+# Configure Kubernetes Health Probes
 
 The `serve` daemon exposes three Kubernetes-style HTTP health endpoints so an
 orchestrator can tell when the process is alive, ready to receive traffic, and

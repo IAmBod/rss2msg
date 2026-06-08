@@ -1,12 +1,12 @@
 ---
-title: Dynamic Feed Sources
+title: Load Feeds Dynamically
 type: how-to
 tags: [rss2msg/docs, feeds, dynamic]
 summary: Reconcile the serve daemon's feed list at runtime from ordered sources (file, static, postgres), with SIGHUP and file-watch reload.
-updated: 2026-06-02
+updated: 2026-06-09
 ---
 
-# Dynamic Feed Sources
+# Load Feeds Dynamically
 
 By default, the `feeds:` block is the complete feed list. `feed_sources:`
 lets the `serve` daemon reconcile its feed list at runtime from one or more

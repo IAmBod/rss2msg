@@ -142,5 +142,5 @@ the same five client knobs under `feed.store.postgres.tls`.
 ## Related
 
 - [Run Multiple Instances](run-multiple-instances.md) — the coordinator backends these TLS blocks secure.
-- [Configuration Reference](../reference/configuration.md#state) — `state.postgres.tls` shares this field surface.
+- [Postgres state store](state-stores/postgres.md) — `state.postgres.tls` shares this field surface.
 - [Choose a Sink](choose-a-sink.md) — all sink drivers and the decision table.

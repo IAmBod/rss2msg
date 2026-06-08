@@ -93,7 +93,7 @@ docker compose up -d
   `HEALTHCHECK`) run. It defaults to `/readyz`; use `--probe liveness` or
   `--probe startup` for the others. `restart: unless-stopped` still covers fatal
   exits. See [Run with Docker](../run-with-docker.md#health-checks) for the
-  subcommand and [Kubernetes Health Probes](../kubernetes-health-probes.md) for
+  subcommand and [Configure Kubernetes Health Probes](../configure-kubernetes-health-probes.md) for
   endpoint semantics.
 - **One poller per feed set.** A single instance is the simplest setup. To run more
   than one replica, point them at a shared coordinator so they don't double-poll —

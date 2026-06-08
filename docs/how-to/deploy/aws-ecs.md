@@ -98,7 +98,7 @@ ECS restarts the task when the process exits, and `serve` exits non-zero on fata
 errors.
 
 See [Run with Docker](../run-with-docker.md#health-checks) for the `healthcheck`
-subcommand and [Kubernetes Health Probes](../kubernetes-health-probes.md) for the
+subcommand and [Configure Kubernetes Health Probes](../configure-kubernetes-health-probes.md) for the
 meaning of `/healthz`, `/readyz`, and `/startupz`.
 
 ## IAM for AWS sinks
