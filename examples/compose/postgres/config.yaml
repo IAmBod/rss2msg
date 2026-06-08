@@ -1,0 +1,24 @@
+log:
+  level: info
+  format: console
+
+telemetry:
+  traces:  { enabled: false }
+  metrics: { enabled: false }
+
+# Durable, shared state in Postgres (auto-migrated: seen_items + feed_meta).
+state:
+  driver: postgres
+  postgres:
+    dsn: ${POSTGRES_DSN}
+
+sinks:
+  - name: default
+    driver: postgres        # write each change as a row (auto-migrated table)
+    postgres:
+      dsn: ${POSTGRES_DSN}
+      table: feed_changes
+
+feeds:
+  - url: https://hnrss.org/frontpage
+    interval: 1m

@@ -1,0 +1,27 @@
+log:
+  level: info
+  format: console
+
+telemetry:
+  traces:  { enabled: false }
+  metrics: { enabled: false }
+
+state:
+  driver: sqlite
+  sqlite:
+    path: /tmp/rss2msg.db
+
+sinks:
+  - name: default
+    driver: rabbitmq
+    rabbitmq:
+      url: amqp://guest:guest@rabbitmq:5672/   # amqps:// for TLS
+      exchange: feed.changes
+      exchange_type: topic
+      routing_key: feed.changes
+      declare: true        # declare the exchange at startup (idempotent)
+      durable: true        # survive a broker restart (only meaningful with declare)
+
+feeds:
+  - url: https://hnrss.org/frontpage
+    interval: 1m

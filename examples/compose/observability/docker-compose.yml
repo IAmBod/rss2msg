@@ -1,0 +1,47 @@
+# rss2msg with Prometheus metrics, scraped by Prometheus and graphed in Grafana.
+#
+#   docker compose up
+#
+# Then open:
+#   Prometheus  http://localhost:9090   (try the query: rss2msg_... in the metrics list)
+#   Grafana     http://localhost:3000   (anonymous access; the Prometheus datasource is
+#                                         pre-provisioned — build a panel on rss2msg_* metrics)
+#
+# Tear down with: docker compose down -v
+
+services:
+  rss2msg:
+    image: ${RSS2MSG_IMAGE:-ghcr.io/iambod/rss2msg:latest}
+    command: ["serve"]
+    volumes:
+      - ./config.yaml:/etc/rss2msg/config.yaml:ro
+    tmpfs:
+      - /tmp
+    # 9090 (Prometheus /metrics) and 8080 (health probes) stay on the internal network;
+    # Prometheus scrapes rss2msg:9090 directly. No host port needed.
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    depends_on:
+      - rss2msg
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    environment:
+      # Anonymous viewing so the example needs no login. Do NOT do this in production.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    restart: unless-stopped

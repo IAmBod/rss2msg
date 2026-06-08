@@ -1,0 +1,36 @@
+log:
+  level: info
+  format: console
+
+telemetry:
+  traces:  { enabled: false }
+  metrics: { enabled: false }
+  # instance_id defaults to the hostname (the container ID), so each replica reports a
+  # distinct identity in logs/metrics without extra config.
+
+# Shared coordinator: Redis lease. Only the lease holder polls a given feed each cycle,
+# so adding replicas adds throughput/redundancy, not duplicate work.
+coordination:
+  driver: redis
+  redis:
+    url: ${REDIS_URL}
+
+# Shared, durable state so every replica sees the same "already seen" set. A shared
+# coordinator REQUIRES a shared state store — SQLite per-container would let each
+# replica re-emit independently.
+state:
+  driver: postgres
+  postgres:
+    dsn: ${POSTGRES_DSN}
+
+sinks:
+  - name: default
+    driver: stdout
+    stdout:
+      format: json
+
+feeds:
+  - url: https://hnrss.org/frontpage
+    interval: 1m
+  - url: https://hnrss.org/newest
+    interval: 2m

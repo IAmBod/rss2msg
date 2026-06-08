@@ -1,0 +1,20 @@
+# Structural config (state + feeds + sinks) cannot be set through RSS2MSG_* overrides,
+# so it lives here — but string values are ${VAR} placeholders resolved from the
+# environment at load time. Scalar fields that have built-in defaults (log, telemetry)
+# ARE set via RSS2MSG_* env vars in docker-compose.yml and are omitted from this file.
+
+state:
+  driver: sqlite          # state.* has no registered default, so it can't be set via
+  sqlite:                 # RSS2MSG_* env overrides — it must live in the config file
+    path: /tmp/rss2msg.db
+
+sinks:
+  - name: default
+    driver: stdout
+    stdout:
+      format: ${SINK_FORMAT}     # e.g. pretty | json
+
+feeds:
+  - url: ${FEED_URL}
+    interval: 1m                 # literal: ${VAR} substitution only applies to string
+                                 # fields, and interval is a duration (not a string)
