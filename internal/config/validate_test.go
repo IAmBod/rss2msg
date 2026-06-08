@@ -1630,6 +1630,99 @@ func TestValidateRejectsAzureServiceBusBothEntities(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsCosmosDBSink(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "cosmos-x", Driver: "cosmosdb",
+		CosmosDB: CosmosDBSinkConfig{
+			ConnectionString: "AccountEndpoint=https://x.documents.azure.com:443/;AccountKey=k;",
+			Database:         "rss2msg",
+		},
+	})
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateAcceptsCosmosDBSinkEndpoint(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "cosmos-x", Driver: "cosmosdb",
+		CosmosDB: CosmosDBSinkConfig{
+			Endpoint:  "https://x.documents.azure.com:443/",
+			Database:  "rss2msg",
+			Container: "feed_changes",
+		},
+	})
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateRejectsCosmosDBMissingAuth(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "cosmos-x", Driver: "cosmosdb",
+		CosmosDB: CosmosDBSinkConfig{Database: "rss2msg"},
+	})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "endpoint or connection_string") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsCosmosDBBothAuth(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "cosmos-x", Driver: "cosmosdb",
+		CosmosDB: CosmosDBSinkConfig{
+			Endpoint:         "https://x.documents.azure.com:443/",
+			ConnectionString: "AccountEndpoint=https://x.documents.azure.com:443/;AccountKey=k;",
+			Database:         "rss2msg",
+		},
+	})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsCosmosDBMissingDatabase(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "cosmos-x", Driver: "cosmosdb",
+		CosmosDB: CosmosDBSinkConfig{
+			Endpoint: "https://x.documents.azure.com:443/",
+		},
+	})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "cosmosdb.database is required") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestValidateRejectsCosmosDBNegativeThroughput(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{
+		Name: "cosmos-x", Driver: "cosmosdb",
+		CosmosDB: CosmosDBSinkConfig{
+			Endpoint:   "https://x.documents.azure.com:443/",
+			Database:   "rss2msg",
+			Throughput: -1,
+		},
+	})
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "throughput must not be negative") {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestValidateRejectsGraphiteWithoutAddress(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()

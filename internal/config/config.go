@@ -238,6 +238,7 @@ type SinkConfig struct {
 	Composite       CompositeSinkConfig       `mapstructure:"composite"`
 	GCPPubSub       GCPPubSubSinkConfig       `mapstructure:"gcp_pubsub"`
 	AzureServiceBus AzureServiceBusSinkConfig `mapstructure:"azureservicebus"`
+	CosmosDB        CosmosDBSinkConfig        `mapstructure:"cosmosdb"`
 	DaprPubSub      DaprPubSubSinkConfig      `mapstructure:"dapr_pubsub"`
 	NATS            NATSSinkConfig            `mapstructure:"nats"`
 	GRPC            GRPCSinkConfig            `mapstructure:"grpc"`
@@ -441,6 +442,19 @@ type AzureServiceBusSinkConfig struct {
 	Namespace        string `mapstructure:"namespace"`         // Azure AD auth (DefaultAzureCredential)
 	Queue            string `mapstructure:"queue"`             // destination queue
 	Topic            string `mapstructure:"topic"`             // destination topic
+}
+
+// CosmosDBSinkConfig configures the Azure Cosmos DB (NoSQL) sink (driver
+// "cosmosdb"). Changes are written as JSON documents keyed by a stable id and
+// partitioned on /feed_url. Exactly one of ConnectionString or Endpoint must
+// be set.
+type CosmosDBSinkConfig struct {
+	Endpoint         string `mapstructure:"endpoint"`          // Azure AD auth (DefaultAzureCredential)
+	ConnectionString string `mapstructure:"connection_string"` // account-key auth
+	Database         string `mapstructure:"database"`          // required
+	Container        string `mapstructure:"container"`         // defaults to "feed_changes"
+	CreateIfMissing  bool   `mapstructure:"create_if_missing"` // create db/container on startup (dev/test)
+	Throughput       int32  `mapstructure:"throughput"`        // manual RU/s when creating; 0 = serverless/shared
 }
 
 // DaprPubSubSinkConfig configures the Dapr pub/sub sink (driver "dapr_pubsub").
