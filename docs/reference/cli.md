@@ -2,7 +2,7 @@
 title: CLI
 type: reference
 tags: [rss2msg/docs, cli]
-summary: The serve, run-once, validate-config, generate-config, healthcheck, and version commands, their flags, and signal handling.
+summary: The serve, run-once, lambda, validate-config, generate-config, healthcheck, and version commands, their flags, and signal handling.
 updated: 2026-06-03
 ---
 
@@ -14,6 +14,7 @@ rss2msg [flags] <command>
 Commands
   serve              Run as a long-lived daemon; one goroutine per feed
   run-once           Poll every feed once and exit (bounded worker pool)
+  lambda             Run as an AWS Lambda function; one poll cycle per invocation
   validate-config    Parse config, dial state + each sink, exit 0/1
   generate-config    Print an annotated, runnable reference config
   healthcheck        Probe the health endpoint over HTTP, exit 0/1
@@ -57,6 +58,13 @@ Flags
   --probe <kind>     Which probe to check: readiness (default), liveness, startup
   --timeout <dur>    Overall timeout for the probe request (default 2s)
 ```
+
+`lambda` runs rss2msg inside the AWS Lambda runtime: it does the cold-start wiring
+once, then polls every feed once per invocation (the `run-once` work, bounded by
+[`runtime.run_once_concurrency`](configuration.md#runtime)). Inside Lambda with no
+explicit subcommand the binary auto-starts this command, so a bare custom-runtime
+`bootstrap` or a command-less container image needs no wrapper. See
+[Deploy on AWS Lambda](../how-to/deploy/aws-lambda.md).
 
 `serve` exits cleanly on SIGINT/SIGTERM and waits up to
 [`runtime.shutdown_drain_timeout`](configuration.md#runtime) for in-flight publishes to finish.

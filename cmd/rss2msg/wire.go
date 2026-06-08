@@ -38,12 +38,11 @@ import (
 )
 
 type wired struct {
-	store     state.Store
-	registry  *sink.Registry
-	coord     coord.Coordinator
-	pipelines []*pipeline
-	factory   scheduler.PipelineFactory
-	instr     telemetry.Instruments
+	store    state.Store
+	registry *sink.Registry
+	coord    coord.Coordinator
+	factory  scheduler.PipelineFactory
+	instr    telemetry.Instruments
 }
 
 func (w *wired) Close() {
@@ -133,16 +132,11 @@ func wireAll(ctx context.Context, cfg config.Config, tel *telemetry.Telemetry) (
 	}
 
 	w := &wired{store: st, registry: reg, coord: cd, instr: instr}
-	factory := w.newPipelineFactory(cfg, tel, fetcher, det, instr)
-	for _, fc := range cfg.Feeds {
-		p, err := factory(fc)
-		if err != nil {
-			w.Close()
-			return nil, err
-		}
-		w.pipelines = append(w.pipelines, p.(*pipeline))
-	}
-	w.factory = factory
+	// Pipelines are built lazily from the resolved feed set: serve via the
+	// aggregator + factory, the one-shot modes via buildOneShotPipelines. Both
+	// share this factory, so feed resolution (cfg.Feeds + feed_sources) is
+	// consistent across every execution mode.
+	w.factory = w.newPipelineFactory(cfg, tel, fetcher, det, instr)
 	return w, nil
 }
 

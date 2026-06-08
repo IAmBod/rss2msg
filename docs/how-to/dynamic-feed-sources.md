@@ -27,6 +27,13 @@ sources, the earlier entry wins. Feeds are deduplicated by `url`.
 If `feed_sources:` is omitted entirely, the `feeds:` block is the sole source
 (unchanged behavior).
 
+The one-shot modes — `run-once` and [`lambda`](deploy/aws-lambda.md) — resolve
+`feed_sources:` too, but as a **single snapshot** taken at startup rather than a
+runtime reconcile: there is no SIGHUP or file-watch reload within a run, and a
+source error fails the run instead of keeping last-known-good. Re-reading happens
+on the next invocation (each scheduled Lambda run, each `run-once`), which is how a
+Postgres-backed feed table stays current under those modes.
+
 ## Source types
 
 | type     | status      | description |

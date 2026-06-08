@@ -75,7 +75,7 @@ scheduled `run-once` variant:
 - [Kubernetes](deploy/kubernetes.md) — ConfigMap, Secret, Deployment, Service, CronJob.
 - [Helm chart](deploy/helm.md) — the same manifests as a templated, versioned chart.
 - [AWS ECS (Fargate)](deploy/aws-ecs.md) — task definition, Secrets Manager, task-role IAM.
-- [AWS Lambda](deploy/aws-lambda.md) — scheduled `run-once` as a container function.
+- [AWS Lambda](deploy/aws-lambda.md) — the native `lambda` subcommand, container or zip, via CDK/SAM/CLI.
 - [Azure Container Apps](deploy/azure-container-apps.md) — daemon app and scheduled job.
 - [GCP Cloud Run](deploy/gcp-cloud-run.md) — always-on service and Cloud Scheduler job.
 

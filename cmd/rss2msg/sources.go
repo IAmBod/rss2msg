@@ -6,7 +6,36 @@ import (
 
 	"github.com/iambod/rss2msg/internal/config"
 	"github.com/iambod/rss2msg/internal/feedsource"
+	"github.com/iambod/rss2msg/internal/scheduler"
 )
+
+// buildOneShotPipelines resolves the feed list for the one-shot execution modes
+// (run-once, lambda) and builds a pipeline per feed via the wired factory. It
+// reads cfg.Feeds AND any configured feed_sources (file, postgres) exactly once
+// through buildSources + feedsource.Snapshot — the same resolution serve uses —
+// so dynamic feed sources work outside the long-lived daemon. The source
+// connections are closed once the snapshot is taken; the pipelines reference the
+// long-lived store/coordinator/sinks owned by wired, not the sources.
+func buildOneShotPipelines(ctx context.Context, cfg config.Config, w *wired) ([]scheduler.FeedPipeline, error) {
+	sources, closeSources, err := buildSources(cfg)
+	if err != nil {
+		return nil, err
+	}
+	defer closeSources()
+	feeds, err := feedsource.Snapshot(ctx, sources...)
+	if err != nil {
+		return nil, err
+	}
+	pipes := make([]scheduler.FeedPipeline, 0, len(feeds))
+	for _, fc := range feeds {
+		p, err := w.factory(fc)
+		if err != nil {
+			return nil, err
+		}
+		pipes = append(pipes, p)
+	}
+	return pipes, nil
+}
 
 // buildSources constructs the ordered source list from config. If no
 // feed_sources are configured, the static feeds: block is the sole source
