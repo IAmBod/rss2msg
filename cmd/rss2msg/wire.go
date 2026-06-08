@@ -6,6 +6,7 @@ import (
 
 	"github.com/iambod/rss2msg/internal/config"
 	"github.com/iambod/rss2msg/internal/coord"
+	coordcosmos "github.com/iambod/rss2msg/internal/coord/cosmosdb"
 	coorddynamo "github.com/iambod/rss2msg/internal/coord/dynamodb"
 	coordmem "github.com/iambod/rss2msg/internal/coord/memory"
 	coordpg "github.com/iambod/rss2msg/internal/coord/postgres"
@@ -232,6 +233,16 @@ func openCoordinator(ctx context.Context, cc config.CoordinationConfig, sc confi
 			Region:        cc.DynamoDB.Region,
 			EndpointURL:   cc.DynamoDB.EndpointURL,
 			LeaseDuration: cc.DynamoDB.LeaseDuration,
+		})
+	case "cosmosdb":
+		return coordcosmos.New(ctx, coordcosmos.Options{
+			Endpoint:         cc.CosmosDB.Endpoint,
+			ConnectionString: cc.CosmosDB.ConnectionString,
+			Database:         cc.CosmosDB.Database,
+			Container:        cc.CosmosDB.Container,
+			CreateIfMissing:  cc.CosmosDB.CreateIfMissing,
+			Throughput:       cc.CosmosDB.Throughput,
+			LeaseDuration:    cc.CosmosDB.LeaseDuration,
 		})
 	default:
 		return nil, fmt.Errorf("unsupported coordination driver %q", driver)

@@ -141,6 +141,24 @@ type CoordinationConfig struct {
 	Postgres CoordinationPGConfig       `mapstructure:"postgres"`
 	Redis    CoordinationRedisConfig    `mapstructure:"redis"`
 	DynamoDB CoordinationDynamoDBConfig `mapstructure:"dynamodb"`
+	CosmosDB CoordinationCosmosDBConfig `mapstructure:"cosmosdb"`
+}
+
+// CoordinationCosmosDBConfig configures the Azure Cosmos DB (NoSQL) lease
+// coordinator. Each feed lock is a document keyed by the feed URL and
+// partitioned on /pk; liveness comes from an explicit lease_expiry checked by
+// the acquirer (Cosmos native TTL is not trusted for locks). lease_duration
+// must safely exceed your worst-case per-feed poll time (default 60s); if a
+// poll outruns the lease, a peer can steal the lock mid-poll and both instances
+// poll. Exactly one of Endpoint or ConnectionString must be set.
+type CoordinationCosmosDBConfig struct {
+	Endpoint         string        `mapstructure:"endpoint"`          // Azure AD auth (DefaultAzureCredential)
+	ConnectionString string        `mapstructure:"connection_string"` // account-key auth
+	Database         string        `mapstructure:"database"`          // required
+	Container        string        `mapstructure:"container"`         // defaults to "coordination_locks"
+	CreateIfMissing  bool          `mapstructure:"create_if_missing"` // create db/container on startup (dev/test)
+	Throughput       int32         `mapstructure:"throughput"`        // manual RU/s when creating; 0 = serverless/shared
+	LeaseDuration    time.Duration `mapstructure:"lease_duration"`    // 0 -> 60s
 }
 
 // CoordinationDynamoDBConfig configures the DynamoDB lease coordinator. The
