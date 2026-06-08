@@ -1,0 +1,48 @@
+# rss2msg → Grafana Alloy → Grafana Cloud.
+#
+# rss2msg exports OTLP/gRPC (its default transport) to a local Alloy, which forwards
+# metrics and traces to Grafana Cloud over OTLP/HTTP with Basic auth. This bridge is
+# the alternative to direct push (which would set OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+# on rss2msg itself — see ../../../docs/how-to/send-to-grafana-cloud.md).
+#
+# Provide your Grafana Cloud credentials before running, e.g. in a .env file:
+#   GRAFANA_CLOUD_OTLP_ENDPOINT=https://otlp-gateway-<zone>.grafana.net/otlp
+#   GRAFANA_CLOUD_INSTANCE_ID=<your-instance-id>
+#   GRAFANA_CLOUD_API_TOKEN=<your-access-policy-token>
+#
+# Then:
+#   docker compose up
+#
+# Tear down with: docker compose down -v
+
+services:
+  rss2msg:
+    image: ${RSS2MSG_IMAGE:-ghcr.io/iambod/rss2msg:latest}
+    command: ["serve"]
+    depends_on:
+      - alloy
+    environment:
+      # Default transport is gRPC; point it at the local Alloy OTLP receiver.
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4317
+    volumes:
+      - ./config.yaml:/etc/rss2msg/config.yaml:ro
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+
+  alloy:
+    image: grafana/alloy:v1.5.1
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+    environment:
+      # Forwarded to Grafana Cloud by alloy/config.alloy via sys.env(...).
+      GRAFANA_CLOUD_OTLP_ENDPOINT: ${GRAFANA_CLOUD_OTLP_ENDPOINT:?set GRAFANA_CLOUD_OTLP_ENDPOINT}
+      GRAFANA_CLOUD_INSTANCE_ID: ${GRAFANA_CLOUD_INSTANCE_ID:?set GRAFANA_CLOUD_INSTANCE_ID}
+      GRAFANA_CLOUD_API_TOKEN: ${GRAFANA_CLOUD_API_TOKEN:?set GRAFANA_CLOUD_API_TOKEN}
+    ports:
+      - "12345:12345" # Alloy UI (http://localhost:12345) for pipeline/health inspection
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+    restart: unless-stopped

@@ -21,6 +21,30 @@ OTEL instruments registered under the meter
 | `feed.fetch.duration`    | histogram | ms   | `feed_url`                                       |
 | `sink.publish.duration`  | histogram | ms   | `sink.name`                                      |
 
+## OTLP export
+
+Traces and metrics are exported over OTLP when an endpoint is configured via the
+standard OpenTelemetry environment variables (`OTEL_EXPORTER_OTLP_ENDPOINT` or the
+per-signal `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` / `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`),
+provided `telemetry.traces` / `telemetry.metrics` are enabled (both default on).
+Endpoint, headers (`OTEL_EXPORTER_OTLP_HEADERS`), TLS, and compression are read from
+those standard variables.
+
+The transport is selected by `OTEL_EXPORTER_OTLP_PROTOCOL`, with the per-signal
+`OTEL_EXPORTER_OTLP_TRACES_PROTOCOL` / `OTEL_EXPORTER_OTLP_METRICS_PROTOCOL`
+overriding it:
+
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | transport                    |
+| ---------------------------- | ---------------------------- |
+| unset (default)              | `grpc`                       |
+| `grpc`                       | OTLP over gRPC               |
+| `http/protobuf`              | OTLP over HTTP with protobuf |
+
+The unset default is `grpc`, which deliberately differs from the OpenTelemetry
+specification's default (`http/protobuf`) to preserve historical behavior. Any
+other value is rejected at startup. The HTTP/protobuf transport is what
+[Grafana Cloud](../how-to/send-to-grafana-cloud.md) requires.
+
 Traces wrap each poll cycle and each publish; downstream consumers can pick
 up `traceparent` from message headers/attributes to stitch the full trace.
 
