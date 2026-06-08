@@ -1,6 +1,6 @@
 module github.com/iambod/rss2msg
 
-go 1.25.0
+go 1.25.9
 
 require (
 	cloud.google.com/go/pubsub/v2 v2.4.0
@@ -14,7 +14,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.59.0
 	github.com/aws/aws-sdk-go-v2/service/sns v1.39.18
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.28
-	github.com/dapr/dapr v1.16.0
+	github.com/dapr/dapr v1.16.14
 	github.com/dapr/go-sdk v1.13.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/getsentry/sentry-go v0.46.2
@@ -97,7 +97,7 @@ require (
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
-	github.com/dapr/durabletask-go v0.10.0 // indirect
+	github.com/dapr/durabletask-go v0.10.2 // indirect
 	github.com/dapr/kit v0.16.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/distribution/reference v0.6.0 // indirect
