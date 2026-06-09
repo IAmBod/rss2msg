@@ -3,7 +3,7 @@ title: Configuration Reference
 type: reference
 tags: [rss2msg/docs, configuration]
 summary: Loading order, environment variables, and every config field except sinks, coordination, and feeds.
-updated: 2026-06-03
+updated: 2026-06-09
 ---
 
 # Configuration Reference
@@ -305,7 +305,7 @@ subsequent polls send conditional requests.
 
 ```yaml
 state:
-  driver: postgres        # postgres | sqlite | dynamodb
+  driver: postgres        # postgres | sqlite | dynamodb | cosmosdb
   postgres:
     dsn: ${POSTGRES_DSN}
     tls:                  # rejected if DSN has sslmode=disable
@@ -322,11 +322,19 @@ state:
   #   endpoint_url:           # LocalStack / DynamoDB Local override
   #   ttl_attribute: expires_at
   #   item_ttl: 720h
+  # cosmosdb:
+  #   endpoint: ${COSMOS_ENDPOINT}             # Entra ID auth; OR connection_string below
+  #   connection_string: ${COSMOS_CONNECTION}  # account-key auth (mutually exclusive)
+  #   database: rss2msg
+  #   container: feed_state    # default feed_state; partitioned on /feed_url
+  #   create_if_missing: false # create db/container (TTL-enabled) on startup (dev/test)
+  #   throughput: 0            # manual RU/s when creating; 0 = serverless/shared
+  #   item_ttl: 720h           # optional per-item TTL; container must have TTL enabled
 ```
 
 | field                    | required                | notes |
 | ------------------------ | ----------------------- | ----- |
-| `driver`                 | yes                     | `postgres`, `sqlite`, or `dynamodb`. |
+| `driver`                 | yes                     | `postgres`, `sqlite`, `dynamodb`, or `cosmosdb`. |
 | `postgres.dsn`           | yes (driver=postgres)   | Standard `postgres://` DSN. The store applies its migrations idempotently on `New`. |
 | `postgres.tls.*`         | no                      | Optional structured TLS config. Same field surface as `coordination.postgres.tls` — see [Secure Connections (TLS)](../how-to/secure-connections-tls.md) for the full table. Rejected when the DSN sets `sslmode=disable`. |
 | `sqlite.path`            | yes (driver=sqlite)     | Filesystem path passed verbatim to the `modernc.org/sqlite` driver. `:memory:` and `?_pragma=…` query strings are accepted. |
@@ -335,12 +343,20 @@ state:
 | `dynamodb.endpoint_url`  | no                      | Service endpoint override for LocalStack / DynamoDB Local. |
 | `dynamodb.ttl_attribute` | no                      | Names the DynamoDB TTL attribute (epoch seconds) written on item rows. Must match the table's `TimeToLiveSpecification` for auto-pruning to take effect. Requires `item_ttl`. |
 | `dynamodb.item_ttl`      | yes (with ttl_attribute) | How long an item row lives after its last seen time, e.g. `720h`. Must be set together with `ttl_attribute`. |
+| `cosmosdb.endpoint`          | one-of                  | Cosmos account endpoint; authenticates with `DefaultAzureCredential`. Mutually exclusive with `connection_string`. |
+| `cosmosdb.connection_string` | one-of                  | Account-key connection string. Mutually exclusive with `endpoint`. |
+| `cosmosdb.database`          | yes (driver=cosmosdb)   | Database name. |
+| `cosmosdb.container`         | no                      | Container name; defaults to `feed_state`. Partitioned on `/feed_url`; provision out of band (with TTL enabled if you use `item_ttl`) unless `create_if_missing`. |
+| `cosmosdb.create_if_missing` | no                      | Create the database/container on startup (TTL-enabled when `item_ttl` is set). Dev/test convenience; pre-provision in production. |
+| `cosmosdb.throughput`        | no                      | Manual RU/s applied when creating the container; `0` leaves it unset (serverless / shared). |
+| `cosmosdb.item_ttl`          | no                      | Per-item TTL (e.g. `720h`) written as Cosmos' reserved `ttl` property. Requires the container to have TTL enabled. Meta rows never expire. |
 
 | driver     | concurrency / scope                                              | when to use |
 | ---------- | ---------------------------------------------------------------- | ----------- |
 | `postgres` | Shared across instances; writers serialised by the DB.           | Production, multi-instance, or when state already lives in Postgres. |
 | `sqlite`   | Single file on local disk. WAL + busy-timeout enabled by default; the store uses one connection so writes are serialised in-process. Not shared between processes/nodes. | Single-instance deployments, local dev, edge / embedded contexts. |
 | `dynamodb` | Shared, distributed-safe table; strongly-consistent reads. A feed's meta and items share a partition (`feed_url`) with the meta row under a reserved `#META` sort key. Optional TTL auto-pruning of old seen-items. | Production, multi-instance, AWS-native / serverless deployments. |
+| `cosmosdb` | Shared, distributed-safe container partitioned on `/feed_url`. Item rows are keyed by `sha256(item_id)`; a feed's meta row uses the reserved id `__meta__`. Optional per-item `ttl` auto-pruning of old seen-items. | Production, multi-instance, Azure-native / serverless deployments. |
 
 Schema created on first start (idempotent `CREATE TABLE IF NOT EXISTS`). The
 Postgres DDL is shown; the SQLite store uses the same logical schema with

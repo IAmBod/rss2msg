@@ -25,6 +25,7 @@ var knownStateDrivers = map[string]struct{}{
 	"postgres": {},
 	"sqlite":   {},
 	"dynamodb": {},
+	"cosmosdb": {},
 }
 
 // knownZerologLevels is the set of level names zerolog.ParseLevel accepts; used
@@ -152,6 +153,22 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 		if d.ItemTTL < 0 {
 			return *warnings, fmt.Errorf("state.dynamodb.item_ttl %v must not be negative", d.ItemTTL)
+		}
+	case "cosmosdb":
+		d := c.State.CosmosDB
+		hasEndpoint := strings.TrimSpace(d.Endpoint) != ""
+		hasConn := strings.TrimSpace(d.ConnectionString) != ""
+		switch {
+		case !hasEndpoint && !hasConn:
+			return *warnings, fmt.Errorf("state.cosmosdb: one of endpoint or connection_string is required when state.driver=cosmosdb")
+		case hasEndpoint && hasConn:
+			return *warnings, fmt.Errorf("state.cosmosdb: endpoint and connection_string are mutually exclusive")
+		}
+		if strings.TrimSpace(d.Database) == "" {
+			return *warnings, fmt.Errorf("state.cosmosdb.database is required when state.driver=cosmosdb")
+		}
+		if d.ItemTTL < 0 {
+			return *warnings, fmt.Errorf("state.cosmosdb.item_ttl %v must not be negative", d.ItemTTL)
 		}
 	}
 
