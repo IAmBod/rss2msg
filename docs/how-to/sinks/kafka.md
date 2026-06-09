@@ -3,7 +3,7 @@ title: Kafka sink
 type: how-to
 tags: [rss2msg/docs, sinks, kafka]
 summary: Publish Changes to a topic with configurable acks and compression; record/header layout.
-updated: 2026-05-30
+updated: 2026-06-09
 ---
 
 # Kafka sink
@@ -25,15 +25,54 @@ updated: 2026-05-30
 | `acks`        | no       | `all`         | `all` \| `leader` \| `none`. **`none` is unsafe** (see [Operational Notes](../../explanation/operations.md)). |
 | `compression` | no       | `none`        | `none` \| `snappy` \| `lz4` \| `zstd` \| `gzip`. |
 | `tls`         | no       | (off)         | Structured TLS to the brokers. Kafka has no URL scheme, so set `tls.enabled: true` to turn it on. See [Secure Connections (TLS)](../secure-connections-tls.md#sinks). |
+| `schema_registry` | no | (off) | Confluent Schema Registry encoding of the record value. Absent ⇒ plain JSON. See [below](#schema-registry-optional). |
 
 > [!warning]
 > `acks: none` is unsafe. Combined with the commit-on-success model it can drop messages without the state store knowing. See [Operational Notes](../../explanation/operations.md). Use the default `all` unless you accept the trade-off.
 
 Record layout:
 - `Key` = `Change.ItemID` (so consumers can co-partition by item).
-- `Value` = JSON `Change` envelope.
+- `Value` = JSON `Change` envelope (plain), or a Confluent-framed value (magic byte + schema ID + JSON payload) when `schema_registry` is configured.
 - Headers: `feed_url`, `kind`, `schema_version`, optional `traceparent` /
   `tracestate`, optional `dlq_from_sink` / `dlq_error` / `dlq_attempts`.
+
+## Schema Registry (optional)
+
+Set `schema_registry.url` to frame the record value with the Confluent wire
+format (magic byte + 4-byte schema ID + payload) and register a schema with a
+Confluent-compatible Schema Registry. Absent, the value is plain JSON exactly as
+before — this is fully opt-in and configured per kafka sink.
+
+```yaml
+- name: events
+  driver: kafka
+  kafka:
+    brokers: ["kafka:9092"]
+    topic: feed.changes
+    schema_registry:
+      url: http://schema-registry:8081  # presence enables the feature
+      format: json                      # json only for now (avro, protobuf planned)
+      subject: feed.changes-value       # default <topic>-value
+      auto_register: true               # default true
+      schema_file: ./change.schema.json # optional: overrides the registered schema text
+      basic_auth:
+        username: sruser
+        password: ${SR_PASSWORD}
+```
+
+| field | required | default | values |
+| --- | --- | --- | --- |
+| `url` | yes (to enable) | — | Schema Registry base URL. Its presence turns the feature on. |
+| `format` | yes (when url set) | — | `json`. `avro` / `protobuf` are planned and currently rejected. |
+| `subject` | no | `<topic>-value` | Subject name (TopicNameStrategy). |
+| `auto_register` | no | `true` | Register the schema on first publish; `false` looks up an existing id and errors if absent. |
+| `schema_file` | no | (canonical) | Overrides the registered schema text; must stay wire-compatible with the canonical `Change` shape. |
+| `basic_auth` | no | (none) | `username` / `password` for the registry. |
+| `tls` | no | (off) | TLS to the registry; same shape as the broker `tls` block. `insecure_skip_verify: true` is logged at warn. |
+
+The canonical JSON Schema is generated from the `Change` envelope. When enabled,
+registration or encoding errors **hard-fail** the publish, so unframed records
+never land.
 
 ## Related
 
