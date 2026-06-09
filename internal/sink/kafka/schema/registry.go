@@ -8,6 +8,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/rs/zerolog/log"
 	"github.com/twmb/franz-go/pkg/sr"
 )
 
@@ -24,7 +25,7 @@ type TLSOptions struct {
 // buildTLSConfig translates TLSOptions into a *tls.Config.
 func buildTLSConfig(opts TLSOptions) (*tls.Config, error) {
 	tc := &tls.Config{
-		InsecureSkipVerify: opts.InsecureSkipVerify, //nolint:gosec // opt-in, logged by caller
+		InsecureSkipVerify: opts.InsecureSkipVerify, //nolint:gosec // opt-in, logged in newClient
 	}
 	if opts.ServerName != "" {
 		tc.ServerName = opts.ServerName
@@ -101,6 +102,12 @@ func newClient(opts Options) (*sr.Client, error) {
 			return nil, fmt.Errorf("schema registry tls: %w", err)
 		}
 		clientOpts = append(clientOpts, sr.DialTLSConfig(tc))
+		if opts.TLS.InsecureSkipVerify {
+			log.Warn().
+				Str("sink_driver", "kafka").
+				Str("component", "schema_registry").
+				Msg("schema registry: TLS verification disabled (insecure_skip_verify=true)")
+		}
 	}
 	return sr.NewClient(clientOpts...)
 }
