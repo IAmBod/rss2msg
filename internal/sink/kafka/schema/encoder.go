@@ -7,7 +7,6 @@ package schema
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 
 	"github.com/iambod/rss2msg/internal/model"
@@ -42,7 +41,7 @@ type Options struct {
 	SchemaText   string // overrides the canonical registered schema text
 	BasicUser    string
 	BasicPass    string
-	TLS          *tls.Config
+	TLS          *TLSOptions
 }
 
 // New builds an Encoder for the configured format.

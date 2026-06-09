@@ -2,10 +2,56 @@ package schema
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
+	"os"
 	"sync"
 
 	"github.com/twmb/franz-go/pkg/sr"
 )
+
+// TLSOptions configures TLS to the Schema Registry. Same shape as the kafka
+// sink's TLS options for a consistent operator surface.
+type TLSOptions struct {
+	CAFile             string
+	CertFile           string
+	KeyFile            string
+	ServerName         string
+	InsecureSkipVerify bool
+}
+
+// buildTLSConfig translates TLSOptions into a *tls.Config.
+func buildTLSConfig(opts TLSOptions) (*tls.Config, error) {
+	tc := &tls.Config{
+		InsecureSkipVerify: opts.InsecureSkipVerify, //nolint:gosec // opt-in, logged by caller
+	}
+	if opts.ServerName != "" {
+		tc.ServerName = opts.ServerName
+	}
+	if opts.CAFile != "" {
+		pem, err := os.ReadFile(opts.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("ca_file: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, fmt.Errorf("ca_file %q: no PEM certificates parsed", opts.CAFile)
+		}
+		tc.RootCAs = pool
+	}
+	if opts.CertFile != "" || opts.KeyFile != "" {
+		if opts.CertFile == "" || opts.KeyFile == "" {
+			return nil, fmt.Errorf("cert_file and key_file must both be set or both empty")
+		}
+		cert, err := tls.LoadX509KeyPair(opts.CertFile, opts.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("client cert: %w", err)
+		}
+		tc.Certificates = []tls.Certificate{cert}
+	}
+	return tc, nil
+}
 
 // registrar resolves and caches the Schema Registry id for one subject.
 // Registration is lazy (first Encode) so a registry blip at startup does not
@@ -50,7 +96,11 @@ func newClient(opts Options) (*sr.Client, error) {
 		clientOpts = append(clientOpts, sr.BasicAuth(opts.BasicUser, opts.BasicPass))
 	}
 	if opts.TLS != nil {
-		clientOpts = append(clientOpts, sr.DialTLSConfig(opts.TLS))
+		tc, err := buildTLSConfig(*opts.TLS)
+		if err != nil {
+			return nil, fmt.Errorf("schema registry tls: %w", err)
+		}
+		clientOpts = append(clientOpts, sr.DialTLSConfig(tc))
 	}
 	return sr.NewClient(clientOpts...)
 }
