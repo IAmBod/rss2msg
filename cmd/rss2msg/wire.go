@@ -32,6 +32,7 @@ import (
 	sinksqs "github.com/iambod/rss2msg/internal/sink/sqs"
 	sinkstdout "github.com/iambod/rss2msg/internal/sink/stdout"
 	"github.com/iambod/rss2msg/internal/state"
+	statecosmos "github.com/iambod/rss2msg/internal/state/cosmosdb"
 	statedynamodb "github.com/iambod/rss2msg/internal/state/dynamodb"
 	statepg "github.com/iambod/rss2msg/internal/state/postgres"
 	statesqlite "github.com/iambod/rss2msg/internal/state/sqlite"
@@ -430,6 +431,16 @@ func openStateStore(ctx context.Context, c config.StateConfig) (state.Store, err
 			EndpointURL:  c.DynamoDB.EndpointURL,
 			TTLAttribute: c.DynamoDB.TTLAttribute,
 			ItemTTL:      c.DynamoDB.ItemTTL,
+		})
+	case "cosmosdb":
+		return statecosmos.New(ctx, statecosmos.Options{
+			Endpoint:         c.CosmosDB.Endpoint,
+			ConnectionString: c.CosmosDB.ConnectionString,
+			Database:         c.CosmosDB.Database,
+			Container:        c.CosmosDB.Container,
+			CreateIfMissing:  c.CosmosDB.CreateIfMissing,
+			Throughput:       c.CosmosDB.Throughput,
+			ItemTTL:          c.CosmosDB.ItemTTL,
 		})
 	default:
 		return nil, fmt.Errorf("unsupported state driver %q", c.Driver)
