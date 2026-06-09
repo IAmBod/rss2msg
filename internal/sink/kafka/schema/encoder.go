@@ -50,6 +50,9 @@ func New(opts Options) (Encoder, error) {
 	if opts.URL == "" {
 		return nil, fmt.Errorf("schema registry: url is required")
 	}
+	if opts.Topic == "" && opts.Subject == "" {
+		return nil, fmt.Errorf("schema registry: topic or subject is required")
+	}
 	subject := defaultSubject(opts.Topic, opts.Subject)
 	switch opts.Format {
 	case FormatJSON:

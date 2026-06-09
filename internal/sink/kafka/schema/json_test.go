@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/twmb/franz-go/pkg/sr"
 	"github.com/twmb/franz-go/pkg/sr/srfake"
 
 	"github.com/iambod/rss2msg/internal/model"
@@ -84,5 +83,4 @@ func TestJSONEncoderUsesOverrideSchemaText(t *testing.T) {
 	if got.Schema.Schema != override {
 		t.Fatalf("registered schema = %q, want override", got.Schema.Schema)
 	}
-	_ = sr.Schema{} // keep sr imported
 }
