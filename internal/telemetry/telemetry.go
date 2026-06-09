@@ -8,13 +8,17 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	promexp "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
@@ -220,10 +224,47 @@ func hasOTLPEndpoint() bool {
 		os.Getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") != ""
 }
 
+// otlpProtocol resolves the OTLP transport for a signal ("traces" or "metrics")
+// from the standard OTEL env vars, with the per-signal
+// OTEL_EXPORTER_OTLP_<SIGNAL>_PROTOCOL taking precedence over the general
+// OTEL_EXPORTER_OTLP_PROTOCOL (per the OpenTelemetry specification's resolution
+// order). It returns an error for any value other than "grpc" or "http/protobuf".
+//
+// The default when unset is "grpc". This deliberately deviates from the OTEL
+// spec default ("http/protobuf") to preserve rss2msg's historical gRPC-only
+// behavior; the HTTP transport is what Grafana Cloud's OTLP gateway requires.
+func otlpProtocol(signal string) (string, error) {
+	signalVar := "OTEL_EXPORTER_OTLP_" + strings.ToUpper(signal) + "_PROTOCOL"
+	p := os.Getenv(signalVar)
+	from := signalVar
+	if p == "" {
+		p = os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL")
+		from = "OTEL_EXPORTER_OTLP_PROTOCOL"
+	}
+	switch p {
+	case "":
+		return "grpc", nil
+	case "grpc", "http/protobuf":
+		return p, nil
+	default:
+		return "", fmt.Errorf("unsupported %s %q (want \"grpc\" or \"http/protobuf\")", from, p)
+	}
+}
+
 func newTracerProvider(ctx context.Context, res *resource.Resource) (*sdktrace.TracerProvider, error) {
-	exp, err := otlptracegrpc.New(ctx)
+	proto, err := otlpProtocol("traces")
 	if err != nil {
-		return nil, fmt.Errorf("otlp trace exporter: %w", err)
+		return nil, err
+	}
+	var exp *otlptrace.Exporter
+	switch proto {
+	case "http/protobuf":
+		exp, err = otlptracehttp.New(ctx)
+	default:
+		exp, err = otlptracegrpc.New(ctx)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("otlp trace exporter (%s): %w", proto, err)
 	}
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exp),
@@ -237,9 +278,19 @@ func newMeterProvider(ctx context.Context, cfg config.Config, res *resource.Reso
 	var stopHTTP func(context.Context) error
 
 	if hasOTLPEndpoint() {
-		exp, err := otlpmetricgrpc.New(ctx)
+		proto, err := otlpProtocol("metrics")
 		if err != nil {
-			return nil, nil, fmt.Errorf("otlp metric exporter: %w", err)
+			return nil, nil, err
+		}
+		var exp sdkmetric.Exporter
+		switch proto {
+		case "http/protobuf":
+			exp, err = otlpmetrichttp.New(ctx)
+		default:
+			exp, err = otlpmetricgrpc.New(ctx)
+		}
+		if err != nil {
+			return nil, nil, fmt.Errorf("otlp metric exporter (%s): %w", proto, err)
 		}
 		opts = append(opts, sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exp)))
 	}

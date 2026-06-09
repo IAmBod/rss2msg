@@ -93,5 +93,5 @@ Postgres/Redis coordinator — see [Run Multiple Instances](../run-multiple-inst
 - [Deploy in Production](../deploy.md) — config resolution, secrets, observability.
 - [Cloud Pub/Sub](../sinks/gcp-pubsub.md) — GCP-native sink.
 - [Run Multiple Instances](../run-multiple-instances.md) — shared coordinator setup.
-- [Kubernetes Health Probes](../kubernetes-health-probes.md) — health endpoint semantics.
+- [Configure Kubernetes Health Probes](../configure-kubernetes-health-probes.md) — health endpoint semantics.
 - [CLI](../../reference/cli.md) — `serve`, `run-once`, `validate-config`.

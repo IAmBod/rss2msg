@@ -77,6 +77,7 @@ scheduled `run-once` variant:
 - [AWS ECS (Fargate)](deploy/aws-ecs.md) — task definition, Secrets Manager, task-role IAM.
 - [AWS Lambda](deploy/aws-lambda.md) — the native `lambda` subcommand, container or zip, via CDK/SAM/CLI.
 - [Azure Container Apps](deploy/azure-container-apps.md) — daemon app and scheduled job.
+- [Azure Functions](deploy/azure-functions.md) — the native `azure-functions` custom handler on a timer trigger, via Core Tools/CLI/Bicep.
 - [GCP Cloud Run](deploy/gcp-cloud-run.md) — always-on service and Cloud Scheduler job.
 
 They all start from the same model: keep secrets out of `config.yaml` (reference

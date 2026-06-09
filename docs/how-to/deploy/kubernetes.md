@@ -9,7 +9,7 @@ updated: 2026-06-01
 # Deploy on Kubernetes
 
 This recipe assembles the full manifest set for running rss2msg on Kubernetes. It
-builds on [Kubernetes Health Probes](../kubernetes-health-probes.md), which covers
+builds on [Configure Kubernetes Health Probes](../configure-kubernetes-health-probes.md), which covers
 the liveness/readiness/startup endpoints in detail, and
 [Deploy in Production](../deploy.md) for the config and secrets model.
 
@@ -57,7 +57,7 @@ The container injects the Secret as environment variables (consumed by `${VAR}`
 substitution) and mounts the ConfigMap read-only. The published image is already
 rootless and distroless, so no extra `securityContext` is required for it to run as
 non-root. The probe block is summarized here — see
-[Kubernetes Health Probes](../kubernetes-health-probes.md) for what each endpoint means.
+[Configure Kubernetes Health Probes](../configure-kubernetes-health-probes.md) for what each endpoint means.
 
 ```yaml
 apiVersion: apps/v1
@@ -174,7 +174,7 @@ replicas at a shared Postgres/Redis coordinator — see
 ## Related
 
 - [Deploy with the Helm chart](helm.md) — these manifests packaged as a templated, versioned chart.
-- [Kubernetes Health Probes](../kubernetes-health-probes.md) — endpoint semantics and probe tuning.
+- [Configure Kubernetes Health Probes](../configure-kubernetes-health-probes.md) — endpoint semantics and probe tuning.
 - [Deploy in Production](../deploy.md) — config resolution, secrets, observability.
 - [Run Multiple Instances](../run-multiple-instances.md) — shared coordinator for multiple replicas.
 - [Secure Connections (TLS)](../secure-connections-tls.md) — TLS to Postgres/Redis.

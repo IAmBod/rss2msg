@@ -41,7 +41,7 @@ or a container image with no command — start the handler with no wrapper, whil
 `rss2msg serve`/`run-once`/etc. still work when given explicitly.
 
 The handler resolves the feed list the same way `run-once` does: the static
-`feeds:` block **plus** any [`feed_sources`](../dynamic-feed-sources.md) (file,
+`feeds:` block **plus** any [`feed_sources`](../load-feeds-dynamically.md) (file,
 Postgres), read once at cold start. Each cold start re-reads dynamic sources, so a
 Postgres-backed feed table picks up adds and removals between invocations. If a
 source is unreachable the invocation fails (and is retried) rather than polling a

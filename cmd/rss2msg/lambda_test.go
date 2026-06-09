@@ -12,11 +12,12 @@ import (
 	"github.com/iambod/rss2msg/internal/scheduler"
 )
 
-func TestEffectiveArgsInjectsLambdaInsideLambda(t *testing.T) {
+func TestEffectiveArgsInjectsImplicitSubcommand(t *testing.T) {
 	t.Parallel()
-	// Inside Lambda (runtime API set) with no subcommand -> default to `lambda`,
-	// so a bare binary named `bootstrap` (zip custom runtime) starts the handler.
-	got := effectiveArgs([]string{"rss2msg"}, "127.0.0.1:9001")
+	// With an implicit subcommand resolved and no explicit one given, it is
+	// appended — so a bare binary (a zip custom-runtime `bootstrap`, or a
+	// command-less container) self-starts the handler.
+	got := effectiveArgs([]string{"rss2msg"}, "lambda")
 	want := []string{"rss2msg", "lambda"}
 	if len(got) != len(want) || got[len(got)-1] != "lambda" {
 		t.Fatalf("got %v, want %v", got, want)
@@ -25,19 +26,19 @@ func TestEffectiveArgsInjectsLambdaInsideLambda(t *testing.T) {
 
 func TestEffectiveArgsLeavesExplicitSubcommand(t *testing.T) {
 	t.Parallel()
-	// An explicit subcommand is never overridden, even inside Lambda.
-	got := effectiveArgs([]string{"rss2msg", "serve"}, "127.0.0.1:9001")
+	// An explicit subcommand is never overridden, even when one is implied.
+	got := effectiveArgs([]string{"rss2msg", "serve"}, "lambda")
 	if len(got) != 2 || got[1] != "serve" {
 		t.Fatalf("explicit subcommand must be preserved, got %v", got)
 	}
 }
 
-func TestEffectiveArgsNoopOutsideLambda(t *testing.T) {
+func TestEffectiveArgsNoopWithoutImplicit(t *testing.T) {
 	t.Parallel()
-	// Outside Lambda (no runtime API) the args are untouched.
+	// With no implicit subcommand resolved the args are untouched.
 	got := effectiveArgs([]string{"rss2msg"}, "")
 	if len(got) != 1 || got[0] != "rss2msg" {
-		t.Fatalf("expected unchanged args outside Lambda, got %v", got)
+		t.Fatalf("expected unchanged args, got %v", got)
 	}
 }
 

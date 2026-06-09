@@ -1,0 +1,27 @@
+// Receive OTLP/gRPC from rss2msg and forward metrics + traces to Grafana Cloud
+// over OTLP/HTTP with Basic auth. Credentials come from the environment (set in the
+// compose file / a .env): GRAFANA_CLOUD_OTLP_ENDPOINT, GRAFANA_CLOUD_INSTANCE_ID,
+// GRAFANA_CLOUD_API_TOKEN.
+
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+
+  output {
+    metrics = [otelcol.exporter.otlphttp.grafana_cloud.input]
+    traces  = [otelcol.exporter.otlphttp.grafana_cloud.input]
+  }
+}
+
+otelcol.auth.basic "grafana_cloud" {
+  username = sys.env("GRAFANA_CLOUD_INSTANCE_ID")
+  password = sys.env("GRAFANA_CLOUD_API_TOKEN")
+}
+
+otelcol.exporter.otlphttp "grafana_cloud" {
+  client {
+    endpoint = sys.env("GRAFANA_CLOUD_OTLP_ENDPOINT")
+    auth     = otelcol.auth.basic.grafana_cloud.handler
+  }
+}

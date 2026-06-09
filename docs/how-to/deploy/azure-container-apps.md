@@ -62,7 +62,7 @@ command probes):
 | Readiness | `/readyz` | 8080 |
 | Startup | `/startupz` | 8080 |
 
-See [Kubernetes Health Probes](../kubernetes-health-probes.md) for what each endpoint
+See [Configure Kubernetes Health Probes](../configure-kubernetes-health-probes.md) for what each endpoint
 means and how to tune the startup window.
 
 ## Scheduled runs
@@ -95,5 +95,5 @@ point all replicas at a shared Postgres/Redis coordinator — see
 - [Deploy in Production](../deploy.md) — config resolution, secrets, observability.
 - [Azure Service Bus](../sinks/azureservicebus.md) — Azure-native sink.
 - [Run Multiple Instances](../run-multiple-instances.md) — shared coordinator setup.
-- [Kubernetes Health Probes](../kubernetes-health-probes.md) — probe endpoint semantics.
+- [Configure Kubernetes Health Probes](../configure-kubernetes-health-probes.md) — probe endpoint semantics.
 - [CLI](../../reference/cli.md) — `serve`, `run-once`, `validate-config`.

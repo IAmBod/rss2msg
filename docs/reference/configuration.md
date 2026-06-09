@@ -2,7 +2,7 @@
 title: Configuration Reference
 type: reference
 tags: [rss2msg/docs, configuration]
-summary: Loading order, environment variables, and every config field except sinks, coordination, and feeds.
+summary: Loading order, environment variables, and every config field except sinks, coordination, state, feeds, and feed_sources.
 updated: 2026-06-09
 ---
 
@@ -47,12 +47,15 @@ health:        # Kubernetes-style probe endpoints (serve)
 state:         # seen-item store (required)
 coordination:  # multi-instance gating (optional)
 sinks:         # list, at least one (Publisher destinations)
-feeds:         # list, at least one
+feeds:         # static feed list (at least one of feeds / feed_sources)
+feed_sources:  # dynamic feed list, reconciled at runtime (optional)
 ```
 
+- [`state`](../how-to/choose-a-state-store.md) — seen-item store (required).
 - [`coordination`](../how-to/run-multiple-instances.md) — multi-instance gating (optional).
 - [`sinks`](../how-to/choose-a-sink.md) — list, at least one (Publisher destinations).
-- [`feeds`](../how-to/configure-feeds.md) — list, at least one.
+- [`feeds`](../how-to/configure-feeds.md) — the static feed list (at least one of `feeds` / `feed_sources`).
+- [`feed_sources`](../how-to/load-feeds-dynamically.md) — dynamic feed list reconciled at runtime (optional).
 
 ## `log`
 
@@ -84,6 +87,11 @@ telemetry:
     sample_rate: 1.0
     traces_sample_rate: 0.0
     debug: false
+  posthog:
+    enabled: false
+    # api_key: ${POSTHOG_API_KEY}
+    endpoint: https://us.i.posthog.com
+    level: error
   cloudwatch:
     enabled: false
     # region: us-east-1
@@ -271,7 +279,7 @@ poll and re-detected on the next.
 
 Kubernetes-style probe endpoints served by the `serve` daemon. Omitting the
 block entirely yields the defaults below; the listener is not started under
-`run-once`. See [Kubernetes Health Probes](../how-to/kubernetes-health-probes.md)
+`run-once`. See [Configure Kubernetes Health Probes](../how-to/configure-kubernetes-health-probes.md)
 for probe semantics and a sample Deployment.
 
 ```yaml
@@ -296,94 +304,12 @@ distinct; `listen` is required when `enabled: true`. If
 `telemetry.prometheus.enabled` is set and `health.listen` equals
 `telemetry.prometheus.listen`, validation warns that one server will fail to bind.
 
-## `state`
-
-The state store records `(feed_url, item_id) → content_hash, last_seen_at`
-so the detector can classify each polled item as new, updated, or unchanged.
-It also holds per-feed HTTP cache validators (`ETag`, `Last-Modified`) so
-subsequent polls send conditional requests.
-
-```yaml
-state:
-  driver: postgres        # postgres | sqlite | dynamodb | cosmosdb
-  postgres:
-    dsn: ${POSTGRES_DSN}
-    tls:                  # rejected if DSN has sslmode=disable
-      ca_file: /etc/ssl/pg-ca.pem
-      cert_file: /etc/ssl/pg-client.pem
-      key_file: /etc/ssl/pg-client.key
-      server_name: pg.internal
-      insecure_skip_verify: false
-  # sqlite:
-  #   path: ./rss2msg.db
-  # dynamodb:
-  #   table: rss2msg-state    # PK feed_url (S) + SK item_id (S), provisioned out of band
-  #   region: us-east-1
-  #   endpoint_url:           # LocalStack / DynamoDB Local override
-  #   ttl_attribute: expires_at
-  #   item_ttl: 720h
-  # cosmosdb:
-  #   endpoint: ${COSMOS_ENDPOINT}             # Entra ID auth; OR connection_string below
-  #   connection_string: ${COSMOS_CONNECTION}  # account-key auth (mutually exclusive)
-  #   database: rss2msg
-  #   container: feed_state    # default feed_state; partitioned on /feed_url
-  #   create_if_missing: false # create db/container (TTL-enabled) on startup (dev/test)
-  #   throughput: 0            # manual RU/s when creating; 0 = serverless/shared
-  #   item_ttl: 720h           # optional per-item TTL; container must have TTL enabled
-```
-
-| field                    | required                | notes |
-| ------------------------ | ----------------------- | ----- |
-| `driver`                 | yes                     | `postgres`, `sqlite`, `dynamodb`, or `cosmosdb`. |
-| `postgres.dsn`           | yes (driver=postgres)   | Standard `postgres://` DSN. The store applies its migrations idempotently on `New`. |
-| `postgres.tls.*`         | no                      | Optional structured TLS config. Same field surface as `coordination.postgres.tls` — see [Secure Connections (TLS)](../how-to/secure-connections-tls.md) for the full table. Rejected when the DSN sets `sslmode=disable`. |
-| `sqlite.path`            | yes (driver=sqlite)     | Filesystem path passed verbatim to the `modernc.org/sqlite` driver. `:memory:` and `?_pragma=…` query strings are accepted. |
-| `dynamodb.table`         | yes (driver=dynamodb)   | DynamoDB table name. Provision it out of band with partition key `feed_url` (String) and sort key `item_id` (String); the store does not create it. |
-| `dynamodb.region`        | no                      | AWS region. Empty uses the SDK default chain (env, shared config, instance metadata). |
-| `dynamodb.endpoint_url`  | no                      | Service endpoint override for LocalStack / DynamoDB Local. |
-| `dynamodb.ttl_attribute` | no                      | Names the DynamoDB TTL attribute (epoch seconds) written on item rows. Must match the table's `TimeToLiveSpecification` for auto-pruning to take effect. Requires `item_ttl`. |
-| `dynamodb.item_ttl`      | yes (with ttl_attribute) | How long an item row lives after its last seen time, e.g. `720h`. Must be set together with `ttl_attribute`. |
-| `cosmosdb.endpoint`          | one-of                  | Cosmos account endpoint; authenticates with `DefaultAzureCredential`. Mutually exclusive with `connection_string`. |
-| `cosmosdb.connection_string` | one-of                  | Account-key connection string. Mutually exclusive with `endpoint`. |
-| `cosmosdb.database`          | yes (driver=cosmosdb)   | Database name. |
-| `cosmosdb.container`         | no                      | Container name; defaults to `feed_state`. Partitioned on `/feed_url`; provision out of band (with TTL enabled if you use `item_ttl`) unless `create_if_missing`. |
-| `cosmosdb.create_if_missing` | no                      | Create the database/container on startup (TTL-enabled when `item_ttl` is set). Dev/test convenience; pre-provision in production. |
-| `cosmosdb.throughput`        | no                      | Manual RU/s applied when creating the container; `0` leaves it unset (serverless / shared). |
-| `cosmosdb.item_ttl`          | no                      | Per-item TTL (e.g. `720h`) written as Cosmos' reserved `ttl` property. Requires the container to have TTL enabled. Meta rows never expire. |
-
-| driver     | concurrency / scope                                              | when to use |
-| ---------- | ---------------------------------------------------------------- | ----------- |
-| `postgres` | Shared across instances; writers serialised by the DB.           | Production, multi-instance, or when state already lives in Postgres. |
-| `sqlite`   | Single file on local disk. WAL + busy-timeout enabled by default; the store uses one connection so writes are serialised in-process. Not shared between processes/nodes. | Single-instance deployments, local dev, edge / embedded contexts. |
-| `dynamodb` | Shared, distributed-safe table; strongly-consistent reads. A feed's meta and items share a partition (`feed_url`) with the meta row under a reserved `#META` sort key. Optional TTL auto-pruning of old seen-items. | Production, multi-instance, AWS-native / serverless deployments. |
-| `cosmosdb` | Shared, distributed-safe container partitioned on `/feed_url`. Item rows are keyed by `sha256(item_id)`; a feed's meta row uses the reserved id `__meta__`. Optional per-item `ttl` auto-pruning of old seen-items. | Production, multi-instance, Azure-native / serverless deployments. |
-
-Schema created on first start (idempotent `CREATE TABLE IF NOT EXISTS`). The
-Postgres DDL is shown; the SQLite store uses the same logical schema with
-`TEXT` columns for timestamps (RFC3339Nano UTC), and `ON CONFLICT … DO
-UPDATE SET col = excluded.col` upserts.
-
-```sql
-CREATE TABLE seen_items (
-    feed_url     TEXT NOT NULL,
-    item_id      TEXT NOT NULL,
-    content_hash TEXT NOT NULL,
-    last_seen_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (feed_url, item_id)
-);
-
-CREATE TABLE feed_meta (
-    feed_url      TEXT PRIMARY KEY,
-    etag          TEXT NOT NULL DEFAULT '',
-    last_modified TIMESTAMPTZ,
-    updated_at    TIMESTAMPTZ NOT NULL
-);
-```
-
 ## Related
 
 - [CLI](cli.md) — flags that point at this config file.
 - [Configure Feeds](../how-to/configure-feeds.md) — the `feeds` list.
+- [Load Feeds Dynamically](../how-to/load-feeds-dynamically.md) — the `feed_sources` list.
 - [Choose a Sink](../how-to/choose-a-sink.md) — the `sinks` list.
+- [Choose a State Store](../how-to/choose-a-state-store.md) — the `state` block.
 - [Run Multiple Instances](../how-to/run-multiple-instances.md) — the `coordination` block.
 - [Secure Connections (TLS)](../how-to/secure-connections-tls.md) — TLS for Postgres state and coordination.
