@@ -5,6 +5,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
@@ -36,6 +37,98 @@ func TestInstanceIDResolution(t *testing.T) {
 			t.Fatal("instanceID fell back to empty; want non-empty hostname")
 		}
 	})
+}
+
+func TestOTLPProtocol(t *testing.T) {
+	t.Run("defaults to grpc when unset", func(t *testing.T) {
+		t.Setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "")
+		t.Setenv("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", "")
+		t.Setenv("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "")
+		got, err := otlpProtocol("traces")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != "grpc" {
+			t.Fatalf("otlpProtocol(traces) = %q, want grpc", got)
+		}
+	})
+	t.Run("general var selects http/protobuf", func(t *testing.T) {
+		t.Setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf")
+		t.Setenv("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", "")
+		t.Setenv("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "")
+		got, err := otlpProtocol("metrics")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != "http/protobuf" {
+			t.Fatalf("otlpProtocol(metrics) = %q, want http/protobuf", got)
+		}
+	})
+	t.Run("per-signal var overrides general", func(t *testing.T) {
+		t.Setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
+		t.Setenv("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", "http/protobuf")
+		t.Setenv("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "")
+		got, err := otlpProtocol("traces")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != "http/protobuf" {
+			t.Fatalf("otlpProtocol(traces) = %q, want http/protobuf", got)
+		}
+	})
+	t.Run("per-signal override scoped to its signal", func(t *testing.T) {
+		t.Setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
+		t.Setenv("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", "http/protobuf")
+		t.Setenv("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "")
+		got, err := otlpProtocol("metrics")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != "grpc" {
+			t.Fatalf("otlpProtocol(metrics) = %q, want grpc (traces override must not leak)", got)
+		}
+	})
+	t.Run("unrecognized value errors", func(t *testing.T) {
+		t.Setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "http")
+		t.Setenv("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", "")
+		t.Setenv("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "")
+		if _, err := otlpProtocol("traces"); err == nil {
+			t.Fatal("expected error for unrecognized protocol, got nil")
+		}
+	})
+}
+
+func TestSetupBuildsHTTPProtobufExporters(t *testing.T) {
+	// Selecting http/protobuf with an endpoint set must build the OTLP trace and
+	// metric providers without error. OTEL exporters construct lazily (no dial on
+	// New), so this stays hermetic — no server is started.
+	t.Setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf")
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
+
+	cfg := config.Defaults()
+	cfg.Log.Format = "json"
+	tel, err := Setup(context.Background(), cfg, &bytes.Buffer{})
+	if err != nil {
+		t.Fatalf("Setup with http/protobuf: %v", err)
+	}
+	// Shutdown may error flushing to the unreachable endpoint; bound it and ignore.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_ = tel.Shutdown(ctx)
+
+	if tel.Tracer == nil || tel.Meter == nil {
+		t.Fatal("expected tracer and meter to be non-nil")
+	}
+}
+
+func TestSetupRejectsUnknownOTLPProtocol(t *testing.T) {
+	t.Setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "http")
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
+
+	cfg := config.Defaults()
+	if _, err := Setup(context.Background(), cfg, &bytes.Buffer{}); err == nil {
+		t.Fatal("expected Setup to fail on unsupported OTLP protocol, got nil")
+	}
 }
 
 func TestSetupReturnsShutdownAndLogger(t *testing.T) {

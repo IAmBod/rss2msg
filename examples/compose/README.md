@@ -14,6 +14,7 @@ and how to run it.
 | [`postgres/`](postgres/) | **Postgres** as both the **state store** and a `postgres` **sink** — the change-log / datastore pattern. |
 | [`horizontal-scaling/`](horizontal-scaling/) | Multiple rss2msg replicas behind a shared **Redis coordinator** with **Postgres state** — safe multi-instance scaling without leader election. |
 | [`observability/`](observability/) | rss2msg's Prometheus `/metrics`, scraped by **Prometheus** and graphed in a pre-provisioned **Grafana**. |
+| [`grafana-cloud/`](grafana-cloud/) | rss2msg → **Grafana Alloy** → **Grafana Cloud**: OTLP metrics and traces bridged to a hosted Grafana stack. |
 
 ## Conventions shared by every example
 
