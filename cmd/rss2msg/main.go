@@ -32,7 +32,7 @@ func newRootCmd() *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().StringVar(&opts.configPath, "config", "", "Path to config file (default: ./config.yaml or /etc/rss2msg/config.yaml)")
-	root.AddCommand(newServeCmd(opts), newRunOnceCmd(opts), newLambdaCmd(opts), newValidateConfigCmd(opts), newGenerateConfigCmd(), newHealthcheckCmd(opts), newVersionCmd())
+	root.AddCommand(newServeCmd(opts), newRunOnceCmd(opts), newLambdaCmd(opts), newAzureFunctionsCmd(opts), newValidateConfigCmd(opts), newGenerateConfigCmd(), newHealthcheckCmd(opts), newVersionCmd())
 	return root
 }
 
@@ -224,9 +224,11 @@ func main() {
 	}()
 
 	root := newRootCmd()
-	// Inside Lambda with no explicit subcommand, default to `lambda` so a bare
-	// binary (zip custom-runtime bootstrap, or a command-less image) self-starts.
-	root.SetArgs(effectiveArgs(os.Args, os.Getenv("AWS_LAMBDA_RUNTIME_API"))[1:])
+	// Inside a serverless host with no explicit subcommand, default to the
+	// matching handler (lambda or azure-functions) so a bare binary — a zip
+	// custom-runtime bootstrap, an Azure Functions custom handler, or a
+	// command-less image — self-starts.
+	root.SetArgs(effectiveArgs(os.Args, implicitSubcommand(os.Getenv))[1:])
 	if err := root.ExecuteContext(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
