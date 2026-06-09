@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/iambod/rss2msg/internal/config"
 	"github.com/iambod/rss2msg/internal/coord"
@@ -24,6 +25,7 @@ import (
 	sinkgrpc "github.com/iambod/rss2msg/internal/sink/grpc"
 	sinkhttp "github.com/iambod/rss2msg/internal/sink/http"
 	sinkkafka "github.com/iambod/rss2msg/internal/sink/kafka"
+	sinkschema "github.com/iambod/rss2msg/internal/sink/kafka/schema"
 	sinknats "github.com/iambod/rss2msg/internal/sink/nats"
 	sinkpg "github.com/iambod/rss2msg/internal/sink/postgres"
 	sinkrabbitmq "github.com/iambod/rss2msg/internal/sink/rabbitmq"
@@ -284,6 +286,49 @@ func sinkKafkaTLSFromConfig(t config.SinkTLSConfig) *sinkkafka.TLSOptions {
 	}
 }
 
+// schemaOptionsFromConfig maps the kafka schema_registry config to the sink's
+// schema.Options. Returns nil when the registry is not configured (url empty),
+// which keeps the plain-JSON value path. auto_register defaults to true when
+// unset.
+func schemaOptionsFromConfig(topic string, c config.SchemaRegistryConfig) (*sinkschema.Options, error) {
+	if c.URL == "" {
+		return nil, nil
+	}
+	o := &sinkschema.Options{
+		URL:          c.URL,
+		Format:       sinkschema.Format(c.Format),
+		Topic:        topic,
+		Subject:      c.Subject,
+		AutoRegister: c.AutoRegister == nil || *c.AutoRegister,
+		BasicUser:    c.BasicAuth.Username,
+		BasicPass:    c.BasicAuth.Password,
+		TLS:          schemaRegistryTLSFromConfig(c.TLS),
+	}
+	if c.SchemaFile != "" {
+		b, err := os.ReadFile(c.SchemaFile)
+		if err != nil {
+			return nil, fmt.Errorf("schema_registry.schema_file: %w", err)
+		}
+		o.SchemaText = string(b)
+	}
+	return o, nil
+}
+
+// schemaRegistryTLSFromConfig maps the canonical sink TLS block to the schema
+// registry client's TLS options, returning nil when the block is inactive.
+func schemaRegistryTLSFromConfig(t config.SinkTLSConfig) *sinkschema.TLSOptions {
+	if !t.Active() {
+		return nil
+	}
+	return &sinkschema.TLSOptions{
+		CAFile:             t.CAFile,
+		CertFile:           t.CertFile,
+		KeyFile:            t.KeyFile,
+		ServerName:         t.ServerName,
+		InsecureSkipVerify: t.InsecureSkipVerify,
+	}
+}
+
 // sinkRabbitMQTLSFromConfig maps the canonical sink TLS block to the rabbitmq
 // sink's TLS options, returning nil when the block is inactive.
 func sinkRabbitMQTLSFromConfig(t config.SinkTLSConfig) *sinkrabbitmq.TLSOptions {
@@ -433,10 +478,15 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 			TLS: sinkPGTLSFromConfig(sc.Postgres.TLS),
 		})
 	case "kafka":
+		schemaOpts, err := schemaOptionsFromConfig(sc.Kafka.Topic, sc.Kafka.SchemaRegistry)
+		if err != nil {
+			return nil, fmt.Errorf("kafka sink %q: %w", sc.Name, err)
+		}
 		return sinkkafka.New(sinkkafka.Options{
 			Name: sc.Name, Brokers: sc.Kafka.Brokers, Topic: sc.Kafka.Topic,
 			Acks: sc.Kafka.Acks, Compression: sc.Kafka.Compression,
-			TLS: sinkKafkaTLSFromConfig(sc.Kafka.TLS),
+			TLS:    sinkKafkaTLSFromConfig(sc.Kafka.TLS),
+			Schema: schemaOpts,
 		})
 	case "stdout":
 		return sinkstdout.New(sinkstdout.Options{
