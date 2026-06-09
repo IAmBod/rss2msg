@@ -141,6 +141,24 @@ type CoordinationConfig struct {
 	Postgres CoordinationPGConfig       `mapstructure:"postgres"`
 	Redis    CoordinationRedisConfig    `mapstructure:"redis"`
 	DynamoDB CoordinationDynamoDBConfig `mapstructure:"dynamodb"`
+	CosmosDB CoordinationCosmosDBConfig `mapstructure:"cosmosdb"`
+}
+
+// CoordinationCosmosDBConfig configures the Azure Cosmos DB (NoSQL) lease
+// coordinator. Each feed lock is a document keyed by the feed URL and
+// partitioned on /pk; liveness comes from an explicit lease_expiry checked by
+// the acquirer (Cosmos native TTL is not trusted for locks). lease_duration
+// must safely exceed your worst-case per-feed poll time (default 60s); if a
+// poll outruns the lease, a peer can steal the lock mid-poll and both instances
+// poll. Exactly one of Endpoint or ConnectionString must be set.
+type CoordinationCosmosDBConfig struct {
+	Endpoint         string        `mapstructure:"endpoint"`          // Azure AD auth (DefaultAzureCredential)
+	ConnectionString string        `mapstructure:"connection_string"` // account-key auth
+	Database         string        `mapstructure:"database"`          // required
+	Container        string        `mapstructure:"container"`         // defaults to "coordination_locks"
+	CreateIfMissing  bool          `mapstructure:"create_if_missing"` // create db/container on startup (dev/test)
+	Throughput       int32         `mapstructure:"throughput"`        // manual RU/s when creating; 0 = serverless/shared
+	LeaseDuration    time.Duration `mapstructure:"lease_duration"`    // 0 -> 60s
 }
 
 // CoordinationDynamoDBConfig configures the DynamoDB lease coordinator. The
@@ -216,6 +234,7 @@ type StateConfig struct {
 	Postgres PostgresStateConfig    `mapstructure:"postgres"`
 	SQLite   SQLiteStateConfig      `mapstructure:"sqlite"`
 	DynamoDB DynamoDBStateConfig    `mapstructure:"dynamodb"`
+	CosmosDB CosmosDBStateConfig    `mapstructure:"cosmosdb"`
 	Extra    map[string]interface{} `mapstructure:",remain"`
 }
 
@@ -245,6 +264,22 @@ type DynamoDBStateConfig struct {
 	EndpointURL  string        `mapstructure:"endpoint_url"`  // optional: LocalStack / DynamoDB Local
 	TTLAttribute string        `mapstructure:"ttl_attribute"` // optional: TTL attribute name on item rows
 	ItemTTL      time.Duration `mapstructure:"item_ttl"`      // optional: how long item rows live; requires ttl_attribute
+}
+
+// CosmosDBStateConfig configures the "cosmosdb" state store: a shared,
+// distributed-safe Azure Cosmos DB (NoSQL) container partitioned on /feed_url.
+// Item rows are keyed by sha256(item_id); a feed's meta row uses the reserved
+// id "__meta__". item_ttl opts into Cosmos-native auto-pruning of old
+// seen-items (the container must have TTL enabled; create_if_missing does this).
+// Exactly one of Endpoint or ConnectionString must be set.
+type CosmosDBStateConfig struct {
+	Endpoint         string        `mapstructure:"endpoint"`          // Azure AD auth (DefaultAzureCredential)
+	ConnectionString string        `mapstructure:"connection_string"` // account-key auth
+	Database         string        `mapstructure:"database"`          // required
+	Container        string        `mapstructure:"container"`         // defaults to "feed_state"
+	CreateIfMissing  bool          `mapstructure:"create_if_missing"` // create db/container (TTL-enabled) on startup (dev/test)
+	Throughput       int32         `mapstructure:"throughput"`        // manual RU/s when creating; 0 = serverless/shared
+	ItemTTL          time.Duration `mapstructure:"item_ttl"`          // optional: per-item TTL; 0 disables
 }
 
 type SinkConfig struct {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/iambod/rss2msg/internal/config"
 	"github.com/iambod/rss2msg/internal/coord"
+	coordcosmos "github.com/iambod/rss2msg/internal/coord/cosmosdb"
 	coorddynamo "github.com/iambod/rss2msg/internal/coord/dynamodb"
 	coordmem "github.com/iambod/rss2msg/internal/coord/memory"
 	coordpg "github.com/iambod/rss2msg/internal/coord/postgres"
@@ -31,6 +32,7 @@ import (
 	sinksqs "github.com/iambod/rss2msg/internal/sink/sqs"
 	sinkstdout "github.com/iambod/rss2msg/internal/sink/stdout"
 	"github.com/iambod/rss2msg/internal/state"
+	statecosmos "github.com/iambod/rss2msg/internal/state/cosmosdb"
 	statedynamodb "github.com/iambod/rss2msg/internal/state/dynamodb"
 	statepg "github.com/iambod/rss2msg/internal/state/postgres"
 	statesqlite "github.com/iambod/rss2msg/internal/state/sqlite"
@@ -233,6 +235,16 @@ func openCoordinator(ctx context.Context, cc config.CoordinationConfig, sc confi
 			EndpointURL:   cc.DynamoDB.EndpointURL,
 			LeaseDuration: cc.DynamoDB.LeaseDuration,
 		})
+	case "cosmosdb":
+		return coordcosmos.New(ctx, coordcosmos.Options{
+			Endpoint:         cc.CosmosDB.Endpoint,
+			ConnectionString: cc.CosmosDB.ConnectionString,
+			Database:         cc.CosmosDB.Database,
+			Container:        cc.CosmosDB.Container,
+			CreateIfMissing:  cc.CosmosDB.CreateIfMissing,
+			Throughput:       cc.CosmosDB.Throughput,
+			LeaseDuration:    cc.CosmosDB.LeaseDuration,
+		})
 	default:
 		return nil, fmt.Errorf("unsupported coordination driver %q", driver)
 	}
@@ -419,6 +431,16 @@ func openStateStore(ctx context.Context, c config.StateConfig) (state.Store, err
 			EndpointURL:  c.DynamoDB.EndpointURL,
 			TTLAttribute: c.DynamoDB.TTLAttribute,
 			ItemTTL:      c.DynamoDB.ItemTTL,
+		})
+	case "cosmosdb":
+		return statecosmos.New(ctx, statecosmos.Options{
+			Endpoint:         c.CosmosDB.Endpoint,
+			ConnectionString: c.CosmosDB.ConnectionString,
+			Database:         c.CosmosDB.Database,
+			Container:        c.CosmosDB.Container,
+			CreateIfMissing:  c.CosmosDB.CreateIfMissing,
+			Throughput:       c.CosmosDB.Throughput,
+			ItemTTL:          c.CosmosDB.ItemTTL,
 		})
 	default:
 		return nil, fmt.Errorf("unsupported state driver %q", c.Driver)

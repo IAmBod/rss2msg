@@ -25,6 +25,7 @@ var knownStateDrivers = map[string]struct{}{
 	"postgres": {},
 	"sqlite":   {},
 	"dynamodb": {},
+	"cosmosdb": {},
 }
 
 // knownZerologLevels is the set of level names zerolog.ParseLevel accepts; used
@@ -108,6 +109,7 @@ var knownCoordinationDrivers = map[string]struct{}{
 	"postgres": {},
 	"redis":    {},
 	"dynamodb": {},
+	"cosmosdb": {},
 }
 
 // Validate checks config invariants. It returns a slice of non-fatal
@@ -152,6 +154,22 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 		if d.ItemTTL < 0 {
 			return *warnings, fmt.Errorf("state.dynamodb.item_ttl %v must not be negative", d.ItemTTL)
+		}
+	case "cosmosdb":
+		d := c.State.CosmosDB
+		hasEndpoint := strings.TrimSpace(d.Endpoint) != ""
+		hasConn := strings.TrimSpace(d.ConnectionString) != ""
+		switch {
+		case !hasEndpoint && !hasConn:
+			return *warnings, fmt.Errorf("state.cosmosdb: one of endpoint or connection_string is required when state.driver=cosmosdb")
+		case hasEndpoint && hasConn:
+			return *warnings, fmt.Errorf("state.cosmosdb: endpoint and connection_string are mutually exclusive")
+		}
+		if strings.TrimSpace(d.Database) == "" {
+			return *warnings, fmt.Errorf("state.cosmosdb.database is required when state.driver=cosmosdb")
+		}
+		if d.ItemTTL < 0 {
+			return *warnings, fmt.Errorf("state.cosmosdb.item_ttl %v must not be negative", d.ItemTTL)
 		}
 	}
 
@@ -270,6 +288,23 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			return *warnings, fmt.Errorf("coordination.dynamodb.lease_duration %v is below the 1s minimum", d.LeaseDuration)
 		}
 	}
+	if c.Coordination.Driver == "cosmosdb" {
+		d := c.Coordination.CosmosDB
+		hasEndpoint := strings.TrimSpace(d.Endpoint) != ""
+		hasConn := strings.TrimSpace(d.ConnectionString) != ""
+		switch {
+		case !hasEndpoint && !hasConn:
+			return *warnings, fmt.Errorf("coordination.cosmosdb: one of endpoint or connection_string is required when coordination.driver=cosmosdb")
+		case hasEndpoint && hasConn:
+			return *warnings, fmt.Errorf("coordination.cosmosdb: endpoint and connection_string are mutually exclusive")
+		}
+		if strings.TrimSpace(d.Database) == "" {
+			return *warnings, fmt.Errorf("coordination.cosmosdb.database is required when coordination.driver=cosmosdb")
+		}
+		if d.LeaseDuration != 0 && d.LeaseDuration < time.Second {
+			return *warnings, fmt.Errorf("coordination.cosmosdb.lease_duration %v is below the 1s minimum", d.LeaseDuration)
+		}
+	}
 
 	if c.Runtime.DeliverTimeout < 0 {
 		return *warnings, fmt.Errorf("runtime.deliver_timeout %v must not be negative (0 disables it)", c.Runtime.DeliverTimeout)
@@ -281,7 +316,7 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 	// keeps its own seen-items set and republishes everything other instances
 	// already sent. Mirror the feed-sink multi-instance warning below.
 	if c.State.Driver == "sqlite" &&
-		(c.Coordination.Driver == "redis" || c.Coordination.Driver == "postgres" || c.Coordination.Driver == "dynamodb") {
+		(c.Coordination.Driver == "redis" || c.Coordination.Driver == "postgres" || c.Coordination.Driver == "dynamodb" || c.Coordination.Driver == "cosmosdb") {
 		*warnings = append(*warnings, fmt.Sprintf(
 			"coordination.driver=%q looks multi-instance but state.driver=%q is a per-instance local file; cross-instance dedup is broken and items will be republished (use state.driver: postgres)",
 			c.Coordination.Driver, c.State.Driver))
