@@ -428,11 +428,39 @@ type PostgresSinkConfig struct {
 }
 
 type KafkaSinkConfig struct {
-	Brokers     []string      `mapstructure:"brokers"`
-	Topic       string        `mapstructure:"topic"`
-	Acks        string        `mapstructure:"acks"`        // "all" | "leader" | "none"
-	Compression string        `mapstructure:"compression"` // "none" | "snappy" | "lz4" | "zstd" | "gzip"
-	TLS         SinkTLSConfig `mapstructure:"tls"`
+	Brokers        []string             `mapstructure:"brokers"`
+	Topic          string               `mapstructure:"topic"`
+	Acks           string               `mapstructure:"acks"`        // "all" | "leader" | "none"
+	Compression    string               `mapstructure:"compression"` // "none" | "snappy" | "lz4" | "zstd" | "gzip"
+	TLS            SinkTLSConfig        `mapstructure:"tls"`
+	SchemaRegistry SchemaRegistryConfig `mapstructure:"schema_registry"`
+}
+
+// SchemaRegistryConfig enables Confluent Schema Registry encoding for the
+// kafka sink. A non-empty URL turns the feature on; absent ⇒ plain JSON.
+type SchemaRegistryConfig struct {
+	// URL is the Schema Registry base URL; its presence enables the feature.
+	URL string `mapstructure:"url"`
+	// Format selects the wire format: "json" | "avro" | "protobuf".
+	Format string `mapstructure:"format"`
+	// Subject overrides the default "<topic>-value" subject.
+	Subject string `mapstructure:"subject"`
+	// AutoRegister registers the schema on first use. Unset ⇒ true. Set to
+	// false to look up an existing schema id and error if absent.
+	AutoRegister *bool `mapstructure:"auto_register"`
+	// SchemaFile overrides the canonical registered schema text with the
+	// contents of this file. Must stay wire-compatible with the canonical shape.
+	SchemaFile string `mapstructure:"schema_file"`
+	// BasicAuth, if set, authenticates to the registry.
+	BasicAuth SchemaRegistryBasicAuth `mapstructure:"basic_auth"`
+	// TLS configures TLS to the registry (same shape as sink TLS).
+	TLS SinkTLSConfig `mapstructure:"tls"`
+}
+
+// SchemaRegistryBasicAuth holds HTTP basic-auth credentials for the registry.
+type SchemaRegistryBasicAuth struct {
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
 }
 
 type SQSSinkConfig struct {
