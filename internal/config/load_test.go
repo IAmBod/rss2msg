@@ -175,6 +175,41 @@ feeds:
 	}
 }
 
+func TestLoadKafkaSchemaRegistryExplicitFalse(t *testing.T) {
+	t.Parallel()
+	p := writeTempConfig(t, `
+state:
+  driver: sqlite
+  sqlite:
+    path: ":memory:"
+sinks:
+  - name: events
+    driver: kafka
+    kafka:
+      brokers: ["k:9092"]
+      topic: feed.changes
+      schema_registry:
+        url: http://sr:8081
+        format: json
+        auto_register: false
+feeds:
+  - url: https://example.com/feed.xml
+    interval: 60s
+    sinks: [events]
+`)
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sr := cfg.Sinks[0].Kafka.SchemaRegistry
+	if sr.AutoRegister == nil {
+		t.Fatal("auto_register should be non-nil when explicitly set")
+	}
+	if *sr.AutoRegister {
+		t.Fatal("auto_register should be false")
+	}
+}
+
 func TestLoadKafkaSchemaRegistry(t *testing.T) {
 	t.Parallel()
 	p := writeTempConfig(t, `

@@ -62,6 +62,27 @@ func TestJSONEncoderFramesWithMagicAndID(t *testing.T) {
 	}
 }
 
+func BenchmarkJSONEncoderEncode(b *testing.B) {
+	fake := srfake.New()
+	b.Cleanup(fake.Close)
+	enc, err := New(Options{URL: fake.URL(), Format: FormatJSON, Topic: "feed.changes", AutoRegister: true})
+	if err != nil {
+		b.Fatal(err)
+	}
+	ctx := context.Background()
+	c := model.Change{SchemaVersion: 1, FeedURL: "f1", ItemID: "i1", Kind: model.ChangeNew, ContentHash: "h", Title: "hi"}
+	if _, err := enc.Encode(ctx, c); err != nil { // warm: register schema once
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := enc.Encode(ctx, c); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func TestJSONEncoderUsesOverrideSchemaText(t *testing.T) {
 	fake := srfake.New()
 	t.Cleanup(fake.Close)

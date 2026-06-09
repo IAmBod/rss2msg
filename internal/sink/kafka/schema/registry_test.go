@@ -62,3 +62,22 @@ func TestRegistrarNoAutoRegisterFindsSeeded(t *testing.T) {
 		t.Fatalf("looked-up id = %d, want 42", id)
 	}
 }
+
+func TestRegistrarRetriesAfterError(t *testing.T) {
+	r, fake := newTestRegistrar(t, false) // auto=false → LookupSchema
+	ctx := context.Background()
+	if _, err := r.schemaID(ctx); err == nil {
+		t.Fatal("expected error before schema is seeded")
+	}
+	if r.id != 0 {
+		t.Fatalf("error must not cache an id, got %d", r.id)
+	}
+	fake.SeedSchema("feed.changes-value", 1, 7, r.schema)
+	id, err := r.schemaID(ctx)
+	if err != nil {
+		t.Fatalf("expected success after seeding, got %v", err)
+	}
+	if id != 7 {
+		t.Fatalf("id = %d, want 7", id)
+	}
+}
