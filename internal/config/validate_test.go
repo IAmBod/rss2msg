@@ -1993,3 +1993,20 @@ func TestValidateRejectsHTTPSourceReservedHeader(t *testing.T) {
 		t.Fatal("expected error for reserved cache header")
 	}
 }
+
+func TestValidateRejectsHTTPSourceNegativeTimeout(t *testing.T) {
+	t.Parallel()
+	cfg := Defaults()
+	cfg.State = StateConfig{Driver: "sqlite", SQLite: SQLiteStateConfig{Path: "x.db"}}
+	cfg.Sinks = []SinkConfig{{Name: "default", Driver: "stdout"}}
+	cfg.FeedSources = []FeedSourceConfig{{
+		Type: "http",
+		HTTP: HTTPFeedSourceConfig{
+			URL:     "https://cp.example/feeds",
+			Timeout: -1 * time.Second,
+		},
+	}}
+	if _, err := Validate(cfg); err == nil {
+		t.Fatal("expected error for negative timeout")
+	}
+}

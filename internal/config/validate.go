@@ -850,6 +850,9 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			if (s.HTTP.TLS.CertFile == "") != (s.HTTP.TLS.KeyFile == "") {
 				return *warnings, fmt.Errorf("feed_sources[%d] (http): cert_file and key_file must both be set or both empty", i)
 			}
+			if s.HTTP.Timeout < 0 {
+				return *warnings, fmt.Errorf("feed_sources[%d] (http): timeout must not be negative", i)
+			}
 			for h := range s.HTTP.Headers {
 				canon := textproto.CanonicalMIMEHeaderKey(h)
 				if _, bad := reservedHeaders[canon]; bad {
