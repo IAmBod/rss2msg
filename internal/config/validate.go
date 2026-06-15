@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 // pgKeywordSSLModeRE matches `sslmode=<value>` in pgx keyword-form DSNs,
@@ -842,6 +844,15 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			}
 			if s.Postgres.Table != "" && !validSQLIdentifier(s.Postgres.Table) {
 				return *warnings, fmt.Errorf("feed_sources[%d] (postgres): invalid table %q", i, s.Postgres.Table)
+			}
+		case "kubernetes":
+			if s.Kubernetes.LabelSelector != "" {
+				if _, err := labels.Parse(s.Kubernetes.LabelSelector); err != nil {
+					return *warnings, fmt.Errorf("feed_sources[%d] (kubernetes): invalid label_selector: %w", i, err)
+				}
+			}
+			if s.Kubernetes.ResyncInterval != 0 && s.Kubernetes.ResyncInterval < time.Second {
+				return *warnings, fmt.Errorf("feed_sources[%d] (kubernetes): resync_interval %v is below the 1s minimum", i, s.Kubernetes.ResyncInterval)
 			}
 		case "":
 			return *warnings, fmt.Errorf("feed_sources[%d]: type is required", i)
