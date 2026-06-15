@@ -1937,6 +1937,83 @@ func TestValidateSchemaRegistry(t *testing.T) {
 	}
 }
 
+func TestValidateAllowsHTTPSource(t *testing.T) {
+	t.Parallel()
+	cfg := Defaults()
+	cfg.State = StateConfig{Driver: "sqlite", SQLite: SQLiteStateConfig{Path: "x.db"}}
+	cfg.Sinks = []SinkConfig{{Name: "default", Driver: "stdout"}}
+	cfg.Feeds = nil
+	cfg.FeedSources = []FeedSourceConfig{{
+		Type: "http",
+		HTTP: HTTPFeedSourceConfig{URL: "https://cp.example/feeds"},
+	}}
+	if _, err := Validate(cfg); err != nil {
+		t.Fatalf("expected valid, got %v", err)
+	}
+}
+
+func TestValidateRejectsHTTPSourceWithoutURL(t *testing.T) {
+	t.Parallel()
+	cfg := Defaults()
+	cfg.State = StateConfig{Driver: "sqlite", SQLite: SQLiteStateConfig{Path: "x.db"}}
+	cfg.Sinks = []SinkConfig{{Name: "default", Driver: "stdout"}}
+	cfg.FeedSources = []FeedSourceConfig{{Type: "http"}}
+	if _, err := Validate(cfg); err == nil {
+		t.Fatal("expected error for http source without url")
+	}
+}
+
+func TestValidateRejectsHTTPSourceLoneCertFile(t *testing.T) {
+	t.Parallel()
+	cfg := Defaults()
+	cfg.State = StateConfig{Driver: "sqlite", SQLite: SQLiteStateConfig{Path: "x.db"}}
+	cfg.Sinks = []SinkConfig{{Name: "default", Driver: "stdout"}}
+	cfg.FeedSources = []FeedSourceConfig{{
+		Type: "http",
+		HTTP: HTTPFeedSourceConfig{
+			URL: "https://cp.example/feeds",
+			TLS: FeedSourceHTTPTLSConfig{CertFile: "/c.pem"},
+		},
+	}}
+	if _, err := Validate(cfg); err == nil {
+		t.Fatal("expected error for lone cert_file")
+	}
+}
+
+func TestValidateRejectsHTTPSourceReservedHeader(t *testing.T) {
+	t.Parallel()
+	cfg := Defaults()
+	cfg.State = StateConfig{Driver: "sqlite", SQLite: SQLiteStateConfig{Path: "x.db"}}
+	cfg.Sinks = []SinkConfig{{Name: "default", Driver: "stdout"}}
+	cfg.FeedSources = []FeedSourceConfig{{
+		Type: "http",
+		HTTP: HTTPFeedSourceConfig{
+			URL:     "https://cp.example/feeds",
+			Headers: map[string]string{"If-None-Match": "x"},
+		},
+	}}
+	if _, err := Validate(cfg); err == nil {
+		t.Fatal("expected error for reserved cache header")
+	}
+}
+
+func TestValidateRejectsHTTPSourceNegativeTimeout(t *testing.T) {
+	t.Parallel()
+	cfg := Defaults()
+	cfg.State = StateConfig{Driver: "sqlite", SQLite: SQLiteStateConfig{Path: "x.db"}}
+	cfg.Sinks = []SinkConfig{{Name: "default", Driver: "stdout"}}
+	cfg.FeedSources = []FeedSourceConfig{{
+		Type: "http",
+		HTTP: HTTPFeedSourceConfig{
+			URL:     "https://cp.example/feeds",
+			Timeout: -1 * time.Second,
+		},
+	}}
+	if _, err := Validate(cfg); err == nil {
+		t.Fatal("expected error for negative timeout")
+	}
+}
+
 func TestValidateKubernetesFeedSource(t *testing.T) {
 	t.Parallel()
 

@@ -251,3 +251,52 @@ feeds:
 		t.Fatalf("basic_auth not parsed: %+v", sr.BasicAuth)
 	}
 }
+
+func TestLoadParsesHTTPFeedSource(t *testing.T) {
+	t.Parallel()
+	path := writeTempConfig(t, `
+feed_sources:
+  - type: http
+    name: control-plane
+    interval: 30s
+    http:
+      url: https://cp.example/feeds
+      timeout: 10s
+      headers:
+        Authorization: "Bearer tok"
+      tls:
+        ca_file: /etc/ssl/ca.pem
+        insecure_skip_verify: true
+`)
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(cfg.FeedSources) != 1 {
+		t.Fatalf("want 1 feed source, got %d", len(cfg.FeedSources))
+	}
+	s := cfg.FeedSources[0]
+	if s.Type != "http" || s.Name != "control-plane" {
+		t.Fatalf("source = %+v", s)
+	}
+	if s.Interval != 30*time.Second {
+		t.Fatalf("interval = %v", s.Interval)
+	}
+	if s.HTTP.URL != "https://cp.example/feeds" {
+		t.Fatalf("url = %q", s.HTTP.URL)
+	}
+	if s.HTTP.Timeout != 10*time.Second {
+		t.Fatalf("timeout = %v", s.HTTP.Timeout)
+	}
+	authHeader := s.HTTP.Headers["Authorization"]
+	// viper lowercases map keys, so try both
+	if authHeader == "" {
+		authHeader = s.HTTP.Headers["authorization"]
+	}
+	if authHeader != "Bearer tok" {
+		t.Fatalf("headers = %+v", s.HTTP.Headers)
+	}
+	if s.HTTP.TLS.CAFile != "/etc/ssl/ca.pem" || !s.HTTP.TLS.InsecureSkipVerify {
+		t.Fatalf("tls = %+v", s.HTTP.TLS)
+	}
+}

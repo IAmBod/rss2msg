@@ -843,6 +843,22 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			if s.Postgres.Table != "" && !validSQLIdentifier(s.Postgres.Table) {
 				return *warnings, fmt.Errorf("feed_sources[%d] (postgres): invalid table %q", i, s.Postgres.Table)
 			}
+		case "http":
+			if strings.TrimSpace(s.HTTP.URL) == "" {
+				return *warnings, fmt.Errorf("feed_sources[%d] (http): url is required", i)
+			}
+			if (s.HTTP.TLS.CertFile == "") != (s.HTTP.TLS.KeyFile == "") {
+				return *warnings, fmt.Errorf("feed_sources[%d] (http): cert_file and key_file must both be set or both empty", i)
+			}
+			if s.HTTP.Timeout < 0 {
+				return *warnings, fmt.Errorf("feed_sources[%d] (http): timeout must not be negative", i)
+			}
+			for h := range s.HTTP.Headers {
+				canon := textproto.CanonicalMIMEHeaderKey(h)
+				if _, bad := reservedHeaders[canon]; bad {
+					return *warnings, fmt.Errorf("feed_sources[%d] (http): headers must not set reserved cache header %q", i, h)
+				}
+			}
 		case "kubernetes":
 			if s.Kubernetes.LabelSelector != "" {
 				if _, err := labels.Parse(s.Kubernetes.LabelSelector); err != nil {

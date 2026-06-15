@@ -41,8 +41,9 @@ Postgres-backed feed table stays current under those modes.
 | `static` | implemented | Injects the top-level `feeds:` block at this position in the precedence order. |
 | `file`   | implemented | Reads a JSON file of feed specs; watches the file for changes and reloads automatically. |
 | `postgres` | implemented | Reads the feed list from a Postgres table; polls on an interval. |
+| `http`     | implemented | Fetches the feed list from an HTTP endpoint as JSON; polls on an interval with conditional GET. |
 | `kubernetes` | implemented | Watches `Feed` custom resources in a Kubernetes cluster via a dynamic informer. |
-| `http`, `sqlite`, `redis`, `s3`, `env` | planned | Not yet implemented. |
+| `sqlite`, `redis`, `s3`, `env` | planned | Not yet implemented. |
 
 ### `type: file`
 
@@ -119,6 +120,53 @@ CREATE TABLE feeds (
   sinks    TEXT[]
 );
 ```
+
+### `type: http`
+
+Fetches the desired feed list from an HTTP endpoint and re-fetches it every
+`interval`. The response must be a JSON **object** with the feed array under a
+`feeds` key (unlike the `file` source, which is a bare array):
+
+```yaml
+- type: http
+  name: control-plane            # optional label for logs
+  interval: 30s                  # how often to re-fetch (min 1s; defaults to 1s)
+  http:
+    url: https://cp.example/feeds   # required; ${ENV} expands
+    timeout: 10s                    # per-request; defaults to 30s
+    headers:                        # arbitrary request headers
+      Authorization: "Bearer ${CP_TOKEN}"   # or "Basic <base64>", or use X-API-Key, etc.
+    tls:                            # optional; same shape as the Postgres source TLS
+      ca_file: ""
+      cert_file: ""                 # cert_file + key_file: both or neither (mTLS)
+      key_file: ""
+      server_name: ""
+      insecure_skip_verify: false
+```
+
+Expected response body:
+
+```json
+{
+  "feeds": [
+    { "url": "https://example.com/feed.xml", "interval": "5m", "sinks": ["out"] }
+  ]
+}
+```
+
+Each element is the same feed-spec shape the `file` source uses; both `url` and
+`interval` are required for `serve` to schedule the feed. An empty list
+(`{"feeds": []}`) is valid. Authenticate by setting request `headers` (bearer
+token, HTTP basic, or an API-key header) and/or configure mutual TLS through the
+`tls` block — see [Secure connections with TLS](./secure-connections-tls.md).
+
+The source sends conditional-GET validators (`If-None-Match` / `If-Modified-Since`)
+from the previous response's `ETag` / `Last-Modified`; a `304 Not Modified` reply
+reuses the cached list. A failed fetch — unreachable host, non-2xx status, a body
+that is not valid JSON, or a body missing the `feeds` key — keeps the **last
+successful** feed list for this source, so a transient outage does not drop feeds.
+A response missing the `feeds` key is additionally logged at warn (it usually
+means the URL points at the wrong endpoint).
 
 ### `type: static`
 
