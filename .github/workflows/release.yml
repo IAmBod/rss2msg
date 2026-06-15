@@ -3,16 +3,18 @@ name: Release
 # Cut a release by pushing a semver tag:
 #   git tag v1.2.3 && git push origin v1.2.3
 #
-# This builds multi-platform binaries + a multi-arch Docker image, publishes a
-# GitHub Release whose notes come from git-cliff, and syncs the regenerated
-# CHANGELOG.md back to main.
+# This builds multi-platform binaries + a multi-arch Docker image and publishes a
+# GitHub Release whose notes come from git-cliff. CHANGELOG.md is regenerated and
+# committed to main *before* tagging (by the cut-release skill / `/release` command),
+# so the tagged commit already carries the populated changelog that GoReleaser bundles
+# into the artifacts — this workflow neither regenerates nor syncs it.
 on:
   push:
     tags:
       - "v*.*.*"
 
 permissions:
-  contents: write   # create the GitHub Release and push CHANGELOG.md to main
+  contents: write   # create the GitHub Release
   packages: write   # push images to GHCR
 
 jobs:
@@ -39,19 +41,6 @@ jobs:
         env:
           OUTPUT: RELEASE_NOTES.md
 
-      # Regenerate the full CHANGELOG.md in the workspace *before* GoReleaser packages,
-      # so the populated changelog (not just the header) is bundled into the archives
-      # and distro packages. At the tag commit the committed CHANGELOG.md is still empty
-      # — it's only populated by the `changelog` job below, which runs after this one and
-      # pushes to main, i.e. too late to reach these artifacts. This step closes that gap.
-      - name: Generate CHANGELOG.md (git-cliff)
-        uses: orhun/git-cliff-action@v4
-        with:
-          config: cliff.toml
-          args: --tag ${{ github.ref_name }}
-        env:
-          OUTPUT: CHANGELOG.md
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -69,10 +58,10 @@ jobs:
         uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
-          # Regenerating CHANGELOG.md above leaves the working tree dirty, so skip the
-          # validate pipe (its dirty-state check would otherwise abort the release). The
-          # version is still taken from the pushed tag at HEAD.
-          args: release --clean --skip=validate --release-notes RELEASE_NOTES.md
+          # The tagged commit already carries the populated CHANGELOG.md (committed to
+          # main before tagging), so the tree is clean and the validate pipe passes.
+          # RELEASE_NOTES.md is git-ignored, so it doesn't dirty the tree.
+          args: release --clean --release-notes RELEASE_NOTES.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Pushing the Homebrew formula to the separate IAmBod/homebrew-tap repo
@@ -82,34 +71,3 @@ jobs:
           # but binaries/images/packages still publish — so the secret is only
           # required once you actually want the tap updated.
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
-
-  changelog:
-    name: sync CHANGELOG.md to main
-    runs-on: ubuntu-latest
-    # Don't push pre-release churn (e.g. v1.0.0-rc.1) onto main.
-    if: ${{ !contains(github.ref_name, '-') }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: main
-          fetch-depth: 0
-
-      - name: Generate full CHANGELOG.md (git-cliff)
-        uses: orhun/git-cliff-action@v4
-        with:
-          config: cliff.toml
-          args: --tag ${{ github.ref_name }}
-        env:
-          OUTPUT: CHANGELOG.md
-
-      - name: Commit and push if changed
-        run: |
-          if git diff --quiet -- CHANGELOG.md; then
-            echo "CHANGELOG.md unchanged; nothing to commit."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md
-          git commit -m "chore(release): update CHANGELOG.md for ${{ github.ref_name }} [skip ci]"
-          git push origin main
