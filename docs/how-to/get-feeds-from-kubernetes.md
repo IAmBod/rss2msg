@@ -55,6 +55,12 @@ rules:
 
 Bind it to the pod's ServiceAccount with a `ClusterRoleBinding`.
 
+> **In-cluster credentials.** With no `kubeconfig` set, the source authenticates
+> with the pod's mounted ServiceAccount token, so the token must be mounted. The
+> Helm chart defaults `serviceAccount.automount` to `true` for this reason — keep
+> it true for in-cluster use, or set an explicit `kubeconfig` (see below) if you
+> prefer to disable token mounting.
+
 ## 3. Configure the source
 
 Add a `kubernetes` entry to `feed_sources:` in `config.yaml`:
