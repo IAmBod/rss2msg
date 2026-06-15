@@ -1923,8 +1923,11 @@ func TestValidateSchemaRegistry(t *testing.T) {
 	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "json", SchemaFile: "/no/such/file"})); err == nil {
 		t.Fatal("expected error for missing schema_file")
 	}
-	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "protobuf"})); err == nil {
-		t.Fatal("expected error for not-yet-supported protobuf")
+	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "protobuf"})); err != nil {
+		t.Fatalf("valid protobuf registry rejected: %v", err)
+	}
+	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "thrift"})); err == nil {
+		t.Fatal("expected error for invalid format")
 	}
 	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "json", BasicAuth: SchemaRegistryBasicAuth{Username: "u"}})); err == nil {
 		t.Fatal("expected error for basic_auth username without password")

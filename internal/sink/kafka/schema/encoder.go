@@ -59,7 +59,7 @@ func New(opts Options) (Encoder, error) {
 	case FormatAvro:
 		return newAvroEncoder(opts, subject)
 	case FormatProtobuf:
-		return nil, fmt.Errorf("schema registry: format %q is not supported yet (have %q, %q)", opts.Format, FormatJSON, FormatAvro)
+		return newProtobufEncoder(opts, subject)
 	default:
 		return nil, fmt.Errorf("schema registry: unknown format %q", opts.Format)
 	}
