@@ -593,11 +593,12 @@ type NATSSinkConfig struct {
 // precedence: earlier entries win on URL collision. The static feeds: block is
 // represented by an entry with Type "static".
 type FeedSourceConfig struct {
-	Type     string                   `mapstructure:"type"` // "static", "file", and "postgres" are implemented; http|sqlite|redis|s3|env are added by later plans
+	Type     string                   `mapstructure:"type"` // "static", "file", "postgres", and "http" are implemented; sqlite|redis|s3|env are added by later plans
 	Name     string                   `mapstructure:"name"` // optional; defaults to "<type>[index]"
 	Path     string                   `mapstructure:"path"` // file source
 	Interval time.Duration            `mapstructure:"interval"`
 	Postgres PostgresFeedSourceConfig `mapstructure:"postgres"` // postgres source
+	HTTP     HTTPFeedSourceConfig     `mapstructure:"http"`     // http source
 }
 
 // PostgresFeedSourceConfig configures a Postgres-backed feed source. The desired
@@ -611,6 +612,27 @@ type PostgresFeedSourceConfig struct {
 }
 
 type FeedSourcePGTLSConfig struct {
+	CAFile             string `mapstructure:"ca_file"`
+	CertFile           string `mapstructure:"cert_file"`
+	KeyFile            string `mapstructure:"key_file"`
+	ServerName         string `mapstructure:"server_name"`
+	InsecureSkipVerify bool   `mapstructure:"insecure_skip_verify"`
+}
+
+// HTTPFeedSourceConfig configures an HTTP-backed feed source. The desired feed
+// list is fetched from URL on an interval as a JSON object with the feed array
+// under a "feeds" key. Auth is expressed via headers (bearer/basic/API-key) and
+// the optional tls block (custom CA + client cert).
+type HTTPFeedSourceConfig struct {
+	URL     string                  `mapstructure:"url"`     // required
+	Timeout time.Duration           `mapstructure:"timeout"` // per-request; default 30s
+	Headers map[string]string       `mapstructure:"headers"`
+	TLS     FeedSourceHTTPTLSConfig `mapstructure:"tls"`
+}
+
+// FeedSourceHTTPTLSConfig is the client TLS surface for the http feed source.
+// Same field set as FeedSourcePGTLSConfig, kept distinct for the http namespace.
+type FeedSourceHTTPTLSConfig struct {
 	CAFile             string `mapstructure:"ca_file"`
 	CertFile           string `mapstructure:"cert_file"`
 	KeyFile            string `mapstructure:"key_file"`
