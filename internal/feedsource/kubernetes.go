@@ -12,7 +12,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/iambod/rss2msg/internal/config"
 )
@@ -101,6 +103,29 @@ func newKubernetesWithClient(ctx context.Context, name string, client dynamic.In
 		return nil, fmt.Errorf("kubernetes feed source %q: cache sync failed", name)
 	}
 	return k, nil
+}
+
+// NewKubernetes builds a source from cluster credentials. When kubeconfig is
+// empty it uses in-cluster config (the pod's ServiceAccount); otherwise it loads
+// the named kubeconfig file (for local/out-of-cluster use).
+func NewKubernetes(ctx context.Context, opts KubernetesOptions, kubeconfig string) (*Kubernetes, error) {
+	var (
+		cfg *rest.Config
+		err error
+	)
+	if kubeconfig == "" {
+		cfg, err = rest.InClusterConfig()
+	} else {
+		cfg, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("kubernetes feed source %q: rest config: %w", opts.Name, err)
+	}
+	client, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("kubernetes feed source %q: dynamic client: %w", opts.Name, err)
+	}
+	return newKubernetesWithClient(ctx, opts.Name, client, opts)
 }
 
 func (k *Kubernetes) Name() string { return k.name }

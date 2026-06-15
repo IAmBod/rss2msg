@@ -165,3 +165,11 @@ func TestKubernetesSourceSignalsOnAdd(t *testing.T) {
 		t.Fatal("expected a change signal after Create")
 	}
 }
+
+func TestNewKubernetesBadKubeconfig(t *testing.T) {
+	ctx := context.Background()
+	_, err := NewKubernetes(ctx, KubernetesOptions{Name: "k8s"}, "/nonexistent/kubeconfig")
+	if err == nil {
+		t.Fatal("expected an error for a missing kubeconfig path")
+	}
+}
