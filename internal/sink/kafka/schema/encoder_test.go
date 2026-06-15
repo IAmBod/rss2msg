@@ -6,7 +6,7 @@ import (
 )
 
 func TestNewRejectsUnsupportedFormat(t *testing.T) {
-	_, err := New(Options{URL: "http://sr:8081", Format: "avro", Topic: "t"})
+	_, err := New(Options{URL: "http://sr:8081", Format: "protobuf", Topic: "t"})
 	if err == nil || !strings.Contains(err.Error(), "format") {
 		t.Fatalf("want unsupported-format error, got %v", err)
 	}
