@@ -1911,8 +1911,8 @@ func TestValidateSchemaRegistry(t *testing.T) {
 	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "bogus"})); err == nil {
 		t.Fatal("expected error for unknown format")
 	}
-	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "avro"})); err == nil {
-		t.Fatal("expected error for not-yet-supported avro")
+	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "avro"})); err != nil {
+		t.Fatalf("valid avro registry rejected: %v", err)
 	}
 	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081"})); err == nil {
 		t.Fatal("expected error for missing format")

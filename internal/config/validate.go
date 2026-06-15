@@ -771,10 +771,10 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			continue
 		}
 		switch sr.Format {
-		case "json":
+		case "json", "avro":
 			// supported in this release
-		case "avro", "protobuf":
-			return *warnings, fmt.Errorf("sinks[%d] (kafka %q): schema_registry.format %q is not supported yet (only \"json\")", i, s.Name, sr.Format)
+		case "protobuf":
+			return *warnings, fmt.Errorf("sinks[%d] (kafka %q): schema_registry.format %q is not supported yet (json, avro)", i, s.Name, sr.Format)
 		case "":
 			return *warnings, fmt.Errorf("sinks[%d] (kafka %q): schema_registry.format is required when url is set", i, s.Name)
 		default:
