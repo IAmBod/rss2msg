@@ -180,3 +180,15 @@ affinity: {}
 extraVolumes: []
 # -- Extra volume mounts added to the container.
 extraVolumeMounts: []
+
+# Kubernetes feed source settings.
+feedSource:
+  kubernetes:
+    crd:
+      # -- Install the Feed CRD when true. Set to false if you manage the CRD out of band.
+      install: true
+    rbac:
+      # -- Create a ClusterRole + ClusterRoleBinding granting the workload access to Feed resources.
+      create: true
+    # -- Also grant get/update/patch on feeds/status (for status write-back).
+    writeStatus: true

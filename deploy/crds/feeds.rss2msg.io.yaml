@@ -1,0 +1,57 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: feeds.rss2msg.io
+spec:
+  group: rss2msg.io
+  scope: Namespaced
+  names:
+    kind: Feed
+    listKind: FeedList
+    plural: feeds
+    singular: feed
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: URL
+          type: string
+          jsonPath: .spec.url
+        - name: Last Poll
+          type: date
+          jsonPath: .status.lastPollTime
+        - name: Changes
+          type: integer
+          jsonPath: .status.lastChangeCount
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                interval:
+                  type: string
+                  pattern: '^[0-9]+(ns|us|µs|ms|s|m|h)([0-9]+(ns|us|µs|ms|s|m|h))*$'
+                sinks:
+                  type: array
+                  items:
+                    type: string
+                http:
+                  type: object
+                  properties:
+                    timeout:
+                      type: string
+                    headers:
+                      type: object
+                      additionalProperties:
+                        type: string
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
