@@ -3,7 +3,9 @@ package feedsource
 import (
 	"context"
 	"testing"
+	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -92,5 +94,42 @@ func TestKubernetesSpecFromUnstructured(t *testing.T) {
 	}
 	if spec.HTTP.Headers["User-Agent"] != "rss2msg" {
 		t.Errorf("HTTP.Headers = %+v", spec.HTTP.Headers)
+	}
+}
+
+func TestKubernetesSourceEvictsStaleIndexOnURLChange(t *testing.T) {
+	scheme := runtime.NewScheme()
+	gvrToKind := map[schema.GroupVersionResource]string{feedGVR: "FeedList"}
+	client := fake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvrToKind,
+		unstructuredFeed("a", map[string]any{"url": "https://e/old"}),
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s, err := newKubernetesWithClient(ctx, "k8s", client, KubernetesOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	_, err = client.Resource(feedGVR).Namespace("feeds").Update(ctx,
+		unstructuredFeed("a", map[string]any{"url": "https://e/new"}), metav1.UpdateOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	deadline := time.After(2 * time.Second)
+	for {
+		s.mu.RLock()
+		_, oldStale := s.index["https://e/old"]
+		_, newPresent := s.index["https://e/new"]
+		s.mu.RUnlock()
+		if !oldStale && newPresent {
+			return // converged: old evicted, new present
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("index did not converge: oldStale=%v newPresent=%v", oldStale, newPresent)
+		case <-time.After(20 * time.Millisecond):
+		}
 	}
 }

@@ -142,6 +142,9 @@ func (k *Kubernetes) upsert(obj any) {
 	}
 	key := u.GetNamespace() + "/" + u.GetName()
 	k.mu.Lock()
+	if old, exists := k.specs[key]; exists && old.URL != spec.URL {
+		delete(k.index, old.URL) // CR's url changed: drop the stale index entry
+	}
 	k.specs[key] = spec
 	k.index[spec.URL] = namespacedName{Namespace: u.GetNamespace(), Name: u.GetName()}
 	k.mu.Unlock()
