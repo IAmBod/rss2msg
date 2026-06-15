@@ -3,8 +3,11 @@ package feedsource
 import (
 	"bytes"
 	"context"
+	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -189,5 +192,93 @@ func TestHTTPRequiresURL(t *testing.T) {
 	t.Parallel()
 	if _, err := NewHTTP(HTTPOptions{Name: "x", Interval: longInterval}); err == nil {
 		t.Fatal("expected error for empty url")
+	}
+}
+
+func writeServerCAFile(t *testing.T, srv *httptest.Server) string {
+	t.Helper()
+	cert := srv.Certificate() // self-signed cert httptest serves (valid for 127.0.0.1)
+	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})
+	path := filepath.Join(t.TempDir(), "ca.pem")
+	if err := os.WriteFile(path, pemBytes, 0o600); err != nil {
+		t.Fatalf("write ca: %v", err)
+	}
+	return path
+}
+
+func TestHTTPTLSCustomCARoundTrip(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"feeds":[{"url":"https://a.example/rss","interval":"5m"}]}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	caFile := writeServerCAFile(t, srv)
+	h, err := NewHTTP(HTTPOptions{
+		Name:     "tls",
+		URL:      srv.URL, // https://127.0.0.1:port
+		Interval: longInterval,
+		TLS:      &HTTPTLSOptions{CAFile: caFile},
+	})
+	if err != nil {
+		t.Fatalf("NewHTTP: %v", err)
+	}
+	t.Cleanup(func() { _ = h.Close() })
+
+	feeds, err := h.Feeds(context.Background())
+	if err != nil {
+		t.Fatalf("Feeds over TLS: %v", err)
+	}
+	if len(feeds) != 1 {
+		t.Fatalf("feeds = %+v", feeds)
+	}
+}
+
+func TestHTTPTLSUntrustedCAFails(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"feeds":[]}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	// No CAFile and verification on → the self-signed cert is untrusted.
+	h, err := NewHTTP(HTTPOptions{Name: "tls", URL: srv.URL, Interval: longInterval, TLS: &HTTPTLSOptions{}})
+	if err != nil {
+		t.Fatalf("NewHTTP: %v", err)
+	}
+	t.Cleanup(func() { _ = h.Close() })
+	if _, err := h.Feeds(context.Background()); err == nil {
+		t.Fatal("expected TLS verification error")
+	}
+}
+
+func TestHTTPTLSInsecureSkipVerify(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"feeds":[]}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	h, err := NewHTTP(HTTPOptions{Name: "tls", URL: srv.URL, Interval: longInterval, TLS: &HTTPTLSOptions{InsecureSkipVerify: true}})
+	if err != nil {
+		t.Fatalf("NewHTTP: %v", err)
+	}
+	t.Cleanup(func() { _ = h.Close() })
+	if _, err := h.Feeds(context.Background()); err != nil {
+		t.Fatalf("Feeds with skip-verify: %v", err)
+	}
+}
+
+func TestBuildHTTPSourceTLSErrors(t *testing.T) {
+	t.Parallel()
+	if _, err := buildHTTPSourceTLS(HTTPTLSOptions{CertFile: "/only-cert.pem"}); err == nil {
+		t.Fatal("expected error for lone cert_file")
+	}
+	bad := filepath.Join(t.TempDir(), "bad-ca.pem")
+	if err := os.WriteFile(bad, []byte("not a pem"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if _, err := buildHTTPSourceTLS(HTTPTLSOptions{CAFile: bad}); err == nil {
+		t.Fatal("expected error for unparseable CA file")
 	}
 }
