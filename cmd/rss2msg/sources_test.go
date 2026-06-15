@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/iambod/rss2msg/internal/config"
@@ -36,5 +37,19 @@ func TestBuildSourcesPostgresBadDSN(t *testing.T) {
 	}
 	if _, _, err := buildSources(cfg); err == nil {
 		t.Fatal("expected error for malformed dsn")
+	}
+}
+
+func TestBuildSourcesKubernetesRecognised(t *testing.T) {
+	cfg := config.Config{FeedSources: []config.FeedSourceConfig{{Type: "kubernetes"}}}
+	_, cleanup, err := buildSources(cfg)
+	if cleanup != nil {
+		cleanup()
+	}
+	if err == nil {
+		t.Skip("running inside a cluster; constructor succeeded")
+	}
+	if strings.Contains(err.Error(), "unsupported type") {
+		t.Fatalf("kubernetes should be a recognised source type, got: %v", err)
 	}
 }

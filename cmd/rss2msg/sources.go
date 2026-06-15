@@ -90,6 +90,24 @@ func buildSources(cfg config.Config) ([]feedsource.Source, func(), error) {
 			}
 			closers = append(closers, func() { _ = p.Close() })
 			sources = append(sources, p)
+		case "kubernetes":
+			writeStatus := true
+			if sc.Kubernetes.WriteStatus != nil {
+				writeStatus = *sc.Kubernetes.WriteStatus
+			}
+			k, err := feedsource.NewKubernetes(context.Background(), feedsource.KubernetesOptions{
+				Name:           name,
+				Namespace:      sc.Kubernetes.Namespace,
+				LabelSelector:  sc.Kubernetes.LabelSelector,
+				ResyncInterval: sc.Kubernetes.ResyncInterval,
+				WriteStatus:    writeStatus,
+			}, sc.Kubernetes.Kubeconfig)
+			if err != nil {
+				closeAll(closers)
+				return nil, nil, err
+			}
+			closers = append(closers, func() { _ = k.Close() })
+			sources = append(sources, k)
 		default:
 			closeAll(closers)
 			return nil, nil, fmt.Errorf("feed_sources[%d]: unsupported type %q", i, sc.Type)
