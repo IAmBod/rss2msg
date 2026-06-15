@@ -39,6 +39,19 @@ jobs:
         env:
           OUTPUT: RELEASE_NOTES.md
 
+      # Regenerate the full CHANGELOG.md in the workspace *before* GoReleaser packages,
+      # so the populated changelog (not just the header) is bundled into the archives
+      # and distro packages. At the tag commit the committed CHANGELOG.md is still empty
+      # — it's only populated by the `changelog` job below, which runs after this one and
+      # pushes to main, i.e. too late to reach these artifacts. This step closes that gap.
+      - name: Generate CHANGELOG.md (git-cliff)
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --tag ${{ github.ref_name }}
+        env:
+          OUTPUT: CHANGELOG.md
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -56,7 +69,10 @@ jobs:
         uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
-          args: release --clean --release-notes RELEASE_NOTES.md
+          # Regenerating CHANGELOG.md above leaves the working tree dirty, so skip the
+          # validate pipe (its dirty-state check would otherwise abort the release). The
+          # version is still taken from the pushed tag at HEAD.
+          args: release --clean --skip=validate --release-notes RELEASE_NOTES.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Pushing the Homebrew formula to the separate IAmBod/homebrew-tap repo

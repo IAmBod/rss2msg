@@ -21,9 +21,12 @@ Two GitHub Actions workflows wire them together:
 - [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) — runs on PRs and pushes
   to `main`: golangci-lint, `go vet`, unit tests (`-race`), `go build`, and `goreleaser check`.
 - [`.github/workflows/release.yml`](../../.github/workflows/release.yml) — runs on a
-  pushed `v*.*.*` tag: generates release notes with git-cliff, runs GoReleaser to build
-  and publish artifacts and the Docker image, then syncs the regenerated `CHANGELOG.md`
-  back to `main`.
+  pushed `v*.*.*` tag: generates release notes with git-cliff, regenerates the full
+  `CHANGELOG.md` in the workspace so GoReleaser bundles the populated file into the
+  archives and packages (at the tag commit the committed `CHANGELOG.md` is still empty),
+  runs GoReleaser to build and publish artifacts and the Docker image, then syncs the
+  regenerated `CHANGELOG.md` back to `main`. Because that regeneration leaves the tree
+  dirty, GoReleaser runs with `--skip=validate`.
 
 ## Cut a release
 
