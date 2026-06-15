@@ -593,10 +593,10 @@ type NATSSinkConfig struct {
 // precedence: earlier entries win on URL collision. The static feeds: block is
 // represented by an entry with Type "static".
 type FeedSourceConfig struct {
-	Type     string                   `mapstructure:"type"` // "static", "file", and "postgres" are implemented; http|sqlite|redis|s3|env are added by later plans
-	Name     string                   `mapstructure:"name"` // optional; defaults to "<type>[index]"
-	Path     string                   `mapstructure:"path"` // file source
-	Interval time.Duration            `mapstructure:"interval"`
+	Type       string                     `mapstructure:"type"` // "static", "file", and "postgres" are implemented; http|sqlite|redis|s3|env are added by later plans
+	Name       string                     `mapstructure:"name"` // optional; defaults to "<type>[index]"
+	Path       string                     `mapstructure:"path"` // file source
+	Interval   time.Duration              `mapstructure:"interval"`
 	Postgres   PostgresFeedSourceConfig   `mapstructure:"postgres"`   // postgres source
 	Kubernetes KubernetesFeedSourceConfig `mapstructure:"kubernetes"` // kubernetes source
 }

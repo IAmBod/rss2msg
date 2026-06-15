@@ -223,8 +223,10 @@ func TestServeDynamicFiresOnPollComplete(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		_ = ServeDynamic(ctx, DynamicConfig{
-			Provider:     prov,
-			Factory:      func(config.FeedConfig) (FeedPipeline, error) { return &nChangeDynPipeline{url: "https://e/x", n: 2}, nil },
+			Provider: prov,
+			Factory: func(config.FeedConfig) (FeedPipeline, error) {
+				return &nChangeDynPipeline{url: "https://e/x", n: 2}, nil
+			},
 			DrainTimeout: time.Second,
 			OnPollComplete: func(url string, n int, err error, when time.Time) {
 				select {
