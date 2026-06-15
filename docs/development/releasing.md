@@ -53,12 +53,15 @@ The release workflow then:
 - builds binaries for linux/macOS/Windows on amd64/arm64 (Windows arm64 excluded),
   with `version`, `commit`, and `date` stamped into the binary via `-ldflags`
   (see [`builds:` in `.goreleaser.yaml`](../../.goreleaser.yaml));
-- writes `checksums.txt` and `.tar.gz` / `.zip` archives;
+- writes `checksums.txt` and `.tar.gz` / `.zip` archives — each bundles the binary,
+  `README.md`, `LICENSE`, `CHANGELOG.md`, the example config, and the user-facing
+  `docs/` tree (the internal `docs/superpowers/` specs and plans are excluded);
 - builds Linux packages — `.deb`, `.rpm`, and `.apk` for amd64 and arm64 — from the
   same binaries via GoReleaser's [nFPM](https://nfpm.goreleaser.com) integration
   (see [`nfpms:` in `.goreleaser.yaml`](../../.goreleaser.yaml)); each installs the
   binary to `/usr/bin/rss2msg`, a sample config to `/etc/rss2msg/config.example.yaml`,
-  and docs to `/usr/share/doc/rss2msg/`;
+  and docs (`README.md`, `CHANGELOG.md`, and the `docs/` tree minus `superpowers/`) to
+  `/usr/share/doc/rss2msg/`;
 - builds and pushes a multi-arch image to `ghcr.io/iambod/rss2msg:<version>` and
   `:latest` — the `production` (final) stage of the single
   [`Dockerfile`](../../Dockerfile), which packages the cross-compiled binary GoReleaser
