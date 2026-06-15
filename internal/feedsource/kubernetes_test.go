@@ -173,3 +173,55 @@ func TestNewKubernetesBadKubeconfig(t *testing.T) {
 		t.Fatal("expected an error for a missing kubeconfig path")
 	}
 }
+
+func TestKubernetesReportPollWritesStatus(t *testing.T) {
+	scheme := runtime.NewScheme()
+	gvrToKind := map[schema.GroupVersionResource]string{feedGVR: "FeedList"}
+	client := fake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvrToKind,
+		unstructuredFeed("a", map[string]any{"url": "https://e/a"}),
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s, err := newKubernetesWithClient(ctx, "k8s", client, KubernetesOptions{WriteStatus: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	when := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+	s.ReportPoll(ctx, "https://e/a", 2, nil, when)
+
+	got, err := client.Resource(feedGVR).Namespace("feeds").Get(ctx, "a", metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	count, found, _ := unstructured.NestedInt64(got.Object, "status", "lastChangeCount")
+	if !found || count != 2 {
+		t.Fatalf("status.lastChangeCount = %d found=%v", count, found)
+	}
+	ts, _, _ := unstructured.NestedString(got.Object, "status", "lastPollTime")
+	if ts != "2026-06-15T12:00:00Z" {
+		t.Fatalf("status.lastPollTime = %q", ts)
+	}
+}
+
+func TestKubernetesReportPollDisabled(t *testing.T) {
+	scheme := runtime.NewScheme()
+	gvrToKind := map[schema.GroupVersionResource]string{feedGVR: "FeedList"}
+	client := fake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvrToKind,
+		unstructuredFeed("a", map[string]any{"url": "https://e/a"}),
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s, err := newKubernetesWithClient(ctx, "k8s", client, KubernetesOptions{WriteStatus: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	s.ReportPoll(ctx, "https://e/a", 2, nil, time.Now().UTC())
+	got, _ := client.Resource(feedGVR).Namespace("feeds").Get(ctx, "a", metav1.GetOptions{})
+	if _, found, _ := unstructured.NestedMap(got.Object, "status"); found {
+		t.Fatal("writeStatus=false must not write .status")
+	}
+}

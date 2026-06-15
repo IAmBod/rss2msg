@@ -196,6 +196,49 @@ func (k *Kubernetes) remove(obj any) {
 	k.mu.Unlock()
 }
 
+// ReportPoll writes poll outcome to the Feed CR's status subresource. It is a
+// no-op when writeStatus is false or when feedURL is not owned by this source
+// (e.g. it came from a different source). Errors are swallowed: status is
+// observability, never on the polling hot path.
+func (k *Kubernetes) ReportPoll(ctx context.Context, feedURL string, changeCount int, pollErr error, when time.Time) {
+	if !k.writeStatus {
+		return
+	}
+	k.mu.RLock()
+	nn, ok := k.index[feedURL]
+	k.mu.RUnlock()
+	if !ok {
+		return
+	}
+
+	cur, err := k.client.Resource(feedGVR).Namespace(nn.Namespace).Get(ctx, nn.Name, metav1.GetOptions{})
+	if err != nil {
+		return
+	}
+	status := map[string]any{
+		"observedGeneration": cur.GetGeneration(),
+		"lastPollTime":       when.UTC().Format(time.RFC3339),
+		"lastChangeCount":    int64(changeCount),
+	}
+	readyStatus, reason := "True", "Polled"
+	if pollErr != nil {
+		status["lastError"] = pollErr.Error()
+		readyStatus, reason = "False", "PollError"
+	} else {
+		status["lastError"] = ""
+	}
+	status["conditions"] = []any{map[string]any{
+		"type":               "Ready",
+		"status":             readyStatus,
+		"reason":             reason,
+		"lastTransitionTime": when.UTC().Format(time.RFC3339),
+	}}
+	if err := unstructured.SetNestedField(cur.Object, status, "status"); err != nil {
+		return
+	}
+	_, _ = k.client.Resource(feedGVR).Namespace(nn.Namespace).UpdateStatus(ctx, cur, metav1.UpdateOptions{})
+}
+
 // specFromUnstructured maps a Feed custom resource (the unstructured object an
 // informer delivers) to a FeedSpec. Only spec.{url,interval,sinks,http} are
 // consulted; url is required. Values arrive in dynamic-client form: arrays as
