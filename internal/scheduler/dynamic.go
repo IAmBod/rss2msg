@@ -137,7 +137,7 @@ func startFeed(parent context.Context, fc config.FeedConfig, p FeedPipeline, onP
 		defer close(done)
 		// Per-tick RunOnce errors are logged inside the pipeline; the dynamic
 		// scheduler does not aggregate them (unlike static Serve).
-		runFeedLoop(fctx, p, fc.Interval, func(error) {}, onOverrun)
+		runFeedLoop(fctx, p, fc.Interval, func(error) {}, onOverrun, nil)
 	}()
 	return &runningFeed{cfg: fc, cancel: cancel, done: done}
 }
