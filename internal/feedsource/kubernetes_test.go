@@ -2,6 +2,7 @@ package feedsource
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -202,6 +203,39 @@ func TestKubernetesReportPollWritesStatus(t *testing.T) {
 	ts, _, _ := unstructured.NestedString(got.Object, "status", "lastPollTime")
 	if ts != "2026-06-15T12:00:00Z" {
 		t.Fatalf("status.lastPollTime = %q", ts)
+	}
+}
+
+func TestKubernetesReportPollConditionMessageOnError(t *testing.T) {
+	scheme := runtime.NewScheme()
+	gvrToKind := map[schema.GroupVersionResource]string{feedGVR: "FeedList"}
+	client := fake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvrToKind,
+		unstructuredFeed("a", map[string]any{"url": "https://e/a"}),
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s, err := newKubernetesWithClient(ctx, "k8s", client, KubernetesOptions{WriteStatus: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	s.ReportPoll(ctx, "https://e/a", 0, fmt.Errorf("boom"), time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC))
+
+	got, err := client.Resource(feedGVR).Namespace("feeds").Get(ctx, "a", metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conds, found, _ := unstructured.NestedSlice(got.Object, "status", "conditions")
+	if !found || len(conds) == 0 {
+		t.Fatalf("no status.conditions written")
+	}
+	cm, _ := conds[0].(map[string]any)
+	if cm["status"] != "False" {
+		t.Errorf("condition status = %v, want False", cm["status"])
+	}
+	if cm["message"] != "boom" {
+		t.Errorf("condition message = %v, want \"boom\"", cm["message"])
 	}
 }
 

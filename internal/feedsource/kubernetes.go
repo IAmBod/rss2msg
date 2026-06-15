@@ -220,10 +220,10 @@ func (k *Kubernetes) ReportPoll(ctx context.Context, feedURL string, changeCount
 		"lastPollTime":       when.UTC().Format(time.RFC3339),
 		"lastChangeCount":    int64(changeCount),
 	}
-	readyStatus, reason := "True", "Polled"
+	readyStatus, reason, message := "True", "Polled", ""
 	if pollErr != nil {
 		status["lastError"] = pollErr.Error()
-		readyStatus, reason = "False", "PollError"
+		readyStatus, reason, message = "False", "PollError", pollErr.Error()
 	} else {
 		status["lastError"] = ""
 	}
@@ -231,6 +231,7 @@ func (k *Kubernetes) ReportPoll(ctx context.Context, feedURL string, changeCount
 		"type":               "Ready",
 		"status":             readyStatus,
 		"reason":             reason,
+		"message":            message,
 		"lastTransitionTime": when.UTC().Format(time.RFC3339),
 	}}
 	if err := unstructured.SetNestedField(cur.Object, status, "status"); err != nil {
