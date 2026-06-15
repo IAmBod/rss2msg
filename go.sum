@@ -463,6 +463,8 @@ github.com/testcontainers/testcontainers-go v0.42.0 h1:He3IhTzTZOygSXLJPMX7n44Xt
 github.com/testcontainers/testcontainers-go v0.42.0/go.mod h1:vZjdY1YmUA1qEForxOIOazfsrdyORJAbhi0bp8plN30=
 github.com/testcontainers/testcontainers-go/modules/azure v0.42.0 h1:o37VB8mSmj7BrARKW/JcDxPQDXEDZL455A12b3VrYDg=
 github.com/testcontainers/testcontainers-go/modules/azure v0.42.0/go.mod h1:l1qFYbLlqpYrY1bPoJg09qFp6Y8zv6kZA3Or052po8A=
+github.com/testcontainers/testcontainers-go/modules/k3s v0.42.0 h1:bTVmcnYaSHesN6HXXxV/k0+BMkyfo3VBy4w4yRqOIgE=
+github.com/testcontainers/testcontainers-go/modules/k3s v0.42.0/go.mod h1:2O8+V4WzMb/bjg/Sez+aYci9LpGUbT5cSz7ildfTIb8=
 github.com/testcontainers/testcontainers-go/modules/kafka v0.42.0 h1:b3plW+MUoF6ZaVOAlLjNQMJsigPLsJFIOqHdzMFv/w4=
 github.com/testcontainers/testcontainers-go/modules/kafka v0.42.0/go.mod h1:U0K+PapjOOVJrQCpvRYe6gKk0Oqh+ffl+J80Ln4EKzg=
 github.com/testcontainers/testcontainers-go/modules/mssql v0.42.0 h1:xRgMG7xUAEFTDl37n7qyYopDwv2dzPMHdKM4+fzGTRo=

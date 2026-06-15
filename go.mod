@@ -40,6 +40,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.42.0
 	github.com/testcontainers/testcontainers-go/modules/azure v0.42.0
+	github.com/testcontainers/testcontainers-go/modules/k3s v0.42.0
 	github.com/testcontainers/testcontainers-go/modules/kafka v0.42.0
 	github.com/testcontainers/testcontainers-go/modules/nats v0.42.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.42.0
