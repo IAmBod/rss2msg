@@ -1897,3 +1897,39 @@ func TestValidateAcceptsGraphiteEnabled(t *testing.T) {
 		t.Fatalf("expected nil, got %v", err)
 	}
 }
+
+func TestValidateSchemaRegistry(t *testing.T) {
+	t.Parallel()
+	base := func(sr SchemaRegistryConfig) Config {
+		c := goodCfg()
+		c.Sinks[0].Kafka.SchemaRegistry = sr
+		return c
+	}
+	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "json"})); err != nil {
+		t.Fatalf("valid json registry rejected: %v", err)
+	}
+	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "bogus"})); err == nil {
+		t.Fatal("expected error for unknown format")
+	}
+	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "avro"})); err == nil {
+		t.Fatal("expected error for not-yet-supported avro")
+	}
+	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081"})); err == nil {
+		t.Fatal("expected error for missing format")
+	}
+	if _, err := Validate(base(SchemaRegistryConfig{Format: "json"})); err == nil {
+		t.Fatal("expected error for format without url")
+	}
+	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "json", SchemaFile: "/no/such/file"})); err == nil {
+		t.Fatal("expected error for missing schema_file")
+	}
+	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "protobuf"})); err == nil {
+		t.Fatal("expected error for not-yet-supported protobuf")
+	}
+	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "json", BasicAuth: SchemaRegistryBasicAuth{Username: "u"}})); err == nil {
+		t.Fatal("expected error for basic_auth username without password")
+	}
+	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "json", TLS: SinkTLSConfig{CertFile: "c.pem"}})); err == nil {
+		t.Fatal("expected error for tls cert_file without key_file")
+	}
+}

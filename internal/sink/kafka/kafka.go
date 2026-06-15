@@ -15,12 +15,14 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 
 	"github.com/iambod/rss2msg/internal/model"
+	"github.com/iambod/rss2msg/internal/sink/kafka/schema"
 )
 
 type Publisher struct {
-	name   string
-	client *kgo.Client
-	topic  string
+	name    string
+	client  *kgo.Client
+	topic   string
+	encoder schema.Encoder // nil ⇒ plain JSON
 }
 
 type Options struct {
@@ -33,6 +35,10 @@ type Options struct {
 	// TLS, if non-nil, enables TLS to the brokers using the given options.
 	// Kafka has no URL scheme to imply TLS, so this is the only switch.
 	TLS *TLSOptions
+
+	// Schema, if non-nil, enables Confluent Schema Registry encoding of the
+	// record value. Nil keeps the plain-JSON value.
+	Schema *schema.Options
 }
 
 // TLSOptions configures TLS to the Kafka brokers. Same shape as the other
@@ -98,11 +104,20 @@ func New(opts Options) (*Publisher, error) {
 		}
 	}
 
+	var enc schema.Encoder
+	if opts.Schema != nil {
+		var err error
+		enc, err = schema.New(*opts.Schema)
+		if err != nil {
+			return nil, fmt.Errorf("kafka sink %q: schema: %w", opts.Name, err)
+		}
+	}
+
 	client, err := kgo.NewClient(kopts...)
 	if err != nil {
 		return nil, fmt.Errorf("kafka sink %q: %w", opts.Name, err)
 	}
-	return &Publisher{name: opts.Name, client: client, topic: opts.Topic}, nil
+	return &Publisher{name: opts.Name, client: client, topic: opts.Topic, encoder: enc}, nil
 }
 
 var compressionMap = map[string]kgo.CompressionCodec{
@@ -151,9 +166,17 @@ func (p *Publisher) Name() string { return p.name }
 func (p *Publisher) Close() error { p.client.Close(); return nil }
 
 func (p *Publisher) Publish(ctx context.Context, change model.Change) error {
-	value, err := json.Marshal(change)
+	var (
+		value []byte
+		err   error
+	)
+	if p.encoder != nil {
+		value, err = p.encoder.Encode(ctx, change)
+	} else {
+		value, err = json.Marshal(change)
+	}
 	if err != nil {
-		return fmt.Errorf("kafka sink %q: marshal: %w", p.name, err)
+		return fmt.Errorf("kafka sink %q: encode: %w", p.name, err)
 	}
 	rec := &kgo.Record{
 		Topic: p.topic,

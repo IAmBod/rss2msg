@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/textproto"
 	"net/url"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -753,6 +754,42 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 		if (stls.CertFile == "") != (stls.KeyFile == "") {
 			return *warnings, fmt.Errorf("sinks[%d] (%s %q): tls.cert_file and key_file must both be set or both empty", i, s.Driver, s.Name)
+		}
+	}
+
+	// Kafka Schema Registry: url enables the feature; format is then required
+	// and must be supported. format without url is an error.
+	for i, s := range c.Sinks {
+		if s.Driver != "kafka" {
+			continue
+		}
+		sr := s.Kafka.SchemaRegistry
+		if sr.URL == "" {
+			if sr.Format != "" {
+				return *warnings, fmt.Errorf("sinks[%d] (kafka %q): schema_registry.format set without schema_registry.url", i, s.Name)
+			}
+			continue
+		}
+		switch sr.Format {
+		case "json":
+			// supported in this release
+		case "avro", "protobuf":
+			return *warnings, fmt.Errorf("sinks[%d] (kafka %q): schema_registry.format %q is not supported yet (only \"json\")", i, s.Name, sr.Format)
+		case "":
+			return *warnings, fmt.Errorf("sinks[%d] (kafka %q): schema_registry.format is required when url is set", i, s.Name)
+		default:
+			return *warnings, fmt.Errorf("sinks[%d] (kafka %q): schema_registry.format %q is invalid (json|avro|protobuf)", i, s.Name, sr.Format)
+		}
+		if sr.SchemaFile != "" {
+			if _, err := os.Stat(sr.SchemaFile); err != nil {
+				return *warnings, fmt.Errorf("sinks[%d] (kafka %q): schema_registry.schema_file %q: %w", i, s.Name, sr.SchemaFile, err)
+			}
+		}
+		if (sr.BasicAuth.Username == "") != (sr.BasicAuth.Password == "") {
+			return *warnings, fmt.Errorf("sinks[%d] (kafka %q): schema_registry.basic_auth username and password must both be set or both empty", i, s.Name)
+		}
+		if (sr.TLS.CertFile == "") != (sr.TLS.KeyFile == "") {
+			return *warnings, fmt.Errorf("sinks[%d] (kafka %q): schema_registry.tls.cert_file and key_file must both be set or both empty", i, s.Name)
 		}
 	}
 
