@@ -304,6 +304,24 @@ distinct; `listen` is required when `enabled: true`. If
 `telemetry.prometheus.enabled` is set and `health.listen` equals
 `telemetry.prometheus.listen`, validation warns that one server will fail to bind.
 
+## `feed_sources`
+
+Full source-type documentation is in [Load Feeds Dynamically](../how-to/load-feeds-dynamically.md).
+The fields below cover the `http` source type.
+
+### `feed_sources[].http` (type: http)
+
+| field                                   | default | notes |
+| --------------------------------------- | ------- | ----- |
+| `feed_sources[].http.url`               | —       | **Required** for `type: http`. HTTP(S) endpoint returning `{"feeds":[...]}`. `${ENV}` expands. |
+| `feed_sources[].http.timeout`           | `30s`   | Per-request timeout. |
+| `feed_sources[].http.headers`           | —       | Arbitrary request headers for auth (e.g. `Authorization`, `X-API-Key`). The reserved conditional-GET headers `If-None-Match` and `If-Modified-Since` are managed by the source and are rejected if set here. |
+| `feed_sources[].http.tls.ca_file`       | `""`    | Path to a PEM CA bundle for server-certificate verification. |
+| `feed_sources[].http.tls.cert_file`     | `""`    | Client certificate for mTLS. Must be set together with `key_file` (both or neither). |
+| `feed_sources[].http.tls.key_file`      | `""`    | Private key for the client certificate. Must be set together with `cert_file`. |
+| `feed_sources[].http.tls.server_name`   | `""`    | SNI / cert-verify hostname override. |
+| `feed_sources[].http.tls.insecure_skip_verify` | `false` | Disable server-certificate verification. For testing only. |
+
 ## Related
 
 - [CLI](cli.md) — flags that point at this config file.
