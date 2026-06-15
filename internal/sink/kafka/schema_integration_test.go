@@ -16,10 +16,12 @@ import (
 	tcnetwork "github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"github.com/twmb/franz-go/pkg/kgo"
+	proto "google.golang.org/protobuf/proto"
 
 	"github.com/iambod/rss2msg/internal/model"
 	sinkkafka "github.com/iambod/rss2msg/internal/sink/kafka"
 	"github.com/iambod/rss2msg/internal/sink/kafka/schema"
+	sinkv1 "github.com/iambod/rss2msg/proto/sink/v1"
 )
 
 const kafkaAlias = "kafka"
@@ -269,5 +271,117 @@ func TestSchemaRegistryAvroRoundTrip(t *testing.T) {
 	})
 	if !saw {
 		t.Fatal("did not observe framed Avro record")
+	}
+}
+
+func TestSchemaRegistryProtobufRoundTrip(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a shared Docker network so Schema Registry can reach Kafka via
+	// the internal BROKER listener (kafkaAlias:9092).
+	nw, err := tcnetwork.New(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = nw.Remove(ctx) })
+
+	// Start Kafka on the shared network with a known alias.
+	kc, err := tckafka.Run(ctx, "confluentinc/cp-kafka:7.6.0",
+		tckafka.WithClusterID("test-cluster"),
+		tcnetwork.WithNetwork([]string{kafkaAlias}, nw),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = kc.Terminate(ctx) })
+	brokers, err := kc.Brokers(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	createTopic(t, brokers, "feed.changes.proto")
+
+	// Schema Registry reaches Kafka via the internal BROKER listener on port 9092.
+	srURL := startSchemaRegistry(t, nw.Name, kafkaAlias+":9092")
+
+	pub, err := sinkkafka.New(sinkkafka.Options{
+		Name:    "schema-proto",
+		Brokers: brokers,
+		Topic:   "feed.changes.proto",
+		Acks:    "all",
+		Schema: &schema.Options{
+			URL:          srURL,
+			Format:       schema.FormatProtobuf,
+			Topic:        "feed.changes.proto",
+			AutoRegister: true,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = pub.Close() }()
+
+	change := model.Change{
+		SchemaVersion: 1,
+		FeedURL:       "f1",
+		ItemID:        "i1",
+		Kind:          model.ChangeNew,
+		ContentHash:   "h",
+		Title:         "hi",
+		DetectedAt:    time.Now().UTC().Truncate(time.Microsecond),
+	}
+	pctx, pcancel := context.WithTimeout(ctx, 30*time.Second)
+	defer pcancel()
+	if err := pub.Publish(pctx, change); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	consumer, err := kgo.NewClient(
+		kgo.SeedBrokers(brokers...),
+		kgo.ConsumeTopics("feed.changes.proto"),
+		kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer consumer.Close()
+
+	fctx, fcancel := context.WithTimeout(ctx, 15*time.Second)
+	defer fcancel()
+	fetches := consumer.PollFetches(fctx)
+	if errs := fetches.Errors(); len(errs) > 0 {
+		t.Fatalf("poll errs: %v", errs)
+	}
+	var saw bool
+	fetches.EachRecord(func(r *kgo.Record) {
+		if string(r.Key) != "i1" {
+			return
+		}
+		// Assert Confluent framing: magic byte 0x00 followed by 4-byte schema ID.
+		if len(r.Value) < 6 || r.Value[0] != 0 {
+			t.Fatalf("value not Confluent-framed (first bytes %v)", r.Value)
+		}
+		if id := binary.BigEndian.Uint32(r.Value[1:5]); id == 0 {
+			t.Fatal("zero schema id in framed record")
+		}
+		// Byte 5 is the Protobuf message-index byte (0x00 = first message in the schema).
+		if r.Value[5] != 0 {
+			t.Fatalf("expected message-index byte 0, got %d", r.Value[5])
+		}
+		// Decode the Protobuf payload (everything after the 6-byte framing prefix).
+		var pc sinkv1.Change
+		if err := proto.Unmarshal(r.Value[6:], &pc); err != nil {
+			t.Fatalf("proto unmarshal: %v", err)
+		}
+		if pc.GetTitle() != "hi" {
+			t.Fatalf("title = %q, want %q", pc.GetTitle(), "hi")
+		}
+		if pc.GetFeedUrl() != "f1" {
+			t.Fatalf("feed_url = %q, want %q", pc.GetFeedUrl(), "f1")
+		}
+		saw = true
+	})
+	if !saw {
+		t.Fatal("did not observe framed Protobuf record")
 	}
 }
