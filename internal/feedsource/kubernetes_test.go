@@ -133,3 +133,35 @@ func TestKubernetesSourceEvictsStaleIndexOnURLChange(t *testing.T) {
 		}
 	}
 }
+
+func TestKubernetesSourceSignalsOnAdd(t *testing.T) {
+	scheme := runtime.NewScheme()
+	gvrToKind := map[schema.GroupVersionResource]string{feedGVR: "FeedList"}
+	client := fake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvrToKind)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s, err := newKubernetesWithClient(ctx, "k8s", client, KubernetesOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	// drain any initial-sync signal
+	select {
+	case <-s.Changes():
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	_, err = client.Resource(feedGVR).Namespace("feeds").Create(ctx,
+		unstructuredFeed("c", map[string]any{"url": "https://e/c"}), metav1.CreateOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-s.Changes():
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected a change signal after Create")
+	}
+}
