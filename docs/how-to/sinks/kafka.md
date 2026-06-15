@@ -51,7 +51,7 @@ before — this is fully opt-in and configured per kafka sink.
     topic: feed.changes
     schema_registry:
       url: http://schema-registry:8081  # presence enables the feature
-      format: json                      # json or avro (protobuf planned)
+      format: json                      # json, avro, or protobuf
       subject: feed.changes-value       # default <topic>-value
       auto_register: true               # default true
       schema_file: ./change.schema.json # optional: overrides the registered schema text
@@ -63,7 +63,7 @@ before — this is fully opt-in and configured per kafka sink.
 | field | required | default | values |
 | --- | --- | --- | --- |
 | `url` | yes (to enable) | — | Schema Registry base URL. Its presence turns the feature on. |
-| `format` | yes (when url set) | — | `json` or `avro`. `protobuf` is planned and currently rejected. |
+| `format` | yes (when url set) | — | `json`, `avro`, or `protobuf`. |
 | `subject` | no | `<topic>-value` | Subject name (TopicNameStrategy). |
 | `auto_register` | no | `true` | Register the schema on first publish; `false` looks up an existing id and errors if absent. |
 | `schema_file` | no | (canonical) | Overrides the registered schema text; must stay wire-compatible with the canonical `Change` shape. |
@@ -78,6 +78,13 @@ When `format: avro`, the Avro encoder uses a canonical schema generated from the
 `Change` envelope, with `timestamp-micros` logical types for timestamps and nullable
 unions for optional times; like JSON, the registered schema text can be overridden
 with `schema_file`.
+
+When `format: protobuf`, the Protobuf encoder reuses the canonical `Change` message
+defined in `proto/sink/v1`, which uses `google.protobuf.Timestamp` fields for
+timestamps. The Confluent wire format uses a 5-byte header (magic byte + schema ID)
+followed by a 1-byte message-index (always `0x00` for the first message in the
+schema file), then the raw proto3-serialised bytes. Like the other formats, the
+registered schema text can be overridden with `schema_file`.
 
 ## Related
 
