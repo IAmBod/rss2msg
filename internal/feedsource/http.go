@@ -140,6 +140,13 @@ func (h *HTTP) fetch(ctx context.Context) ([]config.FeedConfig, error) {
 
 	switch {
 	case resp.StatusCode == http.StatusNotModified:
+		// A 304 is only valid in response to a conditional request. If we sent
+		// no validators (first fetch, or a server that never returns ETag/
+		// Last-Modified), a 304 is a protocol violation and "cached" is nil —
+		// surface it as an error rather than silently yielding an empty list.
+		if etag == "" && lastMod == "" {
+			return nil, fmt.Errorf("http feed source %q: got 304 without a prior conditional request", h.poll.Name())
+		}
 		return cached, nil
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
 		body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes+1))

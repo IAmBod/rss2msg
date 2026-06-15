@@ -143,6 +143,20 @@ func TestHTTPConditionalGETLastModified(t *testing.T) {
 	}
 }
 
+func TestHTTPUnsolicited304Errors(t *testing.T) {
+	t.Parallel()
+	// A spec-violating server returns 304 even though the first request sent no
+	// validators. The source must error rather than return a silent empty list.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotModified)
+	}))
+	t.Cleanup(srv.Close)
+
+	if _, err := newTestHTTP(t, srv.URL, nil).Feeds(context.Background()); err == nil {
+		t.Fatal("expected error for unsolicited 304 on first fetch")
+	}
+}
+
 func TestHTTPMissingFeedsKeyErrorsAndLogs(t *testing.T) {
 	// Not parallel: swaps the global zerolog logger.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
