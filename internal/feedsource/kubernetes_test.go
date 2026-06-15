@@ -1,7 +1,13 @@
 package feedsource
 
 import (
+	"context"
 	"testing"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic/fake"
 )
 
 // feedObject builds the unstructured shape an informer delivers for a Feed CR:
@@ -13,6 +19,42 @@ func feedObject(name string, spec map[string]any) map[string]any {
 		"kind":       "Feed",
 		"metadata":   map[string]any{"name": name, "namespace": "feeds"},
 		"spec":       spec,
+	}
+}
+
+func unstructuredFeed(name string, spec map[string]any) *unstructured.Unstructured {
+	return &unstructured.Unstructured{Object: feedObject(name, spec)}
+}
+
+func TestKubernetesSourceFeeds(t *testing.T) {
+	scheme := runtime.NewScheme()
+	gvrToKind := map[schema.GroupVersionResource]string{feedGVR: "FeedList"}
+	client := fake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvrToKind,
+		unstructuredFeed("a", map[string]any{"url": "https://e/a", "interval": "5m"}),
+		unstructuredFeed("b", map[string]any{"url": "https://e/b"}),
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s, err := newKubernetesWithClient(ctx, "k8s", client, KubernetesOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	feeds, err := s.Feeds(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(feeds) != 2 {
+		t.Fatalf("want 2 feeds, got %d: %+v", len(feeds), feeds)
+	}
+	urls := map[string]bool{}
+	for _, f := range feeds {
+		urls[f.URL] = true
+	}
+	if !urls["https://e/a"] || !urls["https://e/b"] {
+		t.Fatalf("missing feeds: %+v", feeds)
 	}
 }
 
