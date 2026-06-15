@@ -18,6 +18,29 @@ func TestCanonicalAvroSchemaParses(t *testing.T) {
 	}
 }
 
+func TestAvroEncoderUsesOverrideSchemaText(t *testing.T) {
+	fake := srfake.New()
+	t.Cleanup(fake.Close)
+	// A minimal but valid Avro record; hamba/avro marshals only the schema's
+	// fields from the struct, so this still encodes a Change.
+	override := `{"type":"record","name":"Change","namespace":"rss2msg","fields":[{"name":"item_id","type":"string"}]}`
+
+	enc, err := New(Options{URL: fake.URL(), Format: FormatAvro, Topic: "t", AutoRegister: true, SchemaText: override})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := enc.Encode(context.Background(), model.Change{ItemID: "i"}); err != nil {
+		t.Fatal(err)
+	}
+	got, ok := fake.GetSchema("t-value", 1)
+	if !ok {
+		t.Fatal("schema not registered")
+	}
+	if got.Schema.Schema != override {
+		t.Fatalf("registered schema = %q, want override", got.Schema.Schema)
+	}
+}
+
 func TestAvroEncoderFramesAndRoundTrips(t *testing.T) {
 	fake := srfake.New()
 	t.Cleanup(fake.Close)
