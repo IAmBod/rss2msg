@@ -4,6 +4,99 @@ All notable changes to this project are documented here.
 This file is generated from [Conventional Commits](https://www.conventionalcommits.org)
 by [git-cliff](https://git-cliff.org).
 
+## [0.2.0] - 2026-06-15
+
+### Features
+
+- **coord:** Add Azure Cosmos DB lease coordinator
+- **state:** Add Azure Cosmos DB state store
+- **telemetry:** Add HTTP/protobuf OTLP transport for Grafana Cloud ([#63](https://github.com/IAmBod/rss2msg/issues/63))
+- **azure:** Add native Azure Functions custom handler subcommand
+- **kafka:** Add schema-registry encoder package with JSON Schema support
+- **kafka:** Use schema-registry encoder for record value when configured
+- **kafka:** Support registry TLS in schema encoder
+- **config:** Add kafka schema_registry config block
+- **config:** Validate kafka schema_registry block
+- **kafka:** Wire schema_registry config into the sink
+- **config:** Add HTTP feed source config structs
+- **config:** Validate http feed source (url, mTLS pair, reserved headers)
+- **feedsource:** Add http feed source with conditional GET
+- **cmd:** Wire http feed source into buildSources
+- **config:** Reject negative timeout on http feed source
+- **kafka:** Add Avro schema-registry encoder
+- **config:** Accept avro schema_registry format
+- **kafka:** Add Protobuf schema-registry encoder
+- **release:** Ship the user docs in archives and Linux packages
+- **feedsource:** Map Feed CR unstructured object to FeedSpec
+- **feedsource:** Kubernetes source watches Feed CRs via dynamic informer
+- **feedsource:** NewKubernetes builds source from in-cluster/kubeconfig creds
+- **config:** Kubernetes feed-source config + validation
+- **cmd:** Wire kubernetes feed source into buildSources
+- **scheduler:** OnPollComplete hook surfacing per-feed poll outcomes
+- **scheduler:** OnPollComplete on DynamicConfig wired through startFeed
+- **feedsource:** Write poll status back to Feed CR .status subresource
+- **cmd:** Serve writes Feed CR status via OnPollComplete
+- **deploy:** Feed CRD, RBAC, and Helm wiring for the kubernetes source
+
+### Bug Fixes
+
+- **feedsource:** Harden http source body read and transport defaults
+- **feedsource:** Error on unsolicited 304 from http source
+- **release:** Bundle the populated CHANGELOG.md into release artifacts
+- **feedsource:** Evict stale URL index entry when a Feed CR url changes
+- **feedsource:** Include message in Feed CR status Ready condition
+- **deploy:** Default serviceAccount.automount=true for in-cluster source
+
+### Refactor
+
+- **kafka:** Tighten schema encoder validation per review
+- **kafka:** Log registry insecure-TLS and cover validation branches
+
+### Documentation
+
+- **examples:** Add Docker Compose examples for common deployment scenarios
+- Surface Helm in index, refresh stale v0.0.2 references
+- Split CMS and external-integration guides into per-platform pages
+- Split coordinators into per-backend pages
+- Split state stores into a how-to hub + per-backend pages
+- Rename how-to guides to task-oriented (Diátaxis) names
+- **reference:** List feed_sources in the configuration reference
+- **reference:** Add posthog to the telemetry config example
+- **spec:** Grafana Cloud OTLP support design ([#63](https://github.com/IAmBod/rss2msg/issues/63))
+- **grafana:** How-to, telemetry reference, and Alloy bridge example ([#63](https://github.com/IAmBod/rss2msg/issues/63))
+- **spec:** Kafka Schema Registry support design ([#61](https://github.com/IAmBod/rss2msg/issues/61))
+- **plan:** Kafka Schema Registry PR1 (JSON Schema) implementation plan ([#61](https://github.com/IAmBod/rss2msg/issues/61))
+- **kafka:** Document optional schema_registry block
+- **feedsource:** Design spec for HTTP feed source ([#161](https://github.com/IAmBod/rss2msg/issues/161))
+- **feedsource:** Implementation plan for HTTP feed source ([#161](https://github.com/IAmBod/rss2msg/issues/161))
+- Document http feed source
+- Sync examples/config.example.yaml with embedded example (http source)
+- **plan:** Kafka Schema Registry PR2 (Avro) implementation plan ([#61](https://github.com/IAmBod/rss2msg/issues/61))
+- **kafka:** Document avro schema_registry format
+- **kafka:** Document protobuf schema_registry format
+- **plan:** Implementation plan for the K8s CRD feed source
+- Document the kubernetes CRD feed source
+
+### Testing
+
+- **kafka:** Integration round-trip for JSON schema-registry encoding
+- **kafka:** Cover auto_register=false, registration retry, and encode benchmark
+- **feedsource:** Http source TLS round-trip and builder errors
+- **kafka:** Integration round-trip for Avro schema-registry encoding
+- **kafka:** Cover avro schema_file override path
+- **kafka:** Integration round-trip for Protobuf schema-registry encoding
+- **feedsource:** Kubernetes source signals Changes on CR add
+- **feedsource:** K3s integration round-trip for the kubernetes source
+
+### Build & CI
+
+- Run the integration test suite on PRs and main
+- **deps:** Add k8s.io/client-go and apimachinery for the CRD feed source
+
+### Miscellaneous
+
+- Gofmt struct-tag and test-literal alignment
+
 ## [0.1.0] - 2026-06-08
 
 ### Features
