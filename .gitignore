@@ -35,8 +35,11 @@ coverage.txt
 # Claude+Obsidian tooling state — generated per-machine (absolute paths), not source
 .vault-meta/
 
-# Claude Code tooling state (settings) — local-only
-.claude/
+# Claude Code tooling state (settings) — local-only, but keep shared project-level
+# skills and slash commands tracked so they're versioned and reviewed like any code.
+.claude/*
+!.claude/commands/
+!.claude/skills/
 
 # Git worktrees (per AGENTS.md, worktrees live under .worktrees/)
 .worktrees/

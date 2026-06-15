@@ -3,7 +3,7 @@ title: Releasing
 type: how-to
 tags: [rss2msg/docs, development, release]
 summary: The release pipeline — golangci-lint in CI, git-cliff for the changelog and version bumps, and GoReleaser for multi-platform binaries, Linux packages (.deb/.rpm/.apk), a multi-arch Docker image, and a Homebrew formula, all driven by a semver tag.
-updated: 2026-06-01
+updated: 2026-06-16
 ---
 
 # Releasing
@@ -21,14 +21,17 @@ Two GitHub Actions workflows wire them together:
 - [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) — runs on PRs and pushes
   to `main`: golangci-lint, `go vet`, unit tests (`-race`), `go build`, and `goreleaser check`.
 - [`.github/workflows/release.yml`](../../.github/workflows/release.yml) — runs on a
-  pushed `v*.*.*` tag: generates release notes with git-cliff, regenerates the full
-  `CHANGELOG.md` in the workspace so GoReleaser bundles the populated file into the
-  archives and packages (at the tag commit the committed `CHANGELOG.md` is still empty),
-  runs GoReleaser to build and publish artifacts and the Docker image, then syncs the
-  regenerated `CHANGELOG.md` back to `main`. Because that regeneration leaves the tree
-  dirty, GoReleaser runs with `--skip=validate`.
+  pushed `v*.*.*` tag: generates release notes with git-cliff and runs GoReleaser to
+  build and publish artifacts and the Docker image. The changelog is **not** touched by
+  this workflow — `CHANGELOG.md` is regenerated and committed to `main` *before* tagging
+  (see [Cut a release](#cut-a-release)), so the tagged commit already carries the
+  populated file that GoReleaser bundles into the archives and packages.
 
 ## Cut a release
+
+In Claude Code, run **`/release [version]`** — it drives the steps below via the
+`cut-release` skill (preflight checks, version derivation, the changelog commit, and the
+confirmed tag push). To do it by hand:
 
 1. Make sure `main` is green (CI passing) and the commits since the last tag follow
    [Conventional Commits](https://www.conventionalcommits.org) — git-cliff groups them
@@ -36,16 +39,22 @@ Two GitHub Actions workflows wire them together:
    commits) are skipped.
 2. Pick the version. git-cliff can derive it from the commit history:
    ```bash
-   git cliff --bumped-version      # e.g. prints v0.2.0
+   git cliff --bumped-version      # e.g. prints v0.3.0
    ```
-3. Refresh the changelog and review it:
+3. Regenerate `CHANGELOG.md` for the new version and commit it to `main`. This commit
+   carries the populated changelog that GoReleaser bundles into the release artifacts:
    ```bash
-   task changelog                  # regenerates CHANGELOG.md via git-cliff
+   git cliff --config cliff.toml --tag v0.3.0 --output CHANGELOG.md
+   git add CHANGELOG.md            # explicit pathspec only
+   git commit -m "chore(release): update CHANGELOG.md for v0.3.0 [skip ci]"
+   git push origin main
    ```
-4. Tag and push. The tag is what triggers the release workflow:
+   `cliff.toml` skips `chore(release):` commits, so this never pollutes a future
+   changelog, and `[skip ci]` avoids a redundant CI run.
+4. Tag that commit and push. The tag is what triggers the release workflow:
    ```bash
-   git tag v0.2.0
-   git push origin v0.2.0
+   git tag v0.3.0
+   git push origin v0.3.0
    ```
 
 The release workflow then:
@@ -101,11 +110,12 @@ task release-snapshot   # full dry-run into ./dist, nothing published
 ## Prerequisites for publishing
 
 - The release job uses the built-in `GITHUB_TOKEN`; the workflow requests
-  `contents: write` (create the Release, push `CHANGELOG.md`) and `packages: write`
-  (push to GHCR). No extra secrets are required.
-- If `main` is protected such that the Actions bot cannot push, the `CHANGELOG.md`
-  sync step will fail; either allow the bot to push or run `task changelog` and commit
-  the file manually before tagging.
+  `contents: write` (create the Release) and `packages: write` (push to GHCR). No extra
+  secrets are required.
+- `CHANGELOG.md` is committed to `main` before tagging (see [Cut a release](#cut-a-release)),
+  so if `main` is branch-protected against direct pushes, do that changelog commit through
+  whatever path your protection allows before pushing the tag — the workflow itself no
+  longer pushes to `main`.
 
 ## Homebrew tap
 
