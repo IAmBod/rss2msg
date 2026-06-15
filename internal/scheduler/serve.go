@@ -24,6 +24,9 @@ type ServeConfig struct {
 	// feed's interval, so the effective polling rate is below what's configured.
 	// Optional.
 	OnPollOverrun func(feedURL string, took, interval time.Duration)
+	// OnPollComplete, if set, is called after every poll with the number of
+	// changes produced and the poll error (nil on success). Optional.
+	OnPollComplete func(feedURL string, changeCount int, err error, when time.Time)
 }
 
 // Serve runs one goroutine per pipeline, each on its own ticker. It returns
@@ -61,10 +64,15 @@ func Serve(ctx context.Context, cfg ServeConfig) error {
 			url := p.FeedURL()
 			onOverrun = func(took time.Duration) { cfg.OnPollOverrun(url, took, interval) }
 		}
+		var onComplete func(int, error, time.Time)
+		if cfg.OnPollComplete != nil {
+			url := p.FeedURL()
+			onComplete = func(n int, err error, when time.Time) { cfg.OnPollComplete(url, n, err, when) }
+		}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			runFeedLoop(ctx, p, interval, collect, onOverrun)
+			runFeedLoop(ctx, p, interval, collect, onOverrun, onComplete)
 		}()
 	}
 
@@ -81,37 +89,40 @@ func Serve(ctx context.Context, cfg ServeConfig) error {
 	return errors.Join(joined...)
 }
 
-func runFeedLoop(ctx context.Context, p FeedPipeline, interval time.Duration, collect func(error), onOverrun func(took time.Duration)) {
+func runFeedLoop(ctx context.Context, p FeedPipeline, interval time.Duration, collect func(error), onOverrun func(took time.Duration), onComplete func(int, error, time.Time)) {
 	t := time.NewTicker(interval)
 	defer t.Stop()
 	// Tick once immediately on start so users don't wait an interval before the
 	// first fetch happens.
-	runTick(ctx, p, interval, collect, onOverrun)
+	runTick(ctx, p, interval, collect, onOverrun, onComplete)
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case now := <-t.C:
-			_ = now
-			runTick(ctx, p, interval, collect, onOverrun)
+		case <-t.C:
+			runTick(ctx, p, interval, collect, onOverrun, onComplete)
 		}
 	}
 }
 
 // runTick performs one poll and, when it overran the interval, reports it. A
 // poll that ends only because ctx was cancelled is not counted as an overrun.
-func runTick(ctx context.Context, p FeedPipeline, interval time.Duration, collect func(error), onOverrun func(took time.Duration)) {
+func runTick(ctx context.Context, p FeedPipeline, interval time.Duration, collect func(error), onOverrun func(took time.Duration), onComplete func(int, error, time.Time)) {
 	start := time.Now()
-	tick(ctx, p, collect)
+	tick(ctx, p, collect, onComplete)
 	took := time.Since(start)
 	if onOverrun != nil && took > interval && ctx.Err() == nil {
 		onOverrun(took)
 	}
 }
 
-func tick(ctx context.Context, p FeedPipeline, collect func(error)) {
-	_, err := p.RunOnce(ctx, p.FeedURL(), time.Now().UTC())
+func tick(ctx context.Context, p FeedPipeline, collect func(error), onComplete func(int, error, time.Time)) {
+	when := time.Now().UTC()
+	changes, err := p.RunOnce(ctx, p.FeedURL(), when)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		collect(err)
+	}
+	if onComplete != nil && ctx.Err() == nil {
+		onComplete(len(changes), err, when)
 	}
 }

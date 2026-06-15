@@ -191,6 +191,62 @@ func TestServeDynamicRejectsNonPositiveInterval(t *testing.T) {
 	<-done
 }
 
+// nChangeDynPipeline always returns n model.Change values from RunOnce.
+type nChangeDynPipeline struct {
+	url string
+	n   int
+}
+
+func (p *nChangeDynPipeline) FeedURL() string { return p.url }
+func (p *nChangeDynPipeline) RunOnce(_ context.Context, _ string, _ time.Time) ([]model.Change, error) {
+	return make([]model.Change, p.n), nil
+}
+
+// staticProvider always returns the same fixed set and never signals changes.
+type staticProvider struct {
+	feeds []config.FeedConfig
+	ch    chan struct{}
+}
+
+func newStaticProvider(feeds []config.FeedConfig) *staticProvider {
+	return &staticProvider{feeds: feeds, ch: make(chan struct{})}
+}
+func (s *staticProvider) Desired(context.Context) ([]config.FeedConfig, error) {
+	return s.feeds, nil
+}
+func (s *staticProvider) Changes() <-chan struct{} { return s.ch }
+
+func TestServeDynamicFiresOnPollComplete(t *testing.T) {
+	fc := config.FeedConfig{URL: "https://e/x", Interval: time.Hour}
+	prov := newStaticProvider([]config.FeedConfig{fc})
+	got := make(chan int, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		_ = ServeDynamic(ctx, DynamicConfig{
+			Provider: prov,
+			Factory: func(config.FeedConfig) (FeedPipeline, error) {
+				return &nChangeDynPipeline{url: "https://e/x", n: 2}, nil
+			},
+			DrainTimeout: time.Second,
+			OnPollComplete: func(url string, n int, err error, when time.Time) {
+				select {
+				case got <- n:
+				default:
+				}
+			},
+		})
+	}()
+	select {
+	case n := <-got:
+		if n != 2 {
+			t.Fatalf("changeCount = %d, want 2", n)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("OnPollComplete never fired under ServeDynamic")
+	}
+	cancel()
+}
+
 type errProvider struct{ ch chan struct{} }
 
 func (e errProvider) Desired(context.Context) ([]config.FeedConfig, error) {

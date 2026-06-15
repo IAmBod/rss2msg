@@ -1936,3 +1936,40 @@ func TestValidateSchemaRegistry(t *testing.T) {
 		t.Fatal("expected error for tls cert_file without key_file")
 	}
 }
+
+func TestValidateKubernetesFeedSource(t *testing.T) {
+	t.Parallel()
+
+	base := func() Config {
+		cfg := Defaults()
+		cfg.State = StateConfig{Driver: "sqlite", SQLite: SQLiteStateConfig{Path: "x.db"}}
+		cfg.Sinks = []SinkConfig{{Name: "default", Driver: "stdout"}}
+		cfg.Feeds = nil
+		return cfg
+	}
+
+	t.Run("valid_defaults", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.FeedSources = []FeedSourceConfig{{Type: "kubernetes"}}
+		if _, err := Validate(cfg); err != nil {
+			t.Fatalf("expected valid kubernetes source with defaults, got %v", err)
+		}
+	})
+
+	t.Run("invalid_label_selector", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.FeedSources = []FeedSourceConfig{{
+			Type:       "kubernetes",
+			Kubernetes: KubernetesFeedSourceConfig{LabelSelector: "!!"},
+		}}
+		_, err := Validate(cfg)
+		if err == nil {
+			t.Fatal("expected error for invalid label_selector")
+		}
+		if !strings.Contains(err.Error(), "label_selector") {
+			t.Fatalf("error should mention label_selector, got %v", err)
+		}
+	})
+}

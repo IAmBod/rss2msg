@@ -25,8 +25,11 @@ serviceAccount:
   # -- Use this name instead of a generated one (required when create=false).
   name: ""
   annotations: {}
-  # -- Mount the SA token into the pod. Disable if the workload needs no API access.
-  automount: false
+  # -- Mount the SA token into the pod. Required for the in-cluster Kubernetes feed
+  # source (it reads the token to call the API). Set to false to harden deployments
+  # that use no API access (no Kubernetes feed source, or one given an explicit
+  # `kubeconfig`).
+  automount: true
 
 # Deployment-only settings (mode: deployment).
 deployment:
@@ -180,3 +183,17 @@ affinity: {}
 extraVolumes: []
 # -- Extra volume mounts added to the container.
 extraVolumeMounts: []
+
+# Kubernetes feed source settings. In-cluster use reads the pod's ServiceAccount
+# token, so `serviceAccount.automount` must be true (the default) unless the source
+# is configured with an explicit `kubeconfig`.
+feedSource:
+  kubernetes:
+    crd:
+      # -- Install the Feed CRD when true. Set to false if you manage the CRD out of band.
+      install: true
+    rbac:
+      # -- Create a ClusterRole + ClusterRoleBinding granting the workload access to Feed resources.
+      create: true
+    # -- Also grant get/update/patch on feeds/status (for status write-back).
+    writeStatus: true

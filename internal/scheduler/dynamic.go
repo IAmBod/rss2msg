@@ -34,6 +34,9 @@ type DynamicConfig struct {
 	// feed's interval, so the effective polling rate is below what's configured.
 	// Optional.
 	OnPollOverrun func(feedURL string, took, interval time.Duration)
+	// OnPollComplete, if set, is called after every poll of a running feed with
+	// the change count and poll error. Optional.
+	OnPollComplete func(feedURL string, changeCount int, err error, when time.Time)
 }
 
 type runningFeed struct {
@@ -106,7 +109,7 @@ func ServeDynamic(ctx context.Context, cfg DynamicConfig) error {
 			} else {
 				added++
 			}
-			running[url] = startFeed(ctx, byURL[url], p, cfg.OnPollOverrun)
+			running[url] = startFeed(ctx, byURL[url], p, cfg.OnPollOverrun, cfg.OnPollComplete)
 		}
 		if cfg.OnReconcile != nil {
 			cfg.OnReconcile(added, removed, changed)
@@ -126,18 +129,25 @@ func ServeDynamic(ctx context.Context, cfg DynamicConfig) error {
 }
 
 // startFeed launches a pre-built pipeline's loop and returns its handle.
-func startFeed(parent context.Context, fc config.FeedConfig, p FeedPipeline, onPollOverrun func(feedURL string, took, interval time.Duration)) *runningFeed {
+func startFeed(parent context.Context, fc config.FeedConfig, p FeedPipeline,
+	onPollOverrun func(feedURL string, took, interval time.Duration),
+	onPollComplete func(feedURL string, changeCount int, err error, when time.Time),
+) *runningFeed {
 	fctx, cancel := context.WithCancel(parent)
 	done := make(chan struct{})
 	var onOverrun func(took time.Duration)
 	if onPollOverrun != nil {
 		onOverrun = func(took time.Duration) { onPollOverrun(fc.URL, took, fc.Interval) }
 	}
+	var onComplete func(int, error, time.Time)
+	if onPollComplete != nil {
+		onComplete = func(n int, err error, when time.Time) { onPollComplete(fc.URL, n, err, when) }
+	}
 	go func() {
 		defer close(done)
 		// Per-tick RunOnce errors are logged inside the pipeline; the dynamic
 		// scheduler does not aggregate them (unlike static Serve).
-		runFeedLoop(fctx, p, fc.Interval, func(error) {}, onOverrun)
+		runFeedLoop(fctx, p, fc.Interval, func(error) {}, onOverrun, onComplete)
 	}()
 	return &runningFeed{cfg: fc, cancel: cancel, done: done}
 }

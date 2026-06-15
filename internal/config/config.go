@@ -593,11 +593,23 @@ type NATSSinkConfig struct {
 // precedence: earlier entries win on URL collision. The static feeds: block is
 // represented by an entry with Type "static".
 type FeedSourceConfig struct {
-	Type     string                   `mapstructure:"type"` // "static", "file", and "postgres" are implemented; http|sqlite|redis|s3|env are added by later plans
-	Name     string                   `mapstructure:"name"` // optional; defaults to "<type>[index]"
-	Path     string                   `mapstructure:"path"` // file source
-	Interval time.Duration            `mapstructure:"interval"`
-	Postgres PostgresFeedSourceConfig `mapstructure:"postgres"` // postgres source
+	Type       string                     `mapstructure:"type"` // "static", "file", and "postgres" are implemented; http|sqlite|redis|s3|env are added by later plans
+	Name       string                     `mapstructure:"name"` // optional; defaults to "<type>[index]"
+	Path       string                     `mapstructure:"path"` // file source
+	Interval   time.Duration              `mapstructure:"interval"`
+	Postgres   PostgresFeedSourceConfig   `mapstructure:"postgres"`   // postgres source
+	Kubernetes KubernetesFeedSourceConfig `mapstructure:"kubernetes"` // kubernetes source
+}
+
+// KubernetesFeedSourceConfig configures a Kubernetes-backed feed source. The
+// desired feed list is read from Feed custom resources (rss2msg.io/v1) watched
+// via a dynamic informer. The source never creates or deletes Feeds.
+type KubernetesFeedSourceConfig struct {
+	Namespace      string        `mapstructure:"namespace"`       // "" = all namespaces (cluster-wide watch)
+	Kubeconfig     string        `mapstructure:"kubeconfig"`      // "" = in-cluster config
+	LabelSelector  string        `mapstructure:"label_selector"`  // optional
+	ResyncInterval time.Duration `mapstructure:"resync_interval"` // default 10m
+	WriteStatus    *bool         `mapstructure:"write_status"`    // default true; pointer so "unset" != "false"
 }
 
 // PostgresFeedSourceConfig configures a Postgres-backed feed source. The desired

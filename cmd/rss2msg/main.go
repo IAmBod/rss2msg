@@ -59,6 +59,18 @@ func newServeCmd(opts *rootOpts) *cobra.Command {
 
 			agg := feedsource.NewAggregator(sources...)
 
+			// Collect kubernetes sources so poll outcomes can be written back to
+			// their Feed CR .status. ReportPoll is a no-op for feeds a source does
+			// not own, so fanning out to all of them is safe. Only the replica that
+			// won the per-feed lease polls the feed, so there is no status write
+			// contention across replicas.
+			var k8sSources []*feedsource.Kubernetes
+			for _, src := range sources {
+				if ks, ok := src.(*feedsource.Kubernetes); ok {
+					k8sSources = append(k8sSources, ks)
+				}
+			}
+
 			readyChecks := []health.Check{
 				{Name: "state", Fn: w.store.Ping},
 			}
@@ -117,6 +129,11 @@ func newServeCmd(opts *rootOpts) *cobra.Command {
 						Dur("took", took).
 						Dur("interval", interval).
 						Msg("poll overran its interval; effective polling rate is below configured")
+				},
+				OnPollComplete: func(feedURL string, changeCount int, err error, when time.Time) {
+					for _, ks := range k8sSources {
+						ks.ReportPoll(ctx, feedURL, changeCount, err, when)
+					}
 				},
 			})
 		},

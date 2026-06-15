@@ -1,0 +1,32 @@
+{{- if .Values.feedSource.kubernetes.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "rss2msg.fullname" . }}-feeds
+  labels:
+    {{- include "rss2msg.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["rss2msg.io"]
+    resources: ["feeds"]
+    verbs: ["get", "list", "watch"]
+{{- if .Values.feedSource.kubernetes.writeStatus }}
+  - apiGroups: ["rss2msg.io"]
+    resources: ["feeds/status"]
+    verbs: ["get", "update", "patch"]
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "rss2msg.fullname" . }}-feeds
+  labels:
+    {{- include "rss2msg.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "rss2msg.fullname" . }}-feeds
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "rss2msg.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
