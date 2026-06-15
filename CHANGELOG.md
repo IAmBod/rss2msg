@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 This file is generated from [Conventional Commits](https://www.conventionalcommits.org)
 by [git-cliff](https://git-cliff.org).
 
+## [0.3.0] - 2026-06-15
+
+### Features
+
+- **release:** Add /release command and cut-release skill
+
 ## [0.2.0] - 2026-06-15
 
 ### Features
