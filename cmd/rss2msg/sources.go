@@ -90,6 +90,30 @@ func buildSources(cfg config.Config) ([]feedsource.Source, func(), error) {
 			}
 			closers = append(closers, func() { _ = p.Close() })
 			sources = append(sources, p)
+		case "http":
+			opts := feedsource.HTTPOptions{
+				Name:     name,
+				URL:      sc.HTTP.URL,
+				Timeout:  sc.HTTP.Timeout,
+				Headers:  sc.HTTP.Headers,
+				Interval: sc.Interval,
+			}
+			if sc.HTTP.TLS != (config.FeedSourceHTTPTLSConfig{}) {
+				opts.TLS = &feedsource.HTTPTLSOptions{
+					CAFile:             sc.HTTP.TLS.CAFile,
+					CertFile:           sc.HTTP.TLS.CertFile,
+					KeyFile:            sc.HTTP.TLS.KeyFile,
+					ServerName:         sc.HTTP.TLS.ServerName,
+					InsecureSkipVerify: sc.HTTP.TLS.InsecureSkipVerify,
+				}
+			}
+			h, err := feedsource.NewHTTP(opts)
+			if err != nil {
+				closeAll(closers)
+				return nil, nil, err
+			}
+			closers = append(closers, func() { _ = h.Close() })
+			sources = append(sources, h)
 		default:
 			closeAll(closers)
 			return nil, nil, fmt.Errorf("feed_sources[%d]: unsupported type %q", i, sc.Type)

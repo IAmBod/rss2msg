@@ -38,3 +38,33 @@ func TestBuildSourcesPostgresBadDSN(t *testing.T) {
 		t.Fatal("expected error for malformed dsn")
 	}
 }
+
+func TestBuildSourcesHTTP(t *testing.T) {
+	cfg := config.Config{
+		FeedSources: []config.FeedSourceConfig{{
+			Type: "http",
+			Name: "cp",
+			HTTP: config.HTTPFeedSourceConfig{URL: "https://cp.example/feeds"},
+		}},
+	}
+	sources, cleanup, err := buildSources(cfg)
+	if err != nil {
+		t.Fatalf("buildSources: %v", err)
+	}
+	defer cleanup()
+	if len(sources) != 1 {
+		t.Fatalf("expected 1 source, got %d", len(sources))
+	}
+	if sources[0].Name() != "cp" {
+		t.Errorf("name: got %q want %q", sources[0].Name(), "cp")
+	}
+}
+
+func TestBuildSourcesHTTPMissingURL(t *testing.T) {
+	cfg := config.Config{
+		FeedSources: []config.FeedSourceConfig{{Type: "http"}},
+	}
+	if _, _, err := buildSources(cfg); err == nil {
+		t.Fatal("expected error for http source without url")
+	}
+}
