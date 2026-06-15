@@ -41,6 +41,7 @@ Postgres-backed feed table stays current under those modes.
 | `static` | implemented | Injects the top-level `feeds:` block at this position in the precedence order. |
 | `file`   | implemented | Reads a JSON file of feed specs; watches the file for changes and reloads automatically. |
 | `postgres` | implemented | Reads the feed list from a Postgres table; polls on an interval. |
+| `kubernetes` | implemented | Watches `Feed` custom resources in a Kubernetes cluster via a dynamic informer. |
 | `http`, `sqlite`, `redis`, `s3`, `env` | planned | Not yet implemented. |
 
 ### `type: file`
@@ -128,6 +129,25 @@ CREATE TABLE feeds (
 Splices the top-level `feeds:` block into the source list at this position.
 Useful when you want the static feeds to have lower precedence than a
 `file` source but higher precedence than another.
+
+### `type: kubernetes`
+
+Watches `Feed` custom resources (group `rss2msg.io`, version `v1`) in a
+Kubernetes cluster via a dynamic informer. The feed set updates automatically
+when CRs are added, updated, or deleted — no SIGHUP or restart required.
+
+```yaml
+- type: kubernetes
+  kubernetes:
+    namespace: ""          # empty = all namespaces (cluster-wide watch)
+    kubeconfig: ""         # empty = in-cluster config (pod's ServiceAccount)
+    label_selector: ""     # optional
+    resync_interval: 10m   # optional; default 10m
+    write_status: true     # optional; default true — writes poll results to .status
+```
+
+See [Get Feeds from Kubernetes](./get-feeds-from-kubernetes.md) for CRD
+installation, RBAC, the `Feed` CR schema, and status field details.
 
 ## Runtime reload
 
