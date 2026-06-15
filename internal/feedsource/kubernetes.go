@@ -3,6 +3,11 @@ package feedsource
 import (
 	"fmt"
 	"strings"
+
+	// k8s client packages – imported here so go.mod tracks them as direct
+	// dependencies. The informer-backed CRD source (Task 2+) will expand these.
+	_ "k8s.io/apimachinery/pkg/apis/meta/v1"
+	_ "k8s.io/client-go/dynamic"
 )
 
 // specFromUnstructured maps a Feed custom resource (the unstructured object an
