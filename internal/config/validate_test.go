@@ -1911,8 +1911,8 @@ func TestValidateSchemaRegistry(t *testing.T) {
 	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "bogus"})); err == nil {
 		t.Fatal("expected error for unknown format")
 	}
-	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "avro"})); err == nil {
-		t.Fatal("expected error for not-yet-supported avro")
+	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "avro"})); err != nil {
+		t.Fatalf("valid avro registry rejected: %v", err)
 	}
 	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081"})); err == nil {
 		t.Fatal("expected error for missing format")
@@ -1923,8 +1923,11 @@ func TestValidateSchemaRegistry(t *testing.T) {
 	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "json", SchemaFile: "/no/such/file"})); err == nil {
 		t.Fatal("expected error for missing schema_file")
 	}
-	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "protobuf"})); err == nil {
-		t.Fatal("expected error for not-yet-supported protobuf")
+	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "protobuf"})); err != nil {
+		t.Fatalf("valid protobuf registry rejected: %v", err)
+	}
+	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "thrift"})); err == nil {
+		t.Fatal("expected error for invalid format")
 	}
 	if _, err := Validate(base(SchemaRegistryConfig{URL: "http://sr:8081", Format: "json", BasicAuth: SchemaRegistryBasicAuth{Username: "u"}})); err == nil {
 		t.Fatal("expected error for basic_auth username without password")
@@ -2009,4 +2012,41 @@ func TestValidateRejectsHTTPSourceNegativeTimeout(t *testing.T) {
 	if _, err := Validate(cfg); err == nil {
 		t.Fatal("expected error for negative timeout")
 	}
+}
+
+func TestValidateKubernetesFeedSource(t *testing.T) {
+	t.Parallel()
+
+	base := func() Config {
+		cfg := Defaults()
+		cfg.State = StateConfig{Driver: "sqlite", SQLite: SQLiteStateConfig{Path: "x.db"}}
+		cfg.Sinks = []SinkConfig{{Name: "default", Driver: "stdout"}}
+		cfg.Feeds = nil
+		return cfg
+	}
+
+	t.Run("valid_defaults", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.FeedSources = []FeedSourceConfig{{Type: "kubernetes"}}
+		if _, err := Validate(cfg); err != nil {
+			t.Fatalf("expected valid kubernetes source with defaults, got %v", err)
+		}
+	})
+
+	t.Run("invalid_label_selector", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.FeedSources = []FeedSourceConfig{{
+			Type:       "kubernetes",
+			Kubernetes: KubernetesFeedSourceConfig{LabelSelector: "!!"},
+		}}
+		_, err := Validate(cfg)
+		if err == nil {
+			t.Fatal("expected error for invalid label_selector")
+		}
+		if !strings.Contains(err.Error(), "label_selector") {
+			t.Fatalf("error should mention label_selector, got %v", err)
+		}
+	})
 }

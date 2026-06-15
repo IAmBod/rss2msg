@@ -306,8 +306,10 @@ distinct; `listen` is required when `enabled: true`. If
 
 ## `feed_sources`
 
-Full source-type documentation is in [Load Feeds Dynamically](../how-to/load-feeds-dynamically.md).
-The fields below cover the `http` source type.
+An ordered list of feed sources for the `serve` daemon. Each entry has a `type`
+plus its own fields. See [Load Feeds Dynamically](../how-to/load-feeds-dynamically.md)
+for reload semantics and the `file`, `postgres`, and `static` types. The sections
+below cover the `http` and `kubernetes` source types.
 
 ### `feed_sources[].http` (type: http)
 
@@ -321,6 +323,33 @@ The fields below cover the `http` source type.
 | `feed_sources[].http.tls.key_file`      | `""`    | Private key for the client certificate. Must be set together with `cert_file`. |
 | `feed_sources[].http.tls.server_name`   | `""`    | SNI / cert-verify hostname override. |
 | `feed_sources[].http.tls.insecure_skip_verify` | `false` | Disable server-certificate verification. For testing only. |
+
+### `type: kubernetes`
+
+Watches `Feed` custom resources (group `rss2msg.io`, version `v1`) via a
+dynamic informer. Requires the `feeds.rss2msg.io` CRD to be installed.
+
+```yaml
+feed_sources:
+  - type: kubernetes
+    kubernetes:
+      namespace: ""          # empty = all namespaces (cluster-wide watch)
+      kubeconfig: ""         # empty = in-cluster config (pod's ServiceAccount)
+      label_selector: ""     # optional; e.g. "app=myservice"
+      resync_interval: 10m   # optional; default 10m
+      write_status: true     # optional; default true
+```
+
+| field              | type     | default | notes |
+| ------------------ | -------- | ------- | ----- |
+| `namespace`        | string   | `""`    | Namespace to watch. Empty = cluster-wide watch across all namespaces. |
+| `kubeconfig`       | string   | `""`    | Path to a kubeconfig file. Empty = in-cluster config (pod's ServiceAccount). |
+| `label_selector`   | string   | `""`    | Kubernetes label selector to filter `Feed` CRs. Must parse via `labels.Parse`; rejected at startup if invalid. |
+| `resync_interval`  | duration | `10m`   | Informer resync period. Must be at least `1s` if set. |
+| `write_status`     | bool     | `true`  | When true, rss2msg writes poll results (`lastPollTime`, `lastChangeCount`, `lastError`, `Ready` condition) back to each `Feed` CR's `.status` subresource. Requires `feeds/status` RBAC. |
+
+See [Get Feeds from Kubernetes](../how-to/get-feeds-from-kubernetes.md) for CRD
+installation, RBAC, the `Feed` CR schema, and status field details.
 
 ## Related
 

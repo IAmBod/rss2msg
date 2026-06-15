@@ -21,9 +21,12 @@ Two GitHub Actions workflows wire them together:
 - [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) — runs on PRs and pushes
   to `main`: golangci-lint, `go vet`, unit tests (`-race`), `go build`, and `goreleaser check`.
 - [`.github/workflows/release.yml`](../../.github/workflows/release.yml) — runs on a
-  pushed `v*.*.*` tag: generates release notes with git-cliff, runs GoReleaser to build
-  and publish artifacts and the Docker image, then syncs the regenerated `CHANGELOG.md`
-  back to `main`.
+  pushed `v*.*.*` tag: generates release notes with git-cliff, regenerates the full
+  `CHANGELOG.md` in the workspace so GoReleaser bundles the populated file into the
+  archives and packages (at the tag commit the committed `CHANGELOG.md` is still empty),
+  runs GoReleaser to build and publish artifacts and the Docker image, then syncs the
+  regenerated `CHANGELOG.md` back to `main`. Because that regeneration leaves the tree
+  dirty, GoReleaser runs with `--skip=validate`.
 
 ## Cut a release
 
@@ -50,12 +53,15 @@ The release workflow then:
 - builds binaries for linux/macOS/Windows on amd64/arm64 (Windows arm64 excluded),
   with `version`, `commit`, and `date` stamped into the binary via `-ldflags`
   (see [`builds:` in `.goreleaser.yaml`](../../.goreleaser.yaml));
-- writes `checksums.txt` and `.tar.gz` / `.zip` archives;
+- writes `checksums.txt` and `.tar.gz` / `.zip` archives — each bundles the binary,
+  `README.md`, `LICENSE`, `CHANGELOG.md`, the example config, and the user-facing
+  `docs/` tree (the internal `docs/superpowers/` specs and plans are excluded);
 - builds Linux packages — `.deb`, `.rpm`, and `.apk` for amd64 and arm64 — from the
   same binaries via GoReleaser's [nFPM](https://nfpm.goreleaser.com) integration
   (see [`nfpms:` in `.goreleaser.yaml`](../../.goreleaser.yaml)); each installs the
   binary to `/usr/bin/rss2msg`, a sample config to `/etc/rss2msg/config.example.yaml`,
-  and docs to `/usr/share/doc/rss2msg/`;
+  and docs (`README.md`, `CHANGELOG.md`, and the `docs/` tree minus `superpowers/`) to
+  `/usr/share/doc/rss2msg/`;
 - builds and pushes a multi-arch image to `ghcr.io/iambod/rss2msg:<version>` and
   `:latest` — the `production` (final) stage of the single
   [`Dockerfile`](../../Dockerfile), which packages the cross-compiled binary GoReleaser

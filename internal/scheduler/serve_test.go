@@ -137,3 +137,41 @@ func TestServeRunsEachFeedOnSchedule(t *testing.T) {
 		t.Fatalf("expected the feed to tick at least twice, got %d", got)
 	}
 }
+
+// nChangePipeline always returns n model.Change values from RunOnce.
+type nChangePipeline struct {
+	url string
+	n   int
+}
+
+func (p *nChangePipeline) FeedURL() string { return p.url }
+func (p *nChangePipeline) RunOnce(_ context.Context, _ string, _ time.Time) ([]model.Change, error) {
+	return make([]model.Change, p.n), nil
+}
+
+func TestServeFiresOnPollComplete(t *testing.T) {
+	p := &nChangePipeline{url: "https://e/x", n: 3}
+	got := make(chan int, 1)
+	cfg := ServeConfig{
+		Pipelines:    []FeedPipeline{p},
+		Intervals:    map[string]time.Duration{"https://e/x": time.Hour},
+		DrainTimeout: time.Second,
+		OnPollComplete: func(feedURL string, changeCount int, err error, when time.Time) {
+			select {
+			case got <- changeCount:
+			default:
+			}
+		},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { _ = Serve(ctx, cfg) }()
+	select {
+	case n := <-got:
+		if n != 3 {
+			t.Fatalf("changeCount = %d, want 3", n)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("OnPollComplete never fired")
+	}
+	cancel()
+}

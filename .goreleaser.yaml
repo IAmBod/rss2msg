@@ -58,6 +58,15 @@ archives:
       - LICENSE*
       - CHANGELOG.md
       - examples/config.example.yaml
+      # The user-facing Diátaxis documentation. docs/superpowers/ holds internal design
+      # specs and development plans, not user docs, so it's left out by listing the
+      # published sections explicitly rather than globbing all of docs/.
+      - docs/index.md
+      - docs/getting-started.md
+      - docs/development/**
+      - docs/explanation/**
+      - docs/how-to/**
+      - docs/reference/**
 
 # Linux distro packages (.deb / .rpm / .apk) built from the same binaries as the
 # archives, via GoReleaser's built-in nFPM integration — https://nfpm.goreleaser.com
@@ -91,6 +100,19 @@ nfpms:
         dst: /usr/share/doc/rss2msg/README.md
       - src: ./CHANGELOG.md
         dst: /usr/share/doc/rss2msg/CHANGELOG.md
+      # The same user-facing docs the archives bundle (docs/superpowers/ excluded).
+      - src: ./docs/index.md
+        dst: /usr/share/doc/rss2msg/docs/index.md
+      - src: ./docs/getting-started.md
+        dst: /usr/share/doc/rss2msg/docs/getting-started.md
+      - src: ./docs/development/**
+        dst: /usr/share/doc/rss2msg/docs/development
+      - src: ./docs/explanation/**
+        dst: /usr/share/doc/rss2msg/docs/explanation
+      - src: ./docs/how-to/**
+        dst: /usr/share/doc/rss2msg/docs/how-to
+      - src: ./docs/reference/**
+        dst: /usr/share/doc/rss2msg/docs/reference
 
 # Homebrew cask, published to the project's tap on each stable release. Install
 # with:  brew install IAmBod/tap/rss2msg  (macOS — Homebrew Cask is macOS-only;

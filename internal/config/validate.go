@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 // pgKeywordSSLModeRE matches `sslmode=<value>` in pgx keyword-form DSNs,
@@ -771,10 +773,8 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			continue
 		}
 		switch sr.Format {
-		case "json":
-			// supported in this release
-		case "avro", "protobuf":
-			return *warnings, fmt.Errorf("sinks[%d] (kafka %q): schema_registry.format %q is not supported yet (only \"json\")", i, s.Name, sr.Format)
+		case "json", "avro", "protobuf":
+			// supported
 		case "":
 			return *warnings, fmt.Errorf("sinks[%d] (kafka %q): schema_registry.format is required when url is set", i, s.Name)
 		default:
@@ -858,6 +858,15 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 				if _, bad := reservedHeaders[canon]; bad {
 					return *warnings, fmt.Errorf("feed_sources[%d] (http): headers must not set reserved cache header %q", i, h)
 				}
+			}
+		case "kubernetes":
+			if s.Kubernetes.LabelSelector != "" {
+				if _, err := labels.Parse(s.Kubernetes.LabelSelector); err != nil {
+					return *warnings, fmt.Errorf("feed_sources[%d] (kubernetes): invalid label_selector: %w", i, err)
+				}
+			}
+			if s.Kubernetes.ResyncInterval != 0 && s.Kubernetes.ResyncInterval < time.Second {
+				return *warnings, fmt.Errorf("feed_sources[%d] (kubernetes): resync_interval %v is below the 1s minimum", i, s.Kubernetes.ResyncInterval)
 			}
 		case "":
 			return *warnings, fmt.Errorf("feed_sources[%d]: type is required", i)
