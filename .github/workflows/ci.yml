@@ -1,9 +1,9 @@
 name: CI
 
 # Fast feedback on every PR and on pushes to main: lint, unit tests, and a build
-# of both the binary and the release config. Integration tests (testcontainers /
-# Docker) are intentionally not run here — they live behind `-tags=integration`
-# and are run on demand (see AGENTS.md).
+# of both the binary and the release config. The `integration` job additionally
+# runs the testcontainers-backed suite behind `-tags=integration` (it needs
+# Docker, which GitHub-hosted runners provide).
 on:
   push:
     branches: [main]
@@ -43,6 +43,21 @@ jobs:
           cache: true
       - name: unit tests (-race)
         run: go test -race ./...
+
+  integration:
+    name: integration tests
+    runs-on: ubuntu-latest
+    # testcontainers spins Postgres / Kafka / Redis / LocalStack etc.; image
+    # pulls plus container startup dominate the wall-clock, so allow headroom.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: integration tests (-tags=integration)
+        run: go test -race -tags=integration -timeout 25m ./...
 
   build:
     name: build
