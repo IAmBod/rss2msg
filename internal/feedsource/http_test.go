@@ -109,6 +109,37 @@ func TestHTTPConditionalGET(t *testing.T) {
 	}
 }
 
+func TestHTTPConditionalGETLastModified(t *testing.T) {
+	t.Parallel()
+	const lm = "Mon, 01 Jan 2024 00:00:00 GMT"
+	var conditional int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("If-Modified-Since") == lm {
+			conditional++
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Header().Set("Last-Modified", lm)
+		_, _ = w.Write([]byte(`{"feeds":[{"url":"https://a.example/rss","interval":"5m"}]}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	h := newTestHTTP(t, srv.URL, nil)
+	if _, err := h.Feeds(context.Background()); err != nil {
+		t.Fatalf("first Feeds: %v", err)
+	}
+	feeds, err := h.Feeds(context.Background())
+	if err != nil {
+		t.Fatalf("second Feeds: %v", err)
+	}
+	if conditional != 1 {
+		t.Fatalf("expected 1 If-Modified-Since request, got %d", conditional)
+	}
+	if len(feeds) != 1 || feeds[0].URL != "https://a.example/rss" {
+		t.Fatalf("304 should return cached list, got %+v", feeds)
+	}
+}
+
 func TestHTTPMissingFeedsKeyErrorsAndLogs(t *testing.T) {
 	// Not parallel: swaps the global zerolog logger.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

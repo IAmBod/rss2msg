@@ -21,7 +21,12 @@ import (
 // Compile-time assertion that *HTTP satisfies Source.
 var _ Source = (*HTTP)(nil)
 
-const defaultHTTPTimeout = 30 * time.Second
+const (
+	defaultHTTPTimeout = 30 * time.Second
+	// maxBodyBytes caps the feed-list response read into memory so a
+	// misconfigured or hostile endpoint cannot OOM the process.
+	maxBodyBytes = 10 << 20 // 10 MiB
+)
 
 // HTTPTLSOptions is the client TLS surface for the http feed source. Setting any
 // field configures a custom *tls.Config on the transport.
@@ -79,7 +84,11 @@ func NewHTTP(opts HTTPOptions) (*HTTP, error) {
 		if err != nil {
 			return nil, fmt.Errorf("http feed source %q: %w", opts.Name, err)
 		}
-		client.Transport = &http.Transport{TLSClientConfig: tc}
+		// Clone DefaultTransport so we keep its connection-pool, keep-alive,
+		// and timeout defaults while swapping in the custom TLS config.
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.TLSClientConfig = tc
+		client.Transport = transport
 		if opts.TLS.InsecureSkipVerify {
 			log.Warn().
 				Str("component", "feedsource/http").
@@ -133,9 +142,12 @@ func (h *HTTP) fetch(ctx context.Context) ([]config.FeedConfig, error) {
 	case resp.StatusCode == http.StatusNotModified:
 		return cached, nil
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
-		body, err := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes+1))
 		if err != nil {
 			return nil, fmt.Errorf("http feed source %q: read body: %w", h.poll.Name(), err)
+		}
+		if int64(len(body)) > maxBodyBytes {
+			return nil, fmt.Errorf("http feed source %q: response body exceeds %d bytes", h.poll.Name(), maxBodyBytes)
 		}
 		var payload feedListResponse
 		if err := json.Unmarshal(body, &payload); err != nil {
