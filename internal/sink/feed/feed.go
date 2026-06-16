@@ -39,7 +39,9 @@ type Options struct {
 	TLSCertFile     string
 	TLSKeyFile      string
 	HTTP3           bool // serve HTTP/3 over QUIC alongside TCP; requires TLS
-	Auth            *AuthConfig
+	RSSAuth         *SurfaceAuth
+	AtomAuth        *SurfaceAuth
+	MCPAuth         *SurfaceAuth
 
 	StoreDriver string
 	SQLitePath  string
@@ -144,7 +146,7 @@ func New(ctx context.Context, o Options) (*Publisher, error) {
 		store: store, meta: o.Meta, maxItems: o.MaxItems,
 		rssPath: rss, atomPath: atom,
 		renderCacheTTL: o.RenderCacheTTL, cacheControlTTL: o.CacheControlTTL,
-		auth: o.Auth, startedAt: time.Now(),
+		rssAuth: o.RSSAuth, atomAuth: o.AtomAuth, startedAt: time.Now(),
 	})
 
 	if o.Meter != nil {
@@ -169,7 +171,7 @@ func New(ctx context.Context, o Options) (*Publisher, error) {
 		sh := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return ms }, nil)
 		mux := http.NewServeMux()
 		mux.Handle("/", h)
-		mux.Handle(mcpPath, mcpAuthMiddleware(o.Auth, mcpCount, sh))
+		mux.Handle(mcpPath, mcpAuthMiddleware(o.MCPAuth, h.instr, mcpCount, sh))
 		root = mux
 	}
 

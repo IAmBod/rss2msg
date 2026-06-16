@@ -78,7 +78,8 @@ sinks:
         driver: postgres
         postgres: { dsn: "postgres://x", table: feed_output }
       auth:
-        basic: { username: u, password: p }
+        basic_users:
+          - { name: ops, username: u, password: p }
 `)
 	cfg, err := Load(p)
 	if err != nil {
@@ -103,8 +104,8 @@ sinks:
 	if s.Feed.Store.Postgres.Table != "feed_output" {
 		t.Fatalf("feed.store.postgres.table = %q, want feed_output", s.Feed.Store.Postgres.Table)
 	}
-	if s.Feed.Auth.Basic.Username != "u" {
-		t.Fatalf("feed.auth.basic.username = %q, want u", s.Feed.Auth.Basic.Username)
+	if len(s.Feed.Auth.BasicUsers) != 1 || s.Feed.Auth.BasicUsers[0].Username != "u" {
+		t.Fatalf("feed.auth.basic_users[0].username = %+v, want username u", s.Feed.Auth.BasicUsers)
 	}
 }
 

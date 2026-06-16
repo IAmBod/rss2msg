@@ -9,16 +9,30 @@ import (
 
 	"github.com/iambod/rss2msg/internal/model"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
-// mcpAuthMiddleware gates the MCP route with the sink's auth (same as RSS/Atom)
-// and counts requests when a meter is configured.
-func mcpAuthMiddleware(a *AuthConfig, count metric.Int64Counter, next http.Handler) http.Handler {
+// mcpAuthMiddleware gates the MCP route with the surface's auth (same evaluation
+// as RSS/Atom) and records auth + request metrics when a meter is configured.
+func mcpAuthMiddleware(a *SurfaceAuth, instr *instruments, count metric.Int64Counter, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !checkAuth(a, r) {
+		name, ok := authenticate(a, r)
+		if !ok {
+			if instr != nil {
+				instr.authFailure.Add(r.Context(), 1, metric.WithAttributes(
+					attribute.String("surface", "mcp"),
+					attribute.String("reason", authFailReason(a, r)),
+				))
+			}
 			writeAuthChallenge(a, w)
 			return
+		}
+		if a != nil && instr != nil {
+			instr.authSuccess.Add(r.Context(), 1, metric.WithAttributes(
+				attribute.String("surface", "mcp"),
+				attribute.String("credential", name),
+			))
 		}
 		if count != nil {
 			count.Add(r.Context(), 1)

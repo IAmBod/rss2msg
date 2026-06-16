@@ -585,13 +585,6 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 				ServerName: t.ServerName, InsecureSkipVerify: t.InsecureSkipVerify,
 			}
 		}
-		var auth *feedsink.AuthConfig
-		if f.Auth.Basic.Username != "" || f.Auth.BearerToken != "" {
-			auth = &feedsink.AuthConfig{
-				BasicUser: f.Auth.Basic.Username, BasicPass: f.Auth.Basic.Password,
-				BearerToken: f.Auth.BearerToken,
-			}
-		}
 		title := f.Title
 		if title == "" {
 			title = sc.Name
@@ -612,7 +605,10 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 				ReadHeader: f.Timeouts.ReadHeader, Read: f.Timeouts.Read,
 				Write: f.Timeouts.Write, Idle: f.Timeouts.Idle, Shutdown: f.Timeouts.Shutdown,
 			},
-			TLSCertFile: f.TLS.CertFile, TLSKeyFile: f.TLS.KeyFile, HTTP3: f.HTTP3, Auth: auth,
+			TLSCertFile: f.TLS.CertFile, TLSKeyFile: f.TLS.KeyFile, HTTP3: f.HTTP3,
+			RSSAuth:     toFeedSurfaceAuth(f.EffectiveAuth(f.RSS)),
+			AtomAuth:    toFeedSurfaceAuth(f.EffectiveAuth(f.Atom)),
+			MCPAuth:     toFeedSurfaceAuth(f.EffectiveAuth(f.MCP)),
 			StoreDriver: f.Store.Driver, SQLitePath: f.Store.SQLite.Path,
 			PostgresDSN: f.Store.Postgres.DSN, Table: f.Store.Postgres.Table, PostgresTLS: pgTLS,
 			Meter: tel.Meter, Logger: tel.Logger,
@@ -674,4 +670,23 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 	default:
 		return nil, fmt.Errorf("unsupported sink driver %q", sc.Driver)
 	}
+}
+
+// toFeedSurfaceAuth converts a resolved feed auth block into the sink's
+// SurfaceAuth, returning nil for a public surface (disabled or no methods).
+func toFeedSurfaceAuth(a config.FeedAuthConfig) *feedsink.SurfaceAuth {
+	if a.Disabled || !a.HasMethods() {
+		return nil
+	}
+	sa := &feedsink.SurfaceAuth{APIKeyHeader: a.APIKeyHeader}
+	for _, b := range a.BasicUsers {
+		sa.BasicUsers = append(sa.BasicUsers, feedsink.BasicCred{Name: b.Name, Username: b.Username, Password: b.Password})
+	}
+	for _, t := range a.BearerTokens {
+		sa.BearerTokens = append(sa.BearerTokens, feedsink.NamedSecret{Name: t.Name, Secret: t.Token})
+	}
+	for _, k := range a.APIKeys {
+		sa.APIKeys = append(sa.APIKeys, feedsink.NamedSecret{Name: k.Name, Secret: k.Key})
+	}
+	return sa
 }

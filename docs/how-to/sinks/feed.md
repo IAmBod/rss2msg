@@ -3,7 +3,7 @@ title: Feed sink
 type: how-to
 tags: [rss2msg/docs, sinks, feed, rss, atom, mcp]
 summary: Re-publish detected changes as an RSS 2.0, Atom 1.0, or MCP surface over HTTP (with optional HTTP/3) so feed readers and AI agents can subscribe.
-updated: 2026-06-02
+updated: 2026-06-17
 ---
 
 # Feed sink
@@ -48,9 +48,7 @@ sinks:
         cert_file: /etc/rss2msg/feed.crt
         key_file: /etc/rss2msg/feed.key
       http3: false                    # optional; also serve HTTP/3 (QUIC) on the same port. Requires tls.
-      auth:                           # optional; when set, endpoints require auth and responses become Cache-Control: private
-        basic: { username: feeds, password: ${FEED_PASSWORD} }
-        # or, instead of basic:  bearer_token: ${FEED_TOKEN}
+      auth:                           # optional default for all surfaces; see Auth section
       store:
         driver: memory                # default; memory | sqlite | postgres
         sqlite:
@@ -77,7 +75,7 @@ sinks:
 | `timeouts`          | no       | (see below)   | HTTP server timeouts. |
 | `tls`               | no       | (none)        | Serve HTTPS directly; `cert_file` and `key_file` must both be set or both empty. |
 | `http3`             | no       | `false`       | Also serve HTTP/3 (QUIC) on the same UDP port and advertise it via `Alt-Svc`; see [HTTP/3](#http3). Requires `tls`. |
-| `auth`              | no       | (none)        | Exactly one of `basic` or `bearer_token`; see [Auth](#auth). |
+| `auth`              | no       | (none)        | Default credential policy for all surfaces; per-surface `auth` blocks fully replace this default. See [Auth](#auth). |
 | `store`             | no       | `memory`      | Backing window store; see [Store backends](#store-backends). |
 
 `timeouts` are applied with safe non-zero defaults when unset: `read_header: 5s`,
@@ -179,14 +177,78 @@ Every response carries an `ETag` (sha256 of the rendered body) and a
 
 ## Auth
 
-`auth` is optional. When set, both endpoints require authentication and
-responses switch to `Cache-Control: private`. Configure **exactly one** of:
+`auth` is optional. A feed sink with no `auth:` block at all is public.
 
-- `basic` — HTTP Basic auth; both `username` and `password` are required. An
-  unauthenticated request gets `401` with `WWW-Authenticate: Basic realm="rss2msg"`.
-- `bearer_token` — the request must carry `Authorization: Bearer <token>`.
+### Default and per-surface auth
 
-Credential comparisons are constant-time.
+The top-level `auth:` block under the feed sink config is the **default for all
+surfaces** (`rss`, `atom`, `mcp`). Each surface (`rss`, `atom`, `mcp`) may carry
+its own `auth:` block that **fully replaces** the default for that surface — there is
+no field-level merging, the surface block wins entirely. A surface with
+`auth: {disabled: true}` is public regardless of the default.
+
+When a surface is authenticated, responses switch to `Cache-Control: private` and an
+unauthenticated (or incorrectly credentialed) request receives **HTTP 401** with a
+`WWW-Authenticate` header (`Basic` when basic users are configured for that surface,
+otherwise `Bearer`).
+
+### Credential methods
+
+All credential fields are optional and any combination is valid. **Any one valid
+credential authenticates** (OR semantics — the request succeeds if it matches any
+entry in any configured list).
+
+- `basic_users` — a list of HTTP Basic users. Each entry has an optional `name`,
+  a required `username`, and a required `password`.
+- `bearer_tokens` — a list of bearer-token entries. Each entry has an optional `name`
+  and a required `token` matched against `Authorization: Bearer <token>`.
+- `api_keys` — a list of API key entries. Each entry has an optional `name` and a
+  required `key`.
+- `api_key_header` — the request header API keys are read from. Defaults to
+  `X-API-Key` when omitted. Only valid when `api_keys` is set.
+
+The optional `name` on each credential is for observability: it appears as the
+`credential` attribute on the `feed_sink.auth_success` metric. Authentication
+failures increment `feed_sink.auth_failure` with a `reason` attribute
+(`no_credentials` or `bad_token`). Both metrics also carry a `surface` attribute
+(`rss`, `atom`, or `mcp`).
+
+All credential comparisons are constant-time.
+
+### Example
+
+```yaml
+sinks:
+  - name: myfeed
+    driver: feed
+    feed:
+      listen: "0.0.0.0:8443"
+      auth:                              # default for all surfaces
+        basic_users:
+          - {name: alice, username: alice, password: s3cret}
+        bearer_tokens:
+          - {name: ci-bot, token: tok_a}
+        api_keys:
+          - {name: partner-x, key: key_1}
+        api_key_header: X-API-Key        # default when omitted
+      rss:  {enabled: true, auth: {disabled: true}}    # public
+      atom: {enabled: true}                            # inherits the default
+      mcp:  {enabled: true, auth: {bearer_tokens: [{name: mcp, token: t_mcp}]}}
+```
+
+### Validation
+
+Config validation rejects:
+
+- A per-surface `auth` block that defines no credential method and is not `disabled: true`.
+- `disabled: true` combined with any credentials on the same block.
+- A `basic_users` entry missing `username` or `password`.
+- A `bearer_tokens` or `api_keys` entry missing its secret field.
+- Duplicate `name` values within one credential type on the same block.
+- An `api_key_header` that contains spaces, tabs, or colons.
+- An `api_key_header` set without any `api_keys`.
+
+> **Note:** mTLS client-certificate auth is planned as PR-B of issue #131 and is not yet available.
 
 ## TLS vs reverse proxy
 
