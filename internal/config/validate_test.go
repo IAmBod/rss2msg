@@ -1245,19 +1245,42 @@ func TestValidate_FeedAuthOverrideDisabledIsPublic(t *testing.T) {
 	}
 }
 
+func TestValidate_FeedAuthDefaultDisabledAlone(t *testing.T) {
+	// A top-level default of disabled:true with no methods makes every surface
+	// public — a meaningful config that must validate cleanly.
+	c := feedSinkBase()
+	c.Sinks[0].Feed.Auth = FeedAuthConfig{Disabled: true}
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("disabled-only default must be valid (all surfaces public), got %v", err)
+	}
+}
+
 func TestValidate_FeedAuthDisabledWithMethodsRejected(t *testing.T) {
 	c := feedSinkBase()
 	c.Sinks[0].Feed.Auth = FeedAuthConfig{Disabled: true, BearerTokens: []FeedBearerCred{{Token: "t"}}}
-	if _, err := Validate(c); err == nil {
-		t.Fatal("expected error for disabled combined with credentials")
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "disabled") {
+		t.Fatalf("expected error for disabled combined with credentials, got %v", err)
 	}
 }
 
 func TestValidate_FeedAuthInvalidAPIKeyHeader(t *testing.T) {
 	c := feedSinkBase()
 	c.Sinks[0].Feed.Auth = FeedAuthConfig{APIKeys: []FeedAPIKeyCred{{Key: "k"}}, APIKeyHeader: "bad header"}
-	if _, err := Validate(c); err == nil {
-		t.Fatal("expected error for invalid api_key_header")
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "api_key_header") {
+		t.Fatalf("expected error for invalid api_key_header, got %v", err)
+	}
+}
+
+func TestValidate_FeedAuthAPIKeyHeaderWithoutKeys(t *testing.T) {
+	// An api_key_header without any api_keys is a silent no-op at runtime, so
+	// reject it as a misconfiguration rather than accepting it quietly.
+	c := feedSinkBase()
+	c.Sinks[0].Feed.Auth = FeedAuthConfig{APIKeyHeader: "X-API-Key"}
+	_, err := Validate(c)
+	if err == nil || !strings.Contains(err.Error(), "api_key_header") {
+		t.Fatalf("expected error for api_key_header without api_keys, got %v", err)
 	}
 }
 

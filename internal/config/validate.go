@@ -1040,8 +1040,13 @@ func validateFeedAuth(i int, name, label string, a FeedAuthConfig, isOverride bo
 			return fmt.Errorf("sinks[%d] (feed %q): %s.%s has duplicate name %q", i, name, label, set.kind, dup)
 		}
 	}
-	if h := a.APIKeyHeader; h != "" && strings.ContainsAny(h, " \t:") {
-		return fmt.Errorf("sinks[%d] (feed %q): %s.api_key_header %q is not a valid header name", i, name, label, h)
+	if h := a.APIKeyHeader; h != "" {
+		if strings.ContainsAny(h, " \t:") {
+			return fmt.Errorf("sinks[%d] (feed %q): %s.api_key_header %q is not a valid header name", i, name, label, h)
+		}
+		if len(a.APIKeys) == 0 {
+			return fmt.Errorf("sinks[%d] (feed %q): %s.api_key_header requires at least one api_keys entry", i, name, label)
+		}
 	}
 	return nil
 }
