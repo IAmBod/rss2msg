@@ -30,7 +30,28 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: true
+          # The cross-compile build cache is restored explicitly below. setup-go's
+          # own cache only ever holds native linux/amd64 objects (that's all main CI
+          # compiles), so it does nothing for the darwin / windows / arm64 targets
+          # that dominate a release build.
+          cache: false
+
+      # Restore the Go module + build cache warmed on main by warm-build-cache.yml.
+      # GitHub scopes caches by ref — a cache written by one tag push is NOT visible
+      # to the next tag, only default-branch caches are — so the cross-compile object
+      # cache has to be produced on main and restored here read-only. A miss (e.g.
+      # right after a dependency bump, before the next nightly warm) just falls back
+      # to a cold compile; trigger the "Warm release build cache" workflow manually
+      # to pre-warm before a release if needed.
+      - name: Restore Go build cache (warmed on main)
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: release-gobuild-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            release-gobuild-${{ runner.os }}-
 
       - name: Generate release notes (git-cliff)
         uses: orhun/git-cliff-action@v4
