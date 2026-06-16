@@ -99,9 +99,10 @@ func TestMCP_RouteMountedAndAuthGated(t *testing.T) {
 	p, err := New(ctx, Options{
 		Name: "out", Listen: "127.0.0.1:0", MaxItems: 5, StoreDriver: "memory",
 		Meta: FeedMeta{Title: "t", Link: "https://x/"},
-		RSS:  Surface{Enabled: true},
-		MCP:  Surface{Enabled: true, Path: "/mcp"},
-		Auth: &AuthConfig{BearerToken: "secret"},
+		RSS:     Surface{Enabled: true},
+		MCP:     Surface{Enabled: true, Path: "/mcp"},
+		RSSAuth: &SurfaceAuth{BearerTokens: []NamedSecret{{Secret: "secret"}}},
+		MCPAuth: &SurfaceAuth{BearerTokens: []NamedSecret{{Secret: "secret"}}},
 	})
 	if err != nil {
 		t.Fatal(err)

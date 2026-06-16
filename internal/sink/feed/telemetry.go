@@ -6,6 +6,8 @@ type instruments struct {
 	requests    metric.Int64Counter
 	notMod      metric.Int64Counter
 	mcpRequests metric.Int64Counter
+	authSuccess metric.Int64Counter
+	authFailure metric.Int64Counter
 }
 
 func newInstruments(m metric.Meter) (*instruments, error) {
@@ -21,5 +23,13 @@ func newInstruments(m metric.Meter) (*instruments, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &instruments{requests: reqs, notMod: nm, mcpRequests: mcpReqs}, nil
+	authOK, err := m.Int64Counter("feed_sink.auth_success")
+	if err != nil {
+		return nil, err
+	}
+	authBad, err := m.Int64Counter("feed_sink.auth_failure")
+	if err != nil {
+		return nil, err
+	}
+	return &instruments{requests: reqs, notMod: nm, mcpRequests: mcpReqs, authSuccess: authOK, authFailure: authBad}, nil
 }

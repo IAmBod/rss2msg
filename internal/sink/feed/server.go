@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/iambod/rss2msg/internal/model"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 type handlerConfig struct {
@@ -20,7 +22,8 @@ type handlerConfig struct {
 	atomPath        string
 	renderCacheTTL  time.Duration
 	cacheControlTTL time.Duration
-	auth            *AuthConfig
+	rssAuth         *SurfaceAuth
+	atomAuth        *SurfaceAuth
 	startedAt       time.Time
 }
 
@@ -57,9 +60,15 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !h.authOK(r) {
-		h.writeUnauthorized(w)
+	a := h.authFor(path)
+	name, ok := authenticate(a, r)
+	if !ok {
+		h.recordAuthFailure(r.Context(), h.surfaceName(path), authFailReason(a, r))
+		writeAuthChallenge(a, w)
 		return
+	}
+	if a != nil {
+		h.recordAuthSuccess(r.Context(), h.surfaceName(path), name)
 	}
 	if h.instr != nil {
 		h.instr.requests.Add(r.Context(), 1)
@@ -69,7 +78,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	h.setCacheHeaders(w)
+	h.setCacheHeaders(w, a)
 	w.Header().Set("Content-Type", doc.ct)
 	w.Header().Set("ETag", doc.etag)
 	w.Header().Set("Last-Modified", doc.modified.UTC().Format(http.TimeFormat))
@@ -149,9 +158,9 @@ func (h *handler) lastModified(changes []model.Change) time.Time {
 	return mod
 }
 
-func (h *handler) setCacheHeaders(w http.ResponseWriter) {
+func (h *handler) setCacheHeaders(w http.ResponseWriter, a *SurfaceAuth) {
 	scope := "public"
-	if h.cfg.auth != nil {
+	if a != nil {
 		scope = "private"
 	}
 	if h.cfg.cacheControlTTL > 0 {
@@ -159,4 +168,38 @@ func (h *handler) setCacheHeaders(w http.ResponseWriter) {
 	} else {
 		w.Header().Set("Cache-Control", scope+", no-cache")
 	}
+}
+
+func (h *handler) authFor(path string) *SurfaceAuth {
+	if path == h.cfg.atomPath {
+		return h.cfg.atomAuth
+	}
+	return h.cfg.rssAuth
+}
+
+func (h *handler) surfaceName(path string) string {
+	if path == h.cfg.atomPath {
+		return "atom"
+	}
+	return "rss"
+}
+
+func (h *handler) recordAuthSuccess(ctx context.Context, surface, cred string) {
+	if h.instr == nil {
+		return
+	}
+	h.instr.authSuccess.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("surface", surface),
+		attribute.String("credential", cred),
+	))
+}
+
+func (h *handler) recordAuthFailure(ctx context.Context, surface, reason string) {
+	if h.instr == nil {
+		return
+	}
+	h.instr.authFailure.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("surface", surface),
+		attribute.String("reason", reason),
+	))
 }
