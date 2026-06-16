@@ -45,33 +45,66 @@ jobs:
         run: go test -race ./...
 
   integration:
-    name: integration tests
+    name: integration tests (${{ matrix.shard.name }})
     runs-on: ubuntu-latest
-    # testcontainers spins Postgres / Kafka / Redis / LocalStack etc.; image
-    # pulls plus container startup dominate the wall-clock, so allow headroom.
+    # The testcontainers suite pulls a large, growing set of images (Cosmos /
+    # Service Bus emulators, Kafka + Schema Registry, gcloud-cli, LocalStack,
+    # k3s, Postgres, Redis, NATS, RabbitMQ). Their combined footprint plus the
+    # -race build cache overruns a single stock runner's ~14 GB free root disk,
+    # so the job died with "no space left on device". Shard the integration
+    # packages across runners by heavy-image ownership: each shard runs in
+    # parallel on its own fresh disk and only pulls the images it needs.
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          # Cosmos DB emulator — heavy image, slow container startup.
+          - name: cosmosdb
+            packages: >-
+              ./internal/coord/cosmosdb/...
+              ./internal/sink/cosmosdb/...
+              ./internal/state/cosmosdb/...
+          # Service Bus emulator pulls its own SQL Edge backing container.
+          - name: azure-servicebus
+            packages: ./internal/sink/azureservicebus/...
+          # Confluent Kafka + Schema Registry; e2e also exercises Kafka.
+          - name: kafka
+            packages: >-
+              ./internal/sink/kafka/...
+              ./test/e2e/...
+          # LocalStack, shared by every AWS package (pulled once per runner).
+          - name: aws
+            packages: >-
+              ./internal/coord/dynamodb/...
+              ./internal/sink/dynamodb/...
+              ./internal/state/dynamodb/...
+              ./internal/sink/sns/...
+              ./internal/sink/sqs/...
+              ./internal/telemetry/...
+          # gcloud-cli emulator (large) + k3s.
+          - name: gcp-k8s
+            packages: >-
+              ./internal/sink/gcppubsub/...
+              ./internal/feedsource/...
+          # Lightweight Alpine-based images only.
+          - name: light
+            packages: >-
+              ./internal/coord/postgres/...
+              ./internal/sink/postgres/...
+              ./internal/state/postgres/...
+              ./internal/sink/feed/...
+              ./internal/coord/redis/...
+              ./internal/sink/nats/...
+              ./internal/sink/rabbitmq/...
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
-      # The testcontainers suite pulls a large, growing set of images (Postgres,
-      # Kafka + Schema Registry, Redis, LocalStack, k3s, MSSQL, Azure, NATS,
-      # RabbitMQ). Tests terminate their containers via t.Cleanup, but the pulled
-      # images are left behind and accumulate until a stock ubuntu-latest runner
-      # (~14 GB free on /) fills up and the job dies with "no space left on
-      # device". Run package-by-package and reclaim Docker resources (stopped
-      # containers + images) after each package so peak disk stays bounded.
       - name: integration tests (-tags=integration)
-        run: |
-          set -uo pipefail
-          fail=0
-          for pkg in $(go list -tags=integration ./...); do
-            go test -race -tags=integration -timeout 25m "$pkg" || fail=1
-            docker system prune --all --force >/dev/null 2>&1 || true
-          done
-          exit "$fail"
+        run: go test -race -tags=integration -timeout 25m ${{ matrix.shard.packages }}
 
   build:
     name: build
