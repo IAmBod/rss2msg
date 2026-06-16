@@ -62,12 +62,32 @@ func TestAuthenticate_CustomAPIKeyHeader(t *testing.T) {
 
 func TestAuthenticate_MultipleBearerTokens(t *testing.T) {
 	a := &SurfaceAuth{BearerTokens: []NamedSecret{{Name: "a", Secret: "t1"}, {Name: "b", Secret: "t2"}}}
-	for tok, want := range map[string]string{"t1": "a", "t2": "b"} {
+	cases := []struct{ tok, want string }{{"t1", "a"}, {"t2", "b"}}
+	for _, tc := range cases {
 		r := httptest.NewRequest(http.MethodGet, "/rss", nil)
-		r.Header.Set("Authorization", "Bearer "+tok)
-		if name, ok := authenticate(a, r); !ok || name != want {
-			t.Fatalf("token %q: got (%q,%v), want (%q,true)", tok, name, ok, want)
+		r.Header.Set("Authorization", "Bearer "+tc.tok)
+		if name, ok := authenticate(a, r); !ok || name != tc.want {
+			t.Fatalf("token %q: got (%q,%v), want (%q,true)", tc.tok, name, ok, tc.want)
 		}
+	}
+}
+
+func TestAuthFailReason(t *testing.T) {
+	a := &SurfaceAuth{BearerTokens: []NamedSecret{{Secret: "tok"}}}
+	noCreds := httptest.NewRequest(http.MethodGet, "/rss", nil)
+	if got := authFailReason(a, noCreds); got != "no_credentials" {
+		t.Fatalf("no headers: got %q, want no_credentials", got)
+	}
+	badTok := httptest.NewRequest(http.MethodGet, "/rss", nil)
+	badTok.Header.Set("Authorization", "Bearer wrong")
+	if got := authFailReason(a, badTok); got != "bad_token" {
+		t.Fatalf("wrong token: got %q, want bad_token", got)
+	}
+	apiOnly := &SurfaceAuth{APIKeys: []NamedSecret{{Secret: "k"}}, APIKeyHeader: "X-Feed-Key"}
+	withKeyHdr := httptest.NewRequest(http.MethodGet, "/rss", nil)
+	withKeyHdr.Header.Set("X-Feed-Key", "wrong")
+	if got := authFailReason(apiOnly, withKeyHdr); got != "bad_token" {
+		t.Fatalf("wrong api key on custom header: got %q, want bad_token", got)
 	}
 }
 

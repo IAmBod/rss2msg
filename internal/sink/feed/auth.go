@@ -51,7 +51,11 @@ func authenticate(a *SurfaceAuth, r *http.Request) (name string, ok bool) {
 	if u, pw, has := r.BasicAuth(); has {
 		for _, c := range a.BasicUsers {
 			// Evaluate both comparisons unconditionally (no && short-circuit) so
-			// timing doesn't reveal whether the username alone matched.
+			// timing doesn't reveal whether the username alone matched. Note: the
+			// loop still returns early on the first match, so an attacker who knows
+			// the credential list length/order could in principle distinguish which
+			// position matched by timing — an accepted tradeoff (it requires prior
+			// knowledge of the list and the delta is sub-microsecond).
 			userOK := ctEqual(u, c.Username)
 			passOK := ctEqual(pw, c.Password)
 			if userOK && passOK {
@@ -90,7 +94,9 @@ func authFailReason(a *SurfaceAuth, r *http.Request) string {
 }
 
 // writeAuthChallenge writes a 401, advertising Basic when basic auth is among
-// the accepted methods (otherwise Bearer).
+// the accepted methods (otherwise Bearer). It is only called on authentication
+// failure for a protected surface, so a is always non-nil in practice (nil
+// means public and never reaches this path).
 func writeAuthChallenge(a *SurfaceAuth, w http.ResponseWriter) {
 	if a != nil && len(a.BasicUsers) > 0 {
 		w.Header().Set("WWW-Authenticate", `Basic realm="rss2msg"`)
