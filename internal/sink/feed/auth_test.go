@@ -142,6 +142,32 @@ func TestServeHTTP_BearerChallengeWhenNoBasic(t *testing.T) {
 	}
 }
 
+func TestServeHTTP_APIKeyHappyPathAndReject(t *testing.T) {
+	h := newTestHandler(t)
+	h.cfg.rssAuth = &SurfaceAuth{APIKeys: []NamedSecret{{Name: "p", Secret: "key"}}}
+
+	// correct key → 200 + Cache-Control: private
+	req := httptest.NewRequest(http.MethodGet, "/rss", nil)
+	req.Header.Set("X-API-Key", "key")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("correct api-key: want 200 got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Header().Get("Cache-Control"), "private") {
+		t.Fatalf("auth must force Cache-Control private, got %q", rec.Header().Get("Cache-Control"))
+	}
+
+	// wrong key → 401
+	badReq := httptest.NewRequest(http.MethodGet, "/rss", nil)
+	badReq.Header.Set("X-API-Key", "wrongkey")
+	rec2 := httptest.NewRecorder()
+	h.ServeHTTP(rec2, badReq)
+	if rec2.Code != http.StatusUnauthorized {
+		t.Fatalf("wrong api-key: want 401 got %d", rec2.Code)
+	}
+}
+
 func TestCacheControl_PublicNoCacheWhenTTLZero(t *testing.T) {
 	h := newTestHandler(t)
 	rec := httptest.NewRecorder()
