@@ -1,0 +1,74 @@
+name: Warm release build cache
+
+# Why this exists
+# ----------------
+# A release (release.yml) cross-compiles rss2msg for five GOOS/GOARCH targets,
+# each pulling in a heavy dependency tree (~1.5k packages: AWS SDK v2, k8s
+# client-go, gRPC, Kafka, RabbitMQ, OpenTelemetry). Compiling all of that from a
+# cold cache is the bulk of a release's ~20-minute wall-clock.
+#
+# GitHub Actions scopes caches by Git ref: a cache written by one tag push is not
+# readable by the next tag — only caches created on the default branch are shared
+# with tag runs. So caching inside release.yml alone gives no release-to-release
+# reuse. This job runs on main (nightly + on demand), cross-compiles every release
+# target to populate ~/.cache/go-build, and saves it under a default-branch-scoped
+# key that release.yml restores read-only.
+#
+# Normal nightly runs are cheap: once the dependency objects are cached, only
+# packages whose inputs changed recompile. The full cost is paid only after a
+# dependency bump — which a release would have paid anyway.
+on:
+  schedule:
+    # 03:17 UTC daily — off-peak, odd minute to dodge the top-of-hour stampede.
+    - cron: "17 3 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+# Don't stack nightly warms on top of a manually dispatched one.
+concurrency:
+  group: warm-build-cache
+  cancel-in-progress: false
+
+jobs:
+  warm:
+    name: cross-compile all release targets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          # Managed explicitly below so the cross-compile objects land under a key
+          # release.yml can restore; setup-go's key would only cover native builds.
+          cache: false
+
+      - name: Restore / seed Go module + build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          # Exact key per go.sum; restore-keys lets a changed go.sum start from the
+          # previous warm cache (mostly-warm) instead of fully cold.
+          key: release-gobuild-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            release-gobuild-${{ runner.os }}-
+
+      - name: Cross-compile every release target
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          set -euo pipefail
+          # Mirror the goos/goarch matrix in .goreleaser.yaml (windows/arm64 is
+          # intentionally excluded there). -trimpath and CGO_ENABLED=0 must match
+          # the release build so the cached package objects are reused (ldflags
+          # only affect the link step, which isn't what we're warming, so they're
+          # omitted). Compiling to /dev/null warms the cache without writing files.
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
+            export GOOS="${target%/*}" GOARCH="${target#*/}"
+            echo "::group::warming ${GOOS}/${GOARCH}"
+            go build -trimpath -o /dev/null ./cmd/rss2msg
+            echo "::endgroup::"
+          done

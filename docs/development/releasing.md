@@ -16,7 +16,7 @@ rss2msg ships through a tag-driven pipeline built from three tools:
 | [git-cliff](https://git-cliff.org) | [`cliff.toml`](../../cliff.toml) | Builds `CHANGELOG.md` and per-release notes from [Conventional Commits](https://www.conventionalcommits.org); derives the next semver. |
 | [GoReleaser](https://goreleaser.com) | [`.goreleaser.yaml`](../../.goreleaser.yaml) | Builds multi-platform binaries, Linux packages (`.deb`/`.rpm`/`.apk`), a multi-arch Docker image, and a Homebrew formula, and publishes the GitHub Release. |
 
-Two GitHub Actions workflows wire them together:
+Three GitHub Actions workflows wire them together:
 
 - [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) — runs on PRs and pushes
   to `main`: golangci-lint, `go vet`, unit tests (`-race`), `go build`, and `goreleaser check`.
@@ -26,6 +26,15 @@ Two GitHub Actions workflows wire them together:
   this workflow — `CHANGELOG.md` is regenerated and committed to `main` *before* tagging
   (see [Cut a release](#cut-a-release)), so the tagged commit already carries the
   populated file that GoReleaser bundles into the archives and packages.
+- [`.github/workflows/warm-build-cache.yml`](../../.github/workflows/warm-build-cache.yml) —
+  runs nightly (and on demand via `workflow_dispatch`) on `main`. GoReleaser
+  cross-compiles five GOOS/GOARCH targets over a ~1.5k-package dependency tree, which
+  dominates a release's wall-clock from a cold cache. Because GitHub scopes Actions
+  caches by ref — a cache written by one tag push is invisible to the next, only
+  default-branch caches reach tag runs — this job warms the cross-compile build cache on
+  `main` under a shared key (`release-gobuild-<os>-<hash(go.sum)>`) that `release.yml`
+  restores read-only. After a dependency bump the cache is cold until the next nightly;
+  trigger this workflow manually to pre-warm before releasing if you want the fast path.
 
 ## Cut a release
 

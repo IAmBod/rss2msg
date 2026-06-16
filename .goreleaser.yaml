@@ -12,7 +12,9 @@ project_name: rss2msg
 
 before:
   hooks:
-    - go mod tidy
+    # No `go mod tidy` here: the tagged tree is already tidy (CI's lint/build gate
+    # would have caught otherwise), and tidy hits the network and can mutate go.mod
+    # mid-release. `go mod download` is enough to populate the module cache.
     - go mod download
 
 builds:
