@@ -368,14 +368,24 @@ type FeedSinkConfig struct {
 	Store           FeedStoreConfig    `mapstructure:"store"`
 }
 
+// EffectiveAuth resolves the auth block for a surface: the surface's own block
+// fully replaces the sink default when present, else the default applies.
+func (f FeedSinkConfig) EffectiveAuth(s FeedSurfaceConfig) FeedAuthConfig {
+	if s.Auth != nil {
+		return *s.Auth
+	}
+	return f.Auth
+}
+
 // FeedSurfaceConfig is one output surface of the feed sink — RSS, Atom, or MCP.
 // Each is served on the sink's shared listener at Path, behind the same TLS/auth.
 // Enabled is a pointer so an omitted block ("unset") is distinguishable from an
 // explicit `enabled: false`: rss/atom default on while mcp defaults off, all from
 // the same zero value, resolved via On(default).
 type FeedSurfaceConfig struct {
-	Enabled *bool  `mapstructure:"enabled"`
-	Path    string `mapstructure:"path"`
+	Enabled *bool           `mapstructure:"enabled"`
+	Path    string          `mapstructure:"path"`
+	Auth    *FeedAuthConfig `mapstructure:"auth"` // nil => inherit the sink default
 }
 
 // On reports whether the surface is enabled, applying def when unset.
@@ -407,14 +417,37 @@ type FeedTLSConfig struct {
 	KeyFile  string `mapstructure:"key_file"`
 }
 
+// FeedAuthConfig is the auth requirement for the feed sink. The top-level block
+// is the default for every surface; a surface's own block fully replaces it
+// (replace-not-merge). An empty default, or a surface block with disabled: true,
+// means that surface is public.
 type FeedAuthConfig struct {
-	Basic       FeedBasicAuthConfig `mapstructure:"basic"`
-	BearerToken string              `mapstructure:"bearer_token"`
+	Disabled     bool                  `mapstructure:"disabled"`
+	BasicUsers   []FeedBasicAuthConfig `mapstructure:"basic_users"`
+	BearerTokens []FeedBearerCred      `mapstructure:"bearer_tokens"`
+	APIKeys      []FeedAPIKeyCred      `mapstructure:"api_keys"`
+	APIKeyHeader string                `mapstructure:"api_key_header"`
+}
+
+// HasMethods reports whether any credential method is configured.
+func (a FeedAuthConfig) HasMethods() bool {
+	return len(a.BasicUsers) > 0 || len(a.BearerTokens) > 0 || len(a.APIKeys) > 0
 }
 
 type FeedBasicAuthConfig struct {
+	Name     string `mapstructure:"name"`
 	Username string `mapstructure:"username"`
 	Password string `mapstructure:"password"`
+}
+
+type FeedBearerCred struct {
+	Name  string `mapstructure:"name"`
+	Token string `mapstructure:"token"`
+}
+
+type FeedAPIKeyCred struct {
+	Name string `mapstructure:"name"`
+	Key  string `mapstructure:"key"`
 }
 
 type FeedStoreConfig struct {

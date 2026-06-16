@@ -1188,11 +1188,76 @@ func TestValidate_FeedSqliteRequiresPath(t *testing.T) {
 	}
 }
 
-func TestValidate_FeedAuthExactlyOne(t *testing.T) {
+func TestValidate_FeedAuthMultipleCredentialsAllowed(t *testing.T) {
 	c := feedSinkBase()
-	c.Sinks[0].Feed.Auth = FeedAuthConfig{Basic: FeedBasicAuthConfig{Username: "u", Password: "p"}, BearerToken: "t"}
+	c.Sinks[0].Feed.Auth = FeedAuthConfig{
+		BasicUsers:   []FeedBasicAuthConfig{{Name: "a", Username: "u", Password: "p"}},
+		BearerTokens: []FeedBearerCred{{Name: "ci", Token: "t1"}, {Name: "mob", Token: "t2"}},
+		APIKeys:      []FeedAPIKeyCred{{Name: "partner", Key: "k"}},
+	}
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("multiple credentials must be valid, got %v", err)
+	}
+}
+
+func TestValidate_FeedAuthBasicNeedsBoth(t *testing.T) {
+	c := feedSinkBase()
+	c.Sinks[0].Feed.Auth = FeedAuthConfig{BasicUsers: []FeedBasicAuthConfig{{Username: "u"}}}
 	if _, err := Validate(c); err == nil {
-		t.Fatal("expected error for both basic and bearer set")
+		t.Fatal("expected error for basic user without password")
+	}
+}
+
+func TestValidate_FeedAuthBearerNeedsToken(t *testing.T) {
+	c := feedSinkBase()
+	c.Sinks[0].Feed.Auth = FeedAuthConfig{BearerTokens: []FeedBearerCred{{Name: "x"}}}
+	if _, err := Validate(c); err == nil {
+		t.Fatal("expected error for bearer entry without token")
+	}
+}
+
+func TestValidate_FeedAuthDuplicateNames(t *testing.T) {
+	c := feedSinkBase()
+	c.Sinks[0].Feed.Auth = FeedAuthConfig{BearerTokens: []FeedBearerCred{{Name: "dup", Token: "t1"}, {Name: "dup", Token: "t2"}}}
+	if _, err := Validate(c); err == nil {
+		t.Fatal("expected error for duplicate credential names")
+	}
+}
+
+func TestValidate_FeedAuthOverrideEmptyRejected(t *testing.T) {
+	c := feedSinkBase()
+	on := true
+	empty := FeedAuthConfig{}
+	c.Sinks[0].Feed.RSS = FeedSurfaceConfig{Enabled: &on, Auth: &empty}
+	if _, err := Validate(c); err == nil {
+		t.Fatal("expected error for a present-but-empty surface auth override")
+	}
+}
+
+func TestValidate_FeedAuthOverrideDisabledIsPublic(t *testing.T) {
+	c := feedSinkBase()
+	on := true
+	pub := FeedAuthConfig{Disabled: true}
+	c.Sinks[0].Feed.Auth = FeedAuthConfig{BearerTokens: []FeedBearerCred{{Name: "ci", Token: "t"}}}
+	c.Sinks[0].Feed.RSS = FeedSurfaceConfig{Enabled: &on, Auth: &pub}
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("disabled override must be valid (public surface), got %v", err)
+	}
+}
+
+func TestValidate_FeedAuthDisabledWithMethodsRejected(t *testing.T) {
+	c := feedSinkBase()
+	c.Sinks[0].Feed.Auth = FeedAuthConfig{Disabled: true, BearerTokens: []FeedBearerCred{{Token: "t"}}}
+	if _, err := Validate(c); err == nil {
+		t.Fatal("expected error for disabled combined with credentials")
+	}
+}
+
+func TestValidate_FeedAuthInvalidAPIKeyHeader(t *testing.T) {
+	c := feedSinkBase()
+	c.Sinks[0].Feed.Auth = FeedAuthConfig{APIKeys: []FeedAPIKeyCred{{Key: "k"}}, APIKeyHeader: "bad header"}
+	if _, err := Validate(c); err == nil {
+		t.Fatal("expected error for invalid api_key_header")
 	}
 }
 

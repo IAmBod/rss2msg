@@ -696,12 +696,22 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			if f.HTTP3 && (f.TLS.CertFile == "" || f.TLS.KeyFile == "") {
 				return *warnings, fmt.Errorf("sinks[%d] (feed %q): http3 requires tls.cert_file and key_file (HTTP/3 is TLS-only)", i, s.Name)
 			}
-			hasBasic := f.Auth.Basic.Username != "" || f.Auth.Basic.Password != ""
-			if hasBasic && f.Auth.BearerToken != "" {
-				return *warnings, fmt.Errorf("sinks[%d] (feed %q): auth accepts only one of basic or bearer_token", i, s.Name)
+			// Validate the top-level default and each per-surface override.
+			// The default may be empty (=> public); an *override* that is
+			// present must either be disabled or define a method.
+			if err := validateFeedAuth(i, s.Name, "auth", f.Auth, false); err != nil {
+				return *warnings, err
 			}
-			if hasBasic && (f.Auth.Basic.Username == "" || f.Auth.Basic.Password == "") {
-				return *warnings, fmt.Errorf("sinks[%d] (feed %q): auth.basic needs both username and password", i, s.Name)
+			for _, ov := range []struct {
+				label string
+				a     *FeedAuthConfig
+			}{{"rss.auth", f.RSS.Auth}, {"atom.auth", f.Atom.Auth}, {"mcp.auth", f.MCP.Auth}} {
+				if ov.a == nil {
+					continue
+				}
+				if err := validateFeedAuth(i, s.Name, ov.label, *ov.a, true); err != nil {
+					return *warnings, err
+				}
 			}
 			sd := storeDriverOrDefault(f.Store.Driver)
 			if _, ok := knownFeedStoreDrivers[sd]; !ok {
@@ -991,6 +1001,64 @@ func isValidPGIdentifier(s string) bool {
 		}
 	}
 	return true
+}
+
+// validateFeedAuth checks one feed-sink auth block. isOverride marks a
+// per-surface block (which, when present, must define a method or be disabled);
+// the top-level default may legitimately be empty (public).
+func validateFeedAuth(i int, name, label string, a FeedAuthConfig, isOverride bool) error {
+	if a.Disabled && a.HasMethods() {
+		return fmt.Errorf("sinks[%d] (feed %q): %s.disabled cannot be combined with credentials", i, name, label)
+	}
+	if isOverride && !a.Disabled && !a.HasMethods() {
+		return fmt.Errorf("sinks[%d] (feed %q): %s defines no credentials and is not disabled (set disabled: true for a public surface)", i, name, label)
+	}
+	var basicNames, bearerNames, apiNames []string
+	for _, b := range a.BasicUsers {
+		if b.Username == "" || b.Password == "" {
+			return fmt.Errorf("sinks[%d] (feed %q): %s.basic_users entries need both username and password", i, name, label)
+		}
+		basicNames = append(basicNames, b.Name)
+	}
+	for _, t := range a.BearerTokens {
+		if t.Token == "" {
+			return fmt.Errorf("sinks[%d] (feed %q): %s.bearer_tokens entries need a token", i, name, label)
+		}
+		bearerNames = append(bearerNames, t.Name)
+	}
+	for _, k := range a.APIKeys {
+		if k.Key == "" {
+			return fmt.Errorf("sinks[%d] (feed %q): %s.api_keys entries need a key", i, name, label)
+		}
+		apiNames = append(apiNames, k.Name)
+	}
+	for _, set := range []struct {
+		kind  string
+		names []string
+	}{{"basic_users", basicNames}, {"bearer_tokens", bearerNames}, {"api_keys", apiNames}} {
+		if dup := firstDupFeedName(set.names); dup != "" {
+			return fmt.Errorf("sinks[%d] (feed %q): %s.%s has duplicate name %q", i, name, label, set.kind, dup)
+		}
+	}
+	if h := a.APIKeyHeader; h != "" && strings.ContainsAny(h, " \t:") {
+		return fmt.Errorf("sinks[%d] (feed %q): %s.api_key_header %q is not a valid header name", i, name, label, h)
+	}
+	return nil
+}
+
+// firstDupFeedName returns the first duplicated non-empty name, or "".
+func firstDupFeedName(names []string) string {
+	seen := map[string]bool{}
+	for _, n := range names {
+		if n == "" {
+			continue // unnamed credentials never collide
+		}
+		if seen[n] {
+			return n
+		}
+		seen[n] = true
+	}
+	return ""
 }
 
 // pgSSLModeIsDisable returns true when dsn explicitly sets sslmode=disable in
