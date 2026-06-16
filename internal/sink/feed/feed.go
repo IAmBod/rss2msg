@@ -38,10 +38,10 @@ type Options struct {
 	Timeouts        Timeouts
 	TLSCertFile     string
 	TLSKeyFile      string
-	HTTP3    bool // serve HTTP/3 over QUIC alongside TCP; requires TLS
-	RSSAuth  *SurfaceAuth
-	AtomAuth *SurfaceAuth
-	MCPAuth  *SurfaceAuth
+	HTTP3           bool // serve HTTP/3 over QUIC alongside TCP; requires TLS
+	RSSAuth         *SurfaceAuth
+	AtomAuth        *SurfaceAuth
+	MCPAuth         *SurfaceAuth
 
 	StoreDriver string
 	SQLitePath  string

@@ -98,7 +98,7 @@ func TestMCP_RouteMountedAndAuthGated(t *testing.T) {
 	ctx := context.Background()
 	p, err := New(ctx, Options{
 		Name: "out", Listen: "127.0.0.1:0", MaxItems: 5, StoreDriver: "memory",
-		Meta: FeedMeta{Title: "t", Link: "https://x/"},
+		Meta:    FeedMeta{Title: "t", Link: "https://x/"},
 		RSS:     Surface{Enabled: true},
 		MCP:     Surface{Enabled: true, Path: "/mcp"},
 		RSSAuth: &SurfaceAuth{BearerTokens: []NamedSecret{{Secret: "secret"}}},
