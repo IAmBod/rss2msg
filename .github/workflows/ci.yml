@@ -56,8 +56,22 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      # The testcontainers suite pulls a large, growing set of images (Postgres,
+      # Kafka + Schema Registry, Redis, LocalStack, k3s, MSSQL, Azure, NATS,
+      # RabbitMQ). Tests terminate their containers via t.Cleanup, but the pulled
+      # images are left behind and accumulate until a stock ubuntu-latest runner
+      # (~14 GB free on /) fills up and the job dies with "no space left on
+      # device". Run package-by-package and reclaim Docker resources (stopped
+      # containers + images) after each package so peak disk stays bounded.
       - name: integration tests (-tags=integration)
-        run: go test -race -tags=integration -timeout 25m ./...
+        run: |
+          set -uo pipefail
+          fail=0
+          for pkg in $(go list -tags=integration ./...); do
+            go test -race -tags=integration -timeout 25m "$pkg" || fail=1
+            docker system prune --all --force >/dev/null 2>&1 || true
+          done
+          exit "$fail"
 
   build:
     name: build
