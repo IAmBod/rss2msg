@@ -1,4 +1,4 @@
-package feedsource
+package http
 
 import (
 	"bytes"

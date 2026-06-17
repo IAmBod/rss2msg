@@ -1,4 +1,4 @@
-package feedsource
+package file
 
 import (
 	"context"

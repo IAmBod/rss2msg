@@ -1,6 +1,6 @@
 //go:build integration
 
-package feedsource_test
+package postgres_test
 
 import (
 	"context"
@@ -10,10 +10,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	tcpg "github.com/testcontainers/testcontainers-go/modules/postgres"
 
-	"github.com/iambod/rss2msg/internal/feedsource"
+	"github.com/iambod/rss2msg/internal/feedsource/sources/postgres"
 )
 
-func setupPGSource(t *testing.T, schema, query string, opts *feedsource.PostgresOptions) (*feedsource.Postgres, string) {
+func setupPGSource(t *testing.T, schema, query string, opts *postgres.PostgresOptions) (*postgres.Postgres, string) {
 	t.Helper()
 	ctx := context.Background()
 
@@ -42,12 +42,12 @@ func setupPGSource(t *testing.T, schema, query string, opts *feedsource.Postgres
 	}
 	pool.Close()
 
-	o := feedsource.PostgresOptions{Name: "db", DSN: dsn, Query: query}
+	o := postgres.PostgresOptions{Name: "db", DSN: dsn, Query: query}
 	if opts != nil {
 		o = *opts
 		o.DSN = dsn
 	}
-	src, err := feedsource.NewPostgres(ctx, o)
+	src, err := postgres.NewPostgres(ctx, o)
 	if err != nil {
 		t.Fatalf("NewPostgres: %v", err)
 	}
@@ -68,7 +68,7 @@ INSERT INTO feeds (url, interval, sinks, note) VALUES
   ('https://b.example/feed', NULL, NULL, NULL);
 `
 	// Default table query path (SELECT * FROM feeds).
-	src, _ := setupPGSource(t, schema, "", &feedsource.PostgresOptions{Name: "db", Table: "feeds"})
+	src, _ := setupPGSource(t, schema, "", &postgres.PostgresOptions{Name: "db", Table: "feeds"})
 
 	feeds, err := src.Feeds(context.Background())
 	if err != nil {
