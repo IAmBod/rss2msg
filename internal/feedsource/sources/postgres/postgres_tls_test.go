@@ -1,4 +1,4 @@
-package feedsource
+package postgres
 
 import (
 	"crypto/ecdsa"

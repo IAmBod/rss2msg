@@ -1,4 +1,4 @@
-package feedsource
+package postgres
 
 import (
 	"context"
@@ -15,10 +15,11 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/iambod/rss2msg/internal/config"
+	"github.com/iambod/rss2msg/internal/feedsource"
 )
 
-// Compile-time assertion that *Postgres satisfies Source.
-var _ Source = (*Postgres)(nil)
+// Compile-time assertion that *Postgres satisfies feedsource.Source.
+var _ feedsource.Source = (*Postgres)(nil)
 
 const defaultPostgresTable = "feeds"
 
@@ -41,13 +42,13 @@ type PostgresTLSOptions struct {
 	InsecureSkipVerify                    bool
 }
 
-// Postgres is a feed source backed by a Postgres table. It composes Poll for the
+// Postgres is a feed source backed by a Postgres table. It composes feedsource.Poll for the
 // interval ticker and owns the connection pool. Each poll re-runs the query and
-// maps every row to a FeedSpec (url required; interval and sinks optional).
+// maps every row to a feedsource.FeedSpec (url required; interval and sinks optional).
 type Postgres struct {
 	pool  *pgxpool.Pool
 	query string
-	poll  *Poll
+	poll  *feedsource.Poll
 }
 
 // NewPostgres opens a lazily-connecting pool against opts.DSN and returns a
@@ -99,7 +100,7 @@ func NewPostgres(ctx context.Context, opts PostgresOptions) (*Postgres, error) {
 	}
 
 	p := &Postgres{pool: pool, query: query}
-	p.poll = NewPoll(opts.Name, opts.Interval, p.fetch)
+	p.poll = feedsource.NewPoll(opts.Name, opts.Interval, p.fetch)
 	return p, nil
 }
 
@@ -125,7 +126,7 @@ func (p *Postgres) fetch(ctx context.Context) ([]config.FeedConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("postgres feed source %q: scan: %w", p.poll.Name(), err)
 	}
-	specs := make([]FeedSpec, 0, len(maps))
+	specs := make([]feedsource.FeedSpec, 0, len(maps))
 	for i, m := range maps {
 		spec, err := specFromRow(m)
 		if err != nil {
@@ -133,28 +134,28 @@ func (p *Postgres) fetch(ctx context.Context) ([]config.FeedConfig, error) {
 		}
 		specs = append(specs, spec)
 	}
-	return SpecsToConfigs(specs)
+	return feedsource.SpecsToConfigs(specs)
 }
 
-// specFromRow builds a FeedSpec from a scanned row map. Only the url, interval,
+// specFromRow builds a feedsource.FeedSpec from a scanned row map. Only the url, interval,
 // and sinks keys are consulted; any other columns are ignored. url is required.
-func specFromRow(m map[string]any) (FeedSpec, error) {
+func specFromRow(m map[string]any) (feedsource.FeedSpec, error) {
 	url, err := rowString(m, "url")
 	if err != nil {
-		return FeedSpec{}, err
+		return feedsource.FeedSpec{}, err
 	}
 	if strings.TrimSpace(url) == "" {
-		return FeedSpec{}, fmt.Errorf("url is required")
+		return feedsource.FeedSpec{}, fmt.Errorf("url is required")
 	}
 	interval, err := rowString(m, "interval")
 	if err != nil {
-		return FeedSpec{}, err
+		return feedsource.FeedSpec{}, err
 	}
 	sinks, err := rowStringSlice(m, "sinks")
 	if err != nil {
-		return FeedSpec{}, err
+		return feedsource.FeedSpec{}, err
 	}
-	return FeedSpec{URL: url, Interval: strings.TrimSpace(interval), Sinks: sinks}, nil
+	return feedsource.FeedSpec{URL: url, Interval: strings.TrimSpace(interval), Sinks: sinks}, nil
 }
 
 // rowString reads a text-ish column as a string. Missing/NULL reads as "".

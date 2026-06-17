@@ -1,4 +1,4 @@
-package feedsource
+package http
 
 import (
 	"context"
@@ -16,10 +16,11 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/iambod/rss2msg/internal/config"
+	"github.com/iambod/rss2msg/internal/feedsource"
 )
 
-// Compile-time assertion that *HTTP satisfies Source.
-var _ Source = (*HTTP)(nil)
+// Compile-time assertion that *HTTP satisfies feedsource.Source.
+var _ feedsource.Source = (*HTTP)(nil)
 
 const (
 	defaultHTTPTimeout = 30 * time.Second
@@ -47,14 +48,14 @@ type HTTPOptions struct {
 	TLS      *HTTPTLSOptions
 }
 
-// HTTP is a feed source backed by an HTTP endpoint. It composes Poll for the
+// HTTP is a feed source backed by an HTTP endpoint. It composes feedsource.Poll for the
 // interval ticker and owns the HTTP client. It keeps the last ETag/Last-Modified
 // and the last decoded list so a 304 returns the cached feeds without re-parsing.
 type HTTP struct {
 	url     string
 	headers map[string]string
 	client  *http.Client
-	poll    *Poll
+	poll    *feedsource.Poll
 
 	mu           sync.Mutex
 	etag         string
@@ -65,7 +66,7 @@ type HTTP struct {
 // feedListResponse is the wire shape the http source expects. Feeds is a pointer
 // so an absent "feeds" key (nil) is distinguishable from an empty array.
 type feedListResponse struct {
-	Feeds *[]FeedSpec `json:"feeds"`
+	Feeds *[]feedsource.FeedSpec `json:"feeds"`
 }
 
 // NewHTTP builds the HTTP client (timeout + optional TLS) and returns a polling
@@ -97,7 +98,7 @@ func NewHTTP(opts HTTPOptions) (*HTTP, error) {
 		}
 	}
 	h := &HTTP{url: opts.URL, headers: opts.Headers, client: client}
-	h.poll = NewPoll(opts.Name, opts.Interval, h.fetch)
+	h.poll = feedsource.NewPoll(opts.Name, opts.Interval, h.fetch)
 	return h, nil
 }
 
@@ -168,7 +169,7 @@ func (h *HTTP) fetch(ctx context.Context) ([]config.FeedConfig, error) {
 				Msg(`http feed source: response missing "feeds" key; keeping last-known-good`)
 			return nil, fmt.Errorf("http feed source %q: response missing \"feeds\" key", h.poll.Name())
 		}
-		feeds, err := SpecsToConfigs(*payload.Feeds)
+		feeds, err := feedsource.SpecsToConfigs(*payload.Feeds)
 		if err != nil {
 			return nil, fmt.Errorf("http feed source %q: %w", h.poll.Name(), err)
 		}

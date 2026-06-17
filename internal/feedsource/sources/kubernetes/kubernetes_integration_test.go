@@ -1,6 +1,6 @@
 //go:build integration
 
-package feedsource_test
+package kubernetes_test
 
 import (
 	"bytes"
@@ -20,7 +20,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/k3s"
 
-	"github.com/iambod/rss2msg/internal/feedsource"
+	"github.com/iambod/rss2msg/internal/feedsource/sources/kubernetes"
 )
 
 var (
@@ -85,7 +85,7 @@ func TestKubernetesSourceK3sRoundTrip(t *testing.T) {
 	if err := os.WriteFile(kubePath, kubeBytes, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	src, err := feedsource.NewKubernetes(ctx, feedsource.KubernetesOptions{Name: "k8s", Namespace: "default", WriteStatus: true}, kubePath)
+	src, err := kubernetes.NewKubernetes(ctx, kubernetes.KubernetesOptions{Name: "k8s", Namespace: "default", WriteStatus: true}, kubePath)
 	if err != nil {
 		t.Fatalf("NewKubernetes: %v", err)
 	}

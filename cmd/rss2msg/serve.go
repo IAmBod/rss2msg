@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/iambod/rss2msg/internal/feedsource"
+	k8ssource "github.com/iambod/rss2msg/internal/feedsource/sources/kubernetes"
 	"github.com/iambod/rss2msg/internal/health"
 	"github.com/iambod/rss2msg/internal/scheduler"
 )
@@ -44,9 +45,9 @@ func newServeCmd(opts *rootOpts) *cobra.Command {
 			// not own, so fanning out to all of them is safe. Only the replica that
 			// won the per-feed lease polls the feed, so there is no status write
 			// contention across replicas.
-			var k8sSources []*feedsource.Kubernetes
+			var k8sSources []*k8ssource.Kubernetes
 			for _, src := range sources {
-				if ks, ok := src.(*feedsource.Kubernetes); ok {
+				if ks, ok := src.(*k8ssource.Kubernetes); ok {
 					k8sSources = append(k8sSources, ks)
 				}
 			}

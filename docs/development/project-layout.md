@@ -23,7 +23,7 @@ implement, see [How It Works](../explanation/how-it-works.md).
 | --- | --- |
 | [`internal/config`](../../internal/config) | Loads and validates configuration (defaults → file → `RSS2MSG_*` env → `${VAR}` substitution). See [Configuration Reference](../reference/configuration.md). |
 | [`internal/feed`](../../internal/feed) | Feed fetching (conditional GET, parsing) and the `Detector` that classifies items new/updated/unchanged by content hash. |
-| [`internal/feedsource`](../../internal/feedsource) | `Source` interface and `FeedSpec` schema for runtime feed lists; `static` and `file` sources plus the precedence-merge `aggregator`. See [Load Feeds Dynamically](../how-to/load-feeds-dynamically.md). |
+| [`internal/feedsource`](../../internal/feedsource) | `Source` interface, `FeedSpec` schema, the `Poll` helper, the in-memory `static` source, and the precedence-merge `aggregator`. Pull-source backends live in subpackages: `feedsource/sources/{file,http,postgres,kubernetes}`. See [Load Feeds Dynamically](../how-to/load-feeds-dynamically.md). |
 | [`internal/model`](../../internal/model) | The `Change` envelope — the canonical published message. See [Change Envelope](../reference/change-envelope.md). |
 | [`internal/state`](../../internal/state) | `Store` interface plus `ItemState` / `FeedMeta` types (the `seen_items` + `feed_meta` tables). Backends: `state/postgres`, `state/sqlite`. |
 | [`internal/coord`](../../internal/coord) | `Coordinator` interface that gates polling across instances. Backends: `coord/memory`, `coord/postgres`, `coord/redis`. See [Run Multiple Instances](../how-to/run-multiple-instances.md). |

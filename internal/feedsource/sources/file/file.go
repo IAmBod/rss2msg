@@ -1,4 +1,4 @@
-package feedsource
+package file
 
 import (
 	"context"
@@ -14,12 +14,13 @@ import (
 	"github.com/fsnotify/fsnotify"
 
 	"github.com/iambod/rss2msg/internal/config"
+	"github.com/iambod/rss2msg/internal/feedsource"
 )
 
-// Compile-time assertion that *File satisfies Source.
-var _ Source = (*File)(nil)
+// Compile-time assertion that *File satisfies feedsource.Source.
+var _ feedsource.Source = (*File)(nil)
 
-// File is a source backed by a JSON file containing an array of FeedSpec. It
+// File is a source backed by a JSON file containing an array of feedsource.FeedSpec. It
 // watches the file's directory so editor atomic-rename writes are detected, and
 // debounces rapid events before signaling Changes.
 type File struct {
@@ -76,11 +77,11 @@ func (f *File) Feeds(context.Context) ([]config.FeedConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("file source %s: read: %w", f.name, err)
 	}
-	var specs []FeedSpec
+	var specs []feedsource.FeedSpec
 	if err := json.Unmarshal(data, &specs); err != nil {
 		return nil, fmt.Errorf("file source %s: parse: %w", f.name, err)
 	}
-	return SpecsToConfigs(specs)
+	return feedsource.SpecsToConfigs(specs)
 }
 
 func (f *File) Close() error {

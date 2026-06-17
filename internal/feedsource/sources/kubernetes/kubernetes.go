@@ -1,4 +1,4 @@
-package feedsource
+package kubernetes
 
 import (
 	"context"
@@ -17,9 +17,10 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/iambod/rss2msg/internal/config"
+	"github.com/iambod/rss2msg/internal/feedsource"
 )
 
-var _ Source = (*Kubernetes)(nil)
+var _ feedsource.Source = (*Kubernetes)(nil)
 
 // feedGVR is the GroupVersionResource for the Feed custom resource.
 var feedGVR = schema.GroupVersionResource{Group: "rss2msg.io", Version: "v1", Resource: "feeds"}
@@ -56,8 +57,8 @@ type Kubernetes struct {
 	changes chan struct{}
 
 	mu    sync.RWMutex
-	specs map[string]FeedSpec       // key: namespace/name
-	index map[string]namespacedName // key: feed URL -> {namespace, name}
+	specs map[string]feedsource.FeedSpec // key: namespace/name
+	index map[string]namespacedName      // key: feed URL -> {namespace, name}
 }
 
 // newKubernetesWithClient builds a source from an injected dynamic client (used
@@ -85,7 +86,7 @@ func newKubernetesWithClient(ctx context.Context, name string, client dynamic.In
 		informer:    informer,
 		stop:        make(chan struct{}),
 		changes:     make(chan struct{}, 1),
-		specs:       map[string]FeedSpec{},
+		specs:       map[string]feedsource.FeedSpec{},
 		index:       map[string]namespacedName{},
 	}
 
@@ -134,12 +135,12 @@ func (k *Kubernetes) Changes() <-chan struct{} { return k.changes }
 
 func (k *Kubernetes) Feeds(_ context.Context) ([]config.FeedConfig, error) {
 	k.mu.RLock()
-	specs := make([]FeedSpec, 0, len(k.specs))
+	specs := make([]feedsource.FeedSpec, 0, len(k.specs))
 	for _, s := range k.specs {
 		specs = append(specs, s)
 	}
 	k.mu.RUnlock()
-	return SpecsToConfigs(specs)
+	return feedsource.SpecsToConfigs(specs)
 }
 
 // Close stops the informer. Safe to call more than once.
@@ -241,25 +242,25 @@ func (k *Kubernetes) ReportPoll(ctx context.Context, feedURL string, changeCount
 }
 
 // specFromUnstructured maps a Feed custom resource (the unstructured object an
-// informer delivers) to a FeedSpec. Only spec.{url,interval,sinks,http} are
+// informer delivers) to a feedsource.FeedSpec. Only spec.{url,interval,sinks,http} are
 // consulted; url is required. Values arrive in dynamic-client form: arrays as
 // []any and nested objects as map[string]any.
-func specFromUnstructured(obj map[string]any) (FeedSpec, error) {
+func specFromUnstructured(obj map[string]any) (feedsource.FeedSpec, error) {
 	spec, _ := obj["spec"].(map[string]any)
 
 	url := objString(spec, "url")
 	if strings.TrimSpace(url) == "" {
-		return FeedSpec{}, fmt.Errorf("spec.url is required")
+		return feedsource.FeedSpec{}, fmt.Errorf("spec.url is required")
 	}
 
-	out := FeedSpec{
+	out := feedsource.FeedSpec{
 		URL:      url,
 		Interval: strings.TrimSpace(objString(spec, "interval")),
 		Sinks:    objStringSlice(spec, "sinks"),
 	}
 
 	if http, ok := spec["http"].(map[string]any); ok {
-		out.HTTP = &FeedSpecHTTP{
+		out.HTTP = &feedsource.FeedSpecHTTP{
 			Timeout: strings.TrimSpace(objString(http, "timeout")),
 			Headers: objStringMap(http, "headers"),
 		}

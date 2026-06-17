@@ -6,6 +6,10 @@ import (
 
 	"github.com/iambod/rss2msg/internal/config"
 	"github.com/iambod/rss2msg/internal/feedsource"
+	filesource "github.com/iambod/rss2msg/internal/feedsource/sources/file"
+	httpsource "github.com/iambod/rss2msg/internal/feedsource/sources/http"
+	k8ssource "github.com/iambod/rss2msg/internal/feedsource/sources/kubernetes"
+	pgsource "github.com/iambod/rss2msg/internal/feedsource/sources/postgres"
 	"github.com/iambod/rss2msg/internal/scheduler"
 )
 
@@ -59,7 +63,7 @@ func buildSources(cfg config.Config) ([]feedsource.Source, func(), error) {
 		case "static":
 			sources = append(sources, feedsource.NewStatic(name, cfg.Feeds))
 		case "file":
-			f, err := feedsource.NewFile(name, sc.Path)
+			f, err := filesource.NewFile(name, sc.Path)
 			if err != nil {
 				closeAll(closers)
 				return nil, nil, err
@@ -67,7 +71,7 @@ func buildSources(cfg config.Config) ([]feedsource.Source, func(), error) {
 			closers = append(closers, func() { _ = f.Close() })
 			sources = append(sources, f)
 		case "postgres":
-			opts := feedsource.PostgresOptions{
+			opts := pgsource.PostgresOptions{
 				Name:     name,
 				DSN:      sc.Postgres.DSN,
 				Table:    sc.Postgres.Table,
@@ -75,7 +79,7 @@ func buildSources(cfg config.Config) ([]feedsource.Source, func(), error) {
 				Interval: sc.Interval,
 			}
 			if sc.Postgres.TLS != (config.FeedSourcePGTLSConfig{}) {
-				opts.TLS = &feedsource.PostgresTLSOptions{
+				opts.TLS = &pgsource.PostgresTLSOptions{
 					CAFile:             sc.Postgres.TLS.CAFile,
 					CertFile:           sc.Postgres.TLS.CertFile,
 					KeyFile:            sc.Postgres.TLS.KeyFile,
@@ -83,7 +87,7 @@ func buildSources(cfg config.Config) ([]feedsource.Source, func(), error) {
 					InsecureSkipVerify: sc.Postgres.TLS.InsecureSkipVerify,
 				}
 			}
-			p, err := feedsource.NewPostgres(context.Background(), opts)
+			p, err := pgsource.NewPostgres(context.Background(), opts)
 			if err != nil {
 				closeAll(closers)
 				return nil, nil, err
@@ -91,7 +95,7 @@ func buildSources(cfg config.Config) ([]feedsource.Source, func(), error) {
 			closers = append(closers, func() { _ = p.Close() })
 			sources = append(sources, p)
 		case "http":
-			opts := feedsource.HTTPOptions{
+			opts := httpsource.HTTPOptions{
 				Name:     name,
 				URL:      sc.HTTP.URL,
 				Timeout:  sc.HTTP.Timeout,
@@ -99,7 +103,7 @@ func buildSources(cfg config.Config) ([]feedsource.Source, func(), error) {
 				Interval: sc.Interval,
 			}
 			if sc.HTTP.TLS != (config.FeedSourceHTTPTLSConfig{}) {
-				opts.TLS = &feedsource.HTTPTLSOptions{
+				opts.TLS = &httpsource.HTTPTLSOptions{
 					CAFile:             sc.HTTP.TLS.CAFile,
 					CertFile:           sc.HTTP.TLS.CertFile,
 					KeyFile:            sc.HTTP.TLS.KeyFile,
@@ -107,7 +111,7 @@ func buildSources(cfg config.Config) ([]feedsource.Source, func(), error) {
 					InsecureSkipVerify: sc.HTTP.TLS.InsecureSkipVerify,
 				}
 			}
-			h, err := feedsource.NewHTTP(opts)
+			h, err := httpsource.NewHTTP(opts)
 			if err != nil {
 				closeAll(closers)
 				return nil, nil, err
@@ -119,7 +123,7 @@ func buildSources(cfg config.Config) ([]feedsource.Source, func(), error) {
 			if sc.Kubernetes.WriteStatus != nil {
 				writeStatus = *sc.Kubernetes.WriteStatus
 			}
-			k, err := feedsource.NewKubernetes(context.Background(), feedsource.KubernetesOptions{
+			k, err := k8ssource.NewKubernetes(context.Background(), k8ssource.KubernetesOptions{
 				Name:           name,
 				Namespace:      sc.Kubernetes.Namespace,
 				LabelSelector:  sc.Kubernetes.LabelSelector,
