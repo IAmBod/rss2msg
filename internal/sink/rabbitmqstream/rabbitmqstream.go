@@ -37,6 +37,14 @@ type Options struct {
 	MaxAge         time.Duration
 	MaxLengthBytes int64
 	TLS            *TLSOptions
+
+	// AddressResolverHost/Port pin every broker connection to a single
+	// reachable host:port, overriding the hostnames the broker advertises.
+	// This is the client's load-balancer / NAT mode and is what makes the
+	// stream protocol usable behind a proxy (or a container port mapping).
+	// Both must be set together; left zero, the advertised addresses are used.
+	AddressResolverHost string
+	AddressResolverPort int
 }
 
 type TLSOptions struct {
@@ -116,6 +124,12 @@ func buildEnvOptions(opts Options) (*stream.EnvironmentOptions, error) {
 	}
 	if opts.Password != "" {
 		eo = eo.SetPassword(opts.Password)
+	}
+	if opts.AddressResolverHost != "" && opts.AddressResolverPort != 0 {
+		eo = eo.SetAddressResolver(stream.AddressResolver{
+			Host: opts.AddressResolverHost,
+			Port: opts.AddressResolverPort,
+		})
 	}
 	if opts.TLS != nil {
 		tc, err := buildTLSConfig(*opts.TLS)

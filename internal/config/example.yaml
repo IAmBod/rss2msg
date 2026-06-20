@@ -243,6 +243,19 @@ sinks:
   #     tls:                                          # use an amqps:// url; adds custom CA / mTLS
   #       ca_file: /etc/ssl/certs/broker-ca.pem
   #   dead_letter: dlq-main
+  # - name: stream-main
+  #   driver: rabbitmq_stream
+  #   rabbitmq_stream:
+  #     uris: ["rabbitmq-stream://guest:guest@rabbit-1:5552/%2f"]  # or a single url:
+  #     stream: feed.changes                          # target stream (required)
+  #     declare: true                                 # create the stream if absent
+  #     max_age: 168h                                 # optional retention (declare only)
+  #     max_length_bytes: 5368709120                  # optional retention (declare only)
+  #     # username: ${RMQ_USER}                       # optional; else URI userinfo
+  #     # password: ${RMQ_PASS}
+  #     tls:                                          # use rabbitmq-stream+tls / IsTLS; custom CA / mTLS
+  #       ca_file: /etc/ssl/certs/rabbit-ca.pem
+  #   dead_letter: dlq-main
   # - name: nats-main
   #   driver: nats
   #   nats:
