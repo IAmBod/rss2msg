@@ -166,4 +166,30 @@ func TestProxyConfig_ClientIP(t *testing.T) {
 			t.Fatalf("got %q", got)
 		}
 	})
+	// Documents that a non-IP token in the XFF chain terminates the right-to-left
+	// walk: net.ParseIP returns nil, contains(nil) is false, so the token is
+	// treated as untrusted and returned verbatim as the client identifier.
+	t.Run("non-IP token in XFF terminates walk, returned as client", func(t *testing.T) {
+		r := reqWith("10.0.0.1:1", map[string]string{
+			"X-Forwarded-For": "203.0.113.7, notanip, 10.0.0.2",
+		}, false)
+		if got := p.clientIP(r); got != "notanip" {
+			t.Fatalf("got %q", got)
+		}
+	})
+}
+
+func TestPeerIP(t *testing.T) {
+	cases := []struct{ remote, want string }{
+		{"192.0.2.1:5000", "192.0.2.1"},
+		{"[::1]:443", "::1"},
+		{"192.0.2.1", "192.0.2.1"}, // no port => SplitHostPort errors => raw returned
+	}
+	for _, c := range cases {
+		r := httptest.NewRequest(http.MethodGet, "http://x/", nil)
+		r.RemoteAddr = c.remote
+		if got := peerIP(r); got != c.want {
+			t.Errorf("peerIP(%q)=%q want %q", c.remote, got, c.want)
+		}
+	}
 }
