@@ -210,22 +210,42 @@ func (p *Publisher) Publish(ctx context.Context, change model.Change) error {
 	msg := buildMessage(ctx, change)
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	// Cheap early-out: bail before Send if ctx is already done. Nothing is in
+	// flight yet, so there is no confirmation to drain.
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("rabbitmq_stream sink %q: confirmation wait: %w", p.name, err)
+	}
 	if err := p.producer.Send(msg); err != nil {
 		return fmt.Errorf("rabbitmq_stream sink %q: send: %w", p.name, err)
 	}
-	// One in-flight message at a time (mutex-guarded): the next confirmation
-	// batch is ours.
-	select {
-	case batch := <-p.confirms:
-		for _, st := range batch {
-			if !st.IsConfirmed() {
-				return fmt.Errorf("rabbitmq_stream sink %q: publish not confirmed: %w", p.name, st.GetError())
-			}
+	// Once Send has been issued the message is genuinely in flight, so we MUST
+	// drain its confirmation unconditionally — do NOT select on ctx.Done() here.
+	// confirms is a shared size-1 buffered channel; if we returned on ctx-cancel
+	// while this message is still in flight, its confirmation would land in that
+	// buffer and the NEXT Publish would consume it as its own (stale-confirmation
+	// pollution), falsely confirming or failing an unrelated message. The pinned
+	// client (rabbitmq-stream-go-client v1.8.1) always feeds a status into the
+	// channel — via the server frame or its internal ~10s confirmation-timeout
+	// task — so this blocking receive cannot hang forever. One in-flight message
+	// at a time (mutex-guarded) means the next confirmation batch is ours.
+	batch := <-p.confirms
+	for _, st := range batch {
+		if !st.IsConfirmed() {
+			return notConfirmedError(p.name, st.GetError())
 		}
-		return nil
-	case <-ctx.Done():
-		return fmt.Errorf("rabbitmq_stream sink %q: confirmation wait: %w", p.name, ctx.Err())
 	}
+	return nil
+}
+
+// notConfirmedError builds the error returned when the broker reports a message
+// as not confirmed. The client can surface a not-confirmed status with a nil
+// GetError(); wrapping a nil error with %w renders "%!w(<nil>)", so guard it and
+// fall back to a static message when no detail is available.
+func notConfirmedError(name string, cause error) error {
+	if cause == nil {
+		return fmt.Errorf("rabbitmq_stream sink %q: publish not confirmed (no error detail)", name)
+	}
+	return fmt.Errorf("rabbitmq_stream sink %q: publish not confirmed: %w", name, cause)
 }
 
 func (p *Publisher) Close() error {

@@ -1,6 +1,8 @@
 package rabbitmqstream
 
 import (
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,5 +39,34 @@ func TestBuildMessageMapsChange(t *testing.T) {
 	}
 	if msg.Properties == nil || msg.Properties.MessageID != "item-7" {
 		t.Fatalf("MessageID not set: %+v", msg.Properties)
+	}
+}
+
+func TestNotConfirmedErrorNilCause(t *testing.T) {
+	t.Parallel()
+	// A not-confirmed status can carry a nil GetError(); the formatted error
+	// must not render the "%!w(<nil>)" verb-mismatch artifact.
+	err := notConfirmedError("mysink", nil)
+	if err == nil {
+		t.Fatal("want non-nil error")
+	}
+	got := err.Error()
+	if strings.Contains(got, "%!w") || strings.Contains(got, "<nil>") {
+		t.Fatalf("error string has nil-wrap artifact: %q", got)
+	}
+	if !strings.Contains(got, "mysink") || !strings.Contains(got, "not confirmed") {
+		t.Fatalf("error string missing context: %q", got)
+	}
+}
+
+func TestNotConfirmedErrorWrapsCause(t *testing.T) {
+	t.Parallel()
+	cause := errors.New("stream closed")
+	err := notConfirmedError("mysink", cause)
+	if !errors.Is(err, cause) {
+		t.Fatalf("want wrapped cause, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "stream closed") {
+		t.Fatalf("error string missing cause detail: %q", err.Error())
 	}
 }
