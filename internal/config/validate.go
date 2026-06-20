@@ -744,7 +744,7 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 	}
 
-	// Client-TLS blocks (postgres/kafka/rabbitmq/http/nats sinks) require
+	// Client-TLS blocks (postgres/kafka/amqp091/http/nats sinks) require
 	// cert_file and key_file to be set together for mutual-TLS.
 	for i, s := range c.Sinks {
 		var stls SinkTLSConfig
