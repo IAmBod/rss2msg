@@ -26,6 +26,7 @@ The flow is the same for every platform:
 | --- | --- |
 | Zapier | [Connect Zapier](integrations/zapier.md) |
 | n8n | [Connect n8n](integrations/n8n.md) |
+| Discord / Slack | [Send to Discord and Slack with Redpanda Connect](integrations/redpanda-connect.md) |
 
 More integrations will be added here. Any platform that accepts an inbound webhook
 works with the HTTP-sink setup on this page — the per-platform guides only cover
@@ -95,6 +96,7 @@ The dead-letter delivery carries the `X-Dlq-From-Sink`, `X-Dlq-Error`, and
 
 - [Connect Zapier](integrations/zapier.md) — Catch Hook trigger and field mapping.
 - [Connect n8n](integrations/n8n.md) — Webhook node trigger and authentication.
+- [Send to Discord and Slack with Redpanda Connect](integrations/redpanda-connect.md) — bridge changes into chat with a Bloblang mapping.
 - [HTTP sink](sinks/http.md) — every field, header, and success-code detail.
 - [Change Envelope](../reference/change-envelope.md) — the JSON payload fields to map.
 - [Choose a Sink](choose-a-sink.md) — dead-letter routing and the driver table.

@@ -49,3 +49,4 @@ Request layout:
 - [Sink Wire Formats](../../reference/wire-formats.md) — on-the-wire layout.
 - [Change Envelope](../../reference/change-envelope.md) — the payload body.
 - [Integrate with External Systems](../integrate-with-external-systems.md) — drive Zapier, n8n, and other automation platforms with this sink.
+- [Send to Discord and Slack with Redpanda Connect](../integrations/redpanda-connect.md) — bridge this sink into chat via Redpanda Connect.

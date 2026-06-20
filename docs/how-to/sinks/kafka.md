@@ -92,3 +92,4 @@ registered schema text can be overridden with `schema_file`.
 - [Secure Connections (TLS)](../secure-connections-tls.md#sinks) — custom CA / mTLS for this sink.
 - [Sink Wire Formats](../../reference/wire-formats.md) — on-the-wire layout.
 - [Change Envelope](../../reference/change-envelope.md) — the payload body.
+- [Send to Discord and Slack with Redpanda Connect](../integrations/redpanda-connect.md) — consume this topic and fan out to chat.
