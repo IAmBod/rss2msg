@@ -233,6 +233,16 @@ sinks:
   #     tls:                                        # use an amqps:// url above; adds custom CA / mTLS
   #       ca_file: /etc/ssl/certs/rabbit-ca.pem
   #   dead_letter: dlq-main
+  # - name: bus-main
+  #   driver: amqp10
+  #   amqp10:
+  #     url: amqps://broker:5671                      # amqp:// or amqps://
+  #     target: /queues/changes                       # node/queue/exchange address (required)
+  #     username: ${AMQP_USER}                        # optional; else URL userinfo
+  #     password: ${AMQP_PASS}
+  #     tls:                                          # use an amqps:// url; adds custom CA / mTLS
+  #       ca_file: /etc/ssl/certs/broker-ca.pem
+  #   dead_letter: dlq-main
   # - name: nats-main
   #   driver: nats
   #   nats:
