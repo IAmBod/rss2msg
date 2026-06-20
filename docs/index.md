@@ -24,6 +24,7 @@ Start here. Pages are grouped the way you use them.
 - [Integrate with External Systems](how-to/integrate-with-external-systems.md)
     - [Zapier](how-to/integrations/zapier.md)
     - [n8n](how-to/integrations/n8n.md)
+    - [Discord & Slack (Redpanda Connect)](how-to/integrations/redpanda-connect.md)
 - [Deploy in Production](how-to/deploy.md)
     - [Docker Compose](how-to/deploy/docker-compose.md)
     - [Kubernetes](how-to/deploy/kubernetes.md)
