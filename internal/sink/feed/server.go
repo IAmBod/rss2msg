@@ -24,6 +24,7 @@ type handlerConfig struct {
 	cacheControlTTL time.Duration
 	rssAuth         *SurfaceAuth
 	atomAuth        *SurfaceAuth
+	proxy           proxyConfig
 	startedAt       time.Time
 }
 
@@ -73,7 +74,8 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if h.instr != nil {
 		h.instr.requests.Add(r.Context(), 1)
 	}
-	doc, err := h.document(r.Context(), path)
+	selfURL := h.cfg.proxy.selfURL(r, path)
+	doc, err := h.document(r.Context(), path, selfURL)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -107,7 +109,33 @@ func matchNotModified(r *http.Request, doc cachedDoc) bool {
 	return false
 }
 
-func (h *handler) document(ctx context.Context, path string) (cachedDoc, error) {
+// document renders (and caches) the self-less body for path, then assembles the
+// per-request response: the self link is injected and the ETag is computed over
+// the final body so two hosts get distinct ETags from one cached render.
+func (h *handler) document(ctx context.Context, path, selfURL string) (cachedDoc, error) {
+	raw, err := h.rawBody(ctx, path)
+	if err != nil {
+		return cachedDoc{}, err
+	}
+	var body string
+	if path == h.cfg.rssPath {
+		body = injectRSSSelf(string(raw.body), selfURL)
+	} else {
+		body = injectAtomSelf(string(raw.body), selfURL)
+	}
+	sum := sha256.Sum256([]byte(body))
+	return cachedDoc{
+		body:     []byte(body),
+		ct:       raw.ct,
+		etag:     `"` + hex.EncodeToString(sum[:]) + `"`,
+		modified: raw.modified,
+		at:       raw.at,
+	}, nil
+}
+
+// rawBody returns the cached, self-less rendered body for path, rendering and
+// caching it on miss. The cache key is the path; the body is host-independent.
+func (h *handler) rawBody(ctx context.Context, path string) (cachedDoc, error) {
 	if h.cfg.renderCacheTTL > 0 {
 		h.mu.Lock()
 		if d, ok := h.cache[path]; ok && time.Since(d.at) < h.cfg.renderCacheTTL {
@@ -120,8 +148,7 @@ func (h *handler) document(ctx context.Context, path string) (cachedDoc, error) 
 	if err != nil {
 		return cachedDoc{}, err
 	}
-	var body string
-	var ct string
+	var body, ct string
 	if path == h.cfg.rssPath {
 		ct = "application/rss+xml"
 		body, err = ToRSS(h.cfg.meta, changes)
@@ -132,14 +159,7 @@ func (h *handler) document(ctx context.Context, path string) (cachedDoc, error) 
 	if err != nil {
 		return cachedDoc{}, err
 	}
-	sum := sha256.Sum256([]byte(body))
-	doc := cachedDoc{
-		body:     []byte(body),
-		ct:       ct,
-		etag:     `"` + hex.EncodeToString(sum[:]) + `"`,
-		modified: h.lastModified(changes),
-		at:       time.Now(),
-	}
+	doc := cachedDoc{body: []byte(body), ct: ct, modified: h.lastModified(changes), at: time.Now()}
 	if h.cfg.renderCacheTTL > 0 {
 		h.mu.Lock()
 		h.cache[path] = doc
