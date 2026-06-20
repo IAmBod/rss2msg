@@ -48,6 +48,7 @@ sinks:
         cert_file: /etc/rss2msg/feed.crt
         key_file: /etc/rss2msg/feed.key
       http3: false                    # optional; also serve HTTP/3 (QUIC) on the same port. Requires tls.
+      trusted_proxies: []             # optional; CIDRs and/or presets (private, all). Empty => forwarding headers ignored.
       auth:                           # optional default for all surfaces; see Auth section
       store:
         driver: memory                # default; memory | sqlite | postgres
@@ -75,6 +76,7 @@ sinks:
 | `timeouts`          | no       | (see below)   | HTTP server timeouts. |
 | `tls`               | no       | (none)        | Serve HTTPS directly; `cert_file` and `key_file` must both be set or both empty. |
 | `http3`             | no       | `false`       | Also serve HTTP/3 (QUIC) on the same UDP port and advertise it via `Alt-Svc`; see [HTTP/3](#http3). Requires `tls`. |
+| `trusted_proxies`   | no       | `[]` (none)   | Upstream proxies whose `X-Forwarded-*` / `Forwarded` headers are honored, as CIDRs and/or presets (`private` = RFC1918 + loopback + ULA; `all` = any). Empty disables all header parsing. See [Behind a reverse proxy](#tls-vs-reverse-proxy). |
 | `auth`              | no       | (none)        | Default credential policy for all surfaces; per-surface `auth` blocks fully replace this default. See [Auth](#auth). |
 | `store`             | no       | `memory`      | Backing window store; see [Store backends](#store-backends). |
 
@@ -256,10 +258,21 @@ To serve HTTPS directly from rss2msg, set `tls.cert_file` and `tls.key_file`.
 Omit the `tls` block to serve plain HTTP and terminate TLS upstream (e.g. behind
 a reverse proxy or load balancer).
 
-When running behind a proxy, set `public_url` to the externally-reachable base
-URL so the Atom `rel=self` link is correct — rss2msg does not read
-`X-Forwarded-*` headers, so it cannot infer the external URL on its own. If
-`public_url` is unset it falls back to `link`.
+By default the feed sink ignores all forwarding headers, so behind a proxy you
+must set `public_url` to the externally-reachable base URL for the Atom/RSS
+`rel=self` links to be correct (it falls back to `link` when unset).
+
+Alternatively, list your proxies in `trusted_proxies` (CIDRs, or the presets
+`private` / `all`). When a request's direct peer is in that set, rss2msg derives
+the self-URL from `X-Forwarded-Proto`, `X-Forwarded-Host`, and `X-Forwarded-Prefix`
+(or the RFC 7239 `Forwarded` header), and recovers the real client IP from
+`X-Forwarded-For` for auth-failure logs. `public_url`, when set, always wins over
+forwarding headers. Headers from an untrusted peer are never honored, so a client
+hitting the listener directly cannot spoof its self-URL or client IP. The proxy
+is expected to strip any `X-Forwarded-Prefix` before forwarding; rss2msg only
+prepends it to self-links and does not rewrite internal routes. `trusted_proxies:
+[all]` honors headers from any source — only safe when the listener is not
+publicly reachable.
 
 See [Secure Connections (TLS)](../secure-connections-tls.md) for certificate
 guidance.
