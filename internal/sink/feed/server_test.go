@@ -98,7 +98,11 @@ func TestHandler_SelfURLPerRequest(t *testing.T) {
 		proxy: proxyConfig{link: "https://site", trusted: trusted},
 	})
 
-	do := func(remote string, hdr map[string]string) string {
+	type result struct {
+		body string
+		etag string
+	}
+	do := func(remote string, hdr map[string]string) result {
 		r := httptest.NewRequest(http.MethodGet, "http://internal/atom", nil)
 		r.RemoteAddr = remote
 		r.Host = "internal"
@@ -107,16 +111,21 @@ func TestHandler_SelfURLPerRequest(t *testing.T) {
 		}
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
-		return w.Body.String()
+		return result{body: w.Body.String(), etag: w.Header().Get("ETag")}
 	}
 
 	a := do("10.0.0.1:9", map[string]string{"X-Forwarded-Proto": "https", "X-Forwarded-Host": "a.example"})
 	b := do("10.0.0.1:9", map[string]string{"X-Forwarded-Proto": "https", "X-Forwarded-Host": "b.example"})
-	if !strings.Contains(a, `href="https://a.example/atom" rel="self"`) {
-		t.Fatalf("host a self link missing:\n%s", a)
+	if !strings.Contains(a.body, `href="https://a.example/atom" rel="self"`) {
+		t.Fatalf("host a self link missing:\n%s", a.body)
 	}
-	if !strings.Contains(b, `href="https://b.example/atom" rel="self"`) {
-		t.Fatalf("host b self link missing (cache leaked host a?):\n%s", b)
+	if !strings.Contains(b.body, `href="https://b.example/atom" rel="self"`) {
+		t.Fatalf("host b self link missing (cache leaked host a?):\n%s", b.body)
+	}
+	// ETags are computed over the injected body (which embeds the host), so
+	// two different hosts must produce distinct ETags.
+	if a.etag == b.etag {
+		t.Fatalf("ETags must differ per host: both got %q", a.etag)
 	}
 }
 

@@ -135,3 +135,16 @@ func TestInjectRSSSelf(t *testing.T) {
 		t.Fatal("empty selfURL must be a no-op")
 	}
 }
+
+func TestInjectRSSSelf_IdempotentNamespace(t *testing.T) {
+	body, err := ToRSS(FeedMeta{Title: "t", Link: "https://x"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out1 := injectRSSSelf(body, "https://feeds.example.com/rss")
+	out2 := injectRSSSelf(out1, "https://feeds.example.com/rss")
+	if strings.Count(out2, "xmlns:atom=") != 1 {
+		t.Fatalf("double injection must not duplicate xmlns:atom=; got %d occurrences:\n%s",
+			strings.Count(out2, "xmlns:atom="), out2)
+	}
+}

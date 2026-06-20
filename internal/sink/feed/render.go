@@ -141,8 +141,10 @@ func injectRSSSelf(rssBody, selfURL string) string {
 	if rssEnd == -1 {
 		return rssBody
 	}
-	nsAt := rssStart + rssEnd
-	rssBody = rssBody[:nsAt] + ns + rssBody[nsAt:]
+	if !strings.Contains(rssBody, `xmlns:atom=`) {
+		nsAt := rssStart + rssEnd
+		rssBody = rssBody[:nsAt] + ns + rssBody[nsAt:]
+	}
 
 	chanTag := "<channel>"
 	chanAt := strings.Index(rssBody, chanTag)

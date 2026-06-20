@@ -69,7 +69,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		reason := authFailReason(a, r)
 		h.recordAuthFailure(r.Context(), h.surfaceName(path), reason)
 		h.cfg.logger.Warn().
-			Str("sink_surface", h.surfaceName(path)).
+			Str("surface", h.surfaceName(path)).
 			Str("reason", reason).
 			Str("client_ip", h.cfg.proxy.clientIP(r)).
 			Msg("feed sink auth failure")
@@ -167,6 +167,7 @@ func (h *handler) rawBody(ctx context.Context, path string) (cachedDoc, error) {
 	if err != nil {
 		return cachedDoc{}, err
 	}
+	// etag intentionally omitted here; document() computes it per request over the injected body.
 	doc := cachedDoc{body: []byte(body), ct: ct, modified: h.lastModified(changes), at: time.Now()}
 	if h.cfg.renderCacheTTL > 0 {
 		h.mu.Lock()
