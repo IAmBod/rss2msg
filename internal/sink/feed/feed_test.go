@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -230,5 +231,28 @@ func TestPublisher_SelfLinkUsesPublicURL(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	if !strings.Contains(string(body), `rel="self"`) || !strings.Contains(string(body), "https://feeds.example/atom") {
 		t.Fatalf("atom self link must use public_url; got:\n%s", body)
+	}
+}
+
+func TestPublisher_SelfLinkFromTrustedProxy(t *testing.T) {
+	p, err := New(context.Background(), Options{
+		Name: "f", Listen: "127.0.0.1:0",
+		Meta:           FeedMeta{Title: "t", Link: "https://site"},
+		Atom:           Surface{Enabled: true, Path: "/atom"},
+		TrustedProxies: []string{"private"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+
+	r := httptest.NewRequest(http.MethodGet, "http://"+p.Addr()+"/atom", nil)
+	r.RemoteAddr = "10.0.0.1:5"
+	r.Header.Set("X-Forwarded-Proto", "https")
+	r.Header.Set("X-Forwarded-Host", "feeds.example.com")
+	w := httptest.NewRecorder()
+	p.server.Handler.ServeHTTP(w, r)
+	if !strings.Contains(w.Body.String(), `href="https://feeds.example.com/atom" rel="self"`) {
+		t.Fatalf("self link not from proxy headers:\n%s", w.Body.String())
 	}
 }

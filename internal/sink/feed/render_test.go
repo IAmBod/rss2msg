@@ -11,17 +11,16 @@ import (
 )
 
 func TestRender_AtomSelfLinkURLIsEscaped(t *testing.T) {
-	m := meta()
-	m.SelfAtom = "https://feeds.example/atom?a=1&b=2" // '&' must be escaped or XML breaks
-	xml, err := ToAtom(m, sampleChanges())
+	xml, err := ToAtom(meta(), sampleChanges())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := gofeed.NewParser().ParseString(xml); err != nil {
+	out := injectAtomSelf(xml, "https://feeds.example/atom?a=1&b=2") // '&' must be escaped or XML breaks
+	if _, err := gofeed.NewParser().ParseString(out); err != nil {
 		t.Fatalf("atom with '&' in self url must still parse: %v", err)
 	}
-	if !strings.Contains(xml, "a=1&amp;b=2") {
-		t.Fatalf("ampersand in self url must be escaped; got:\n%s", xml)
+	if !strings.Contains(out, "a=1&amp;b=2") {
+		t.Fatalf("ampersand in self url must be escaped; got:\n%s", out)
 	}
 }
 
@@ -66,7 +65,7 @@ func sampleChanges() []model.Change {
 }
 
 func meta() FeedMeta {
-	return FeedMeta{Title: "changes", Link: "https://site.example/", Description: "d", SelfRSS: "https://feeds.example/rss", SelfAtom: "https://feeds.example/atom"}
+	return FeedMeta{Title: "changes", Link: "https://site.example/", Description: "d"}
 }
 
 func TestRender_RSSRoundTripAndUniqueIDs(t *testing.T) {
@@ -97,7 +96,55 @@ func TestRender_AtomHasSelfLink(t *testing.T) {
 	if _, err := gofeed.NewParser().ParseString(xml); err != nil {
 		t.Fatalf("atom did not parse: %v", err)
 	}
-	if !strings.Contains(xml, `rel="self"`) || !strings.Contains(xml, "https://feeds.example/atom") {
-		t.Fatalf("atom must contain rel=self with the self url; got:\n%s", xml)
+	out := injectAtomSelf(xml, "https://feeds.example/atom")
+	if !strings.Contains(out, `rel="self"`) || !strings.Contains(out, "https://feeds.example/atom") {
+		t.Fatalf("atom must contain rel=self with the self url; got:\n%s", out)
+	}
+}
+
+func TestInjectAtomSelf(t *testing.T) {
+	body, err := ToAtom(FeedMeta{Title: "t", Link: "https://x"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(body, `rel="self"`) {
+		t.Fatal("ToAtom must NOT bake a self link anymore")
+	}
+	out := injectAtomSelf(body, "https://feeds.example.com/atom")
+	if !strings.Contains(out, `<link href="https://feeds.example.com/atom" rel="self">`) {
+		t.Fatalf("self link not injected:\n%s", out)
+	}
+	if injectAtomSelf(body, "") != body {
+		t.Fatal("empty selfURL must be a no-op")
+	}
+}
+
+func TestInjectRSSSelf(t *testing.T) {
+	body, err := ToRSS(FeedMeta{Title: "t", Link: "https://x"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := injectRSSSelf(body, "https://feeds.example.com/rss")
+	if !strings.Contains(out, `xmlns:atom="http://www.w3.org/2005/Atom"`) {
+		t.Fatalf("atom namespace not added:\n%s", out)
+	}
+	if !strings.Contains(out, `<atom:link href="https://feeds.example.com/rss" rel="self" type="application/rss+xml"></atom:link>`) {
+		t.Fatalf("rss self link not injected:\n%s", out)
+	}
+	if injectRSSSelf(body, "") != body {
+		t.Fatal("empty selfURL must be a no-op")
+	}
+}
+
+func TestInjectRSSSelf_IdempotentNamespace(t *testing.T) {
+	body, err := ToRSS(FeedMeta{Title: "t", Link: "https://x"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out1 := injectRSSSelf(body, "https://feeds.example.com/rss")
+	out2 := injectRSSSelf(out1, "https://feeds.example.com/rss")
+	if strings.Count(out2, "xmlns:atom=") != 1 {
+		t.Fatalf("double injection must not duplicate xmlns:atom=; got %d occurrences:\n%s",
+			strings.Count(out2, "xmlns:atom="), out2)
 	}
 }

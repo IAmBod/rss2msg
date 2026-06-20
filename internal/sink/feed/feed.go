@@ -38,7 +38,8 @@ type Options struct {
 	Timeouts        Timeouts
 	TLSCertFile     string
 	TLSKeyFile      string
-	HTTP3           bool // serve HTTP/3 over QUIC alongside TCP; requires TLS
+	HTTP3           bool     // serve HTTP/3 over QUIC alongside TCP; requires TLS
+	TrustedProxies  []string // CIDRs/presets; empty => forwarding headers ignored
 	RSSAuth         *SurfaceAuth
 	AtomAuth        *SurfaceAuth
 	MCPAuth         *SurfaceAuth
@@ -134,19 +135,24 @@ func New(ctx context.Context, o Options) (*Publisher, error) {
 	// to the canonical default.
 	rss := surfacePath(o.RSS, "/rss")
 	atom := surfacePath(o.Atom, "/atom")
-	selfBase := o.PublicURL
-	if selfBase == "" {
-		selfBase = o.Meta.Link
+	var trusted *trustedProxies
+	trusted, err = parseTrustedProxies(o.TrustedProxies)
+	if err != nil {
+		_ = store.Close()
+		return nil, fmt.Errorf("feed sink %q: trusted_proxies: %w", o.Name, err)
 	}
-	selfBase = strings.TrimRight(selfBase, "/")
-	o.Meta.SelfRSS = selfBase + rss
-	o.Meta.SelfAtom = selfBase + atom
+	proxy := proxyConfig{
+		publicURL: strings.TrimRight(o.PublicURL, "/"),
+		link:      strings.TrimRight(o.Meta.Link, "/"),
+		trusted:   trusted,
+	}
 
 	h := newHandler(handlerConfig{
 		store: store, meta: o.Meta, maxItems: o.MaxItems,
 		rssPath: rss, atomPath: atom,
 		renderCacheTTL: o.RenderCacheTTL, cacheControlTTL: o.CacheControlTTL,
-		rssAuth: o.RSSAuth, atomAuth: o.AtomAuth, startedAt: time.Now(),
+		rssAuth: o.RSSAuth, atomAuth: o.AtomAuth,
+		proxy: proxy, logger: o.Logger, startedAt: time.Now(),
 	})
 
 	if o.Meter != nil {
