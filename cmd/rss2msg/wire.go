@@ -31,6 +31,7 @@ import (
 	sinkschema "github.com/iambod/rss2msg/internal/sink/kafka/schema"
 	sinknats "github.com/iambod/rss2msg/internal/sink/nats"
 	sinkpg "github.com/iambod/rss2msg/internal/sink/postgres"
+	sinkrabbitmqstream "github.com/iambod/rss2msg/internal/sink/rabbitmqstream"
 	sinksns "github.com/iambod/rss2msg/internal/sink/sns"
 	sinksqs "github.com/iambod/rss2msg/internal/sink/sqs"
 	sinkstdout "github.com/iambod/rss2msg/internal/sink/stdout"
@@ -372,6 +373,21 @@ func sinkAMQP091TLSFromConfig(t config.SinkTLSConfig) *sinkamqp091.TLSOptions {
 	}
 }
 
+// sinkRabbitMQStreamTLSFromConfig maps the canonical sink TLS block to the
+// rabbitmq_stream sink's TLS options, returning nil when the block is inactive.
+func sinkRabbitMQStreamTLSFromConfig(t config.SinkTLSConfig) *sinkrabbitmqstream.TLSOptions {
+	if !t.Active() {
+		return nil
+	}
+	return &sinkrabbitmqstream.TLSOptions{
+		CAFile:             t.CAFile,
+		CertFile:           t.CertFile,
+		KeyFile:            t.KeyFile,
+		ServerName:         t.ServerName,
+		InsecureSkipVerify: t.InsecureSkipVerify,
+	}
+}
+
 // sinkNATSTLSFromConfig maps the canonical sink TLS block to the nats sink's
 // TLS options, returning nil when the block is inactive.
 func sinkNATSTLSFromConfig(t config.SinkTLSConfig) *sinknats.TLSOptions {
@@ -572,6 +588,19 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 			Username: sc.AMQP10.Username,
 			Password: sc.AMQP10.Password,
 			TLS:      sinkAMQP10TLSFromConfig(sc.AMQP10.TLS),
+		})
+	case "rabbitmq_stream":
+		return sinkrabbitmqstream.New(ctx, sinkrabbitmqstream.Options{
+			Name:           sc.Name,
+			URIs:           sc.RabbitMQStream.URIs,
+			URL:            sc.RabbitMQStream.URL,
+			Stream:         sc.RabbitMQStream.Stream,
+			Username:       sc.RabbitMQStream.Username,
+			Password:       sc.RabbitMQStream.Password,
+			Declare:        sc.RabbitMQStream.Declare,
+			MaxAge:         sc.RabbitMQStream.MaxAge,
+			MaxLengthBytes: sc.RabbitMQStream.MaxLengthBytes,
+			TLS:            sinkRabbitMQStreamTLSFromConfig(sc.RabbitMQStream.TLS),
 		})
 	case "sqs":
 		return sinksqs.New(ctx, sinksqs.Options{

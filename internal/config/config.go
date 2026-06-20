@@ -290,6 +290,7 @@ type SinkConfig struct {
 	Kafka           KafkaSinkConfig           `mapstructure:"kafka"`
 	AMQP091         AMQP091SinkConfig         `mapstructure:"amqp091"`
 	AMQP10          AMQP10SinkConfig          `mapstructure:"amqp10"`
+	RabbitMQStream  RabbitMQStreamSinkConfig  `mapstructure:"rabbitmq_stream"`
 	SQS             SQSSinkConfig             `mapstructure:"sqs"`
 	SNS             SNSSinkConfig             `mapstructure:"sns"`
 	DynamoDB        DynamoDBSinkConfig        `mapstructure:"dynamodb"`
@@ -498,6 +499,19 @@ type AMQP10SinkConfig struct {
 	Username string        `mapstructure:"username"` // optional; overrides URL userinfo
 	Password string        `mapstructure:"password"` // optional; overrides URL userinfo
 	TLS      SinkTLSConfig `mapstructure:"tls"`
+}
+
+// RabbitMQStreamSinkConfig configures the RabbitMQ Stream protocol sink.
+type RabbitMQStreamSinkConfig struct {
+	URIs           []string      `mapstructure:"uris"`             // rabbitmq-stream://... (or set url)
+	URL            string        `mapstructure:"url"`              // single-URI shorthand
+	Stream         string        `mapstructure:"stream"`           // target stream (required)
+	Username       string        `mapstructure:"username"`         // optional; overrides URI userinfo
+	Password       string        `mapstructure:"password"`         // optional; overrides URI userinfo
+	Declare        bool          `mapstructure:"declare"`          // create the stream if absent
+	MaxAge         time.Duration `mapstructure:"max_age"`          // retention; declare only
+	MaxLengthBytes int64         `mapstructure:"max_length_bytes"` // retention; declare only
+	TLS            SinkTLSConfig `mapstructure:"tls"`
 }
 
 type PostgresSinkConfig struct {

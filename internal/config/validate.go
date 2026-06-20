@@ -50,6 +50,7 @@ var knownSinkDrivers = map[string]struct{}{
 	"kafka":           {},
 	"amqp091":         {},
 	"amqp10":          {},
+	"rabbitmq_stream": {},
 	"sqs":             {},
 	"sns":             {},
 	"dynamodb":        {},
@@ -570,6 +571,13 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			if strings.TrimSpace(s.AMQP10.Target) == "" {
 				return *warnings, fmt.Errorf("sinks[%d] (amqp10 %q): amqp10.target is required", i, s.Name)
 			}
+		case "rabbitmq_stream":
+			if strings.TrimSpace(s.RabbitMQStream.Stream) == "" {
+				return *warnings, fmt.Errorf("sinks[%d] (rabbitmq_stream %q): rabbitmq_stream.stream is required", i, s.Name)
+			}
+			if len(s.RabbitMQStream.URIs) == 0 && strings.TrimSpace(s.RabbitMQStream.URL) == "" {
+				return *warnings, fmt.Errorf("sinks[%d] (rabbitmq_stream %q): rabbitmq_stream.uris or rabbitmq_stream.url is required", i, s.Name)
+			}
 		case "azureservicebus":
 			a := s.AzureServiceBus
 			hasConn := strings.TrimSpace(a.ConnectionString) != ""
@@ -771,6 +779,8 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			stls = s.AMQP091.TLS
 		case "amqp10":
 			stls = s.AMQP10.TLS
+		case "rabbitmq_stream":
+			stls = s.RabbitMQStream.TLS
 		case "http":
 			stls = s.HTTP.TLS
 		case "nats":
