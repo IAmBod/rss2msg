@@ -16,17 +16,20 @@ func TestTrustedProxies_Trusts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cases := map[string]bool{
-		"10.1.2.3:5555":    true,  // RFC1918 via "private"
-		"127.0.0.1:80":     true,  // loopback via "private"
-		"[::1]:443":        true,  // IPv6 loopback via "private"
-		"203.0.113.9:1":    true,  // explicit CIDR
-		"8.8.8.8:53":       false, // public
-		"not-an-addr":      false, // unparseable
+	cases := []struct {
+		addr string
+		want bool
+	}{
+		{"10.1.2.3:5555", true},
+		{"127.0.0.1:80", true},
+		{"[::1]:443", true},
+		{"203.0.113.9:1", true},
+		{"8.8.8.8:53", false},
+		{"not-an-addr", false},
 	}
-	for addr, want := range cases {
-		if got := tp.trusts(addr); got != want {
-			t.Errorf("trusts(%q)=%v want %v", addr, got, want)
+	for _, c := range cases {
+		if got := tp.trusts(c.addr); got != c.want {
+			t.Errorf("trusts(%q)=%v want %v", c.addr, got, c.want)
 		}
 	}
 }
@@ -35,6 +38,10 @@ func TestTrustedProxies_NilSafe(t *testing.T) {
 	var tp *trustedProxies
 	if tp.trusts("10.0.0.1:1") {
 		t.Fatal("nil trustedProxies must trust nothing")
+	}
+	tp2, _ := parseTrustedProxies([]string{"10.0.0.0/8"})
+	if tp2.contains(nil) {
+		t.Fatal("contains(nil) must be false")
 	}
 }
 

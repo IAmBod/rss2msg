@@ -55,13 +55,14 @@ func parseTrustedProxies(entries []string) (*trustedProxies, error) {
 		}
 		ip := net.ParseIP(e)
 		if ip == nil {
-			return nil, fmt.Errorf("entry %q: not a preset, CIDR, or IP", raw)
+			return nil, fmt.Errorf("entry %q: not a preset, CIDR, or IP", e)
 		}
 		bits := 32
 		if ip.To4() == nil {
 			bits = 128
 		}
-		nets = append(nets, net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)})
+		mask := net.CIDRMask(bits, bits)
+		nets = append(nets, net.IPNet{IP: ip.Mask(mask), Mask: mask})
 	}
 	return &trustedProxies{nets: nets}, nil
 }
