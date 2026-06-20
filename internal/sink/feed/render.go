@@ -18,8 +18,6 @@ type FeedMeta struct {
 	Title       string
 	Link        string // website (rel=alternate / channel link)
 	Description string
-	SelfRSS     string // public URL of the rss endpoint
-	SelfAtom    string // public URL of the atom endpoint (Atom rel=self)
 }
 
 func buildFeed(m FeedMeta, changes []model.Change) *feeds.Feed {
@@ -102,31 +100,56 @@ func ToRSS(m FeedMeta, changes []model.Change) (string, error) {
 	return buildFeed(m, changes).ToRss()
 }
 
-// ToAtom renders Atom 1.0 and injects the rel=self link as a child of <feed>.
-// gorilla's AtomFeed.Link is a single *AtomLink so it can only hold one link;
-// injecting via string manipulation is the correct approach for adding rel=self.
-// The raw output starts with <?xml ...?><feed ...> on one line; we locate the
-// end of the <feed ...> opening tag and insert the self link immediately after.
+// ToAtom renders Atom 1.0 without a rel=self link. The handler injects the
+// per-request self link via injectAtomSelf so one cached body serves every host.
 func ToAtom(m FeedMeta, changes []model.Change) (string, error) {
-	out, err := buildFeed(m, changes).ToAtom()
-	if err != nil {
-		return "", err
+	return buildFeed(m, changes).ToAtom()
+}
+
+// injectAtomSelf inserts <link href=selfURL rel="self"> as a child of <feed>.
+// gorilla's AtomFeed.Link holds a single link, so string injection is required.
+// No-op when selfURL is empty or no <feed> tag is found.
+func injectAtomSelf(atomBody, selfURL string) string {
+	if selfURL == "" {
+		return atomBody
 	}
-	if m.SelfAtom == "" {
-		return out, nil
-	}
-	// Find the <feed opening tag, then find its closing >.
-	// We must inject after the <feed...> tag, not after <?xml...?>.
-	feedTagStart := strings.Index(out, "<feed")
+	feedTagStart := strings.Index(atomBody, "<feed")
 	if feedTagStart == -1 {
-		return out, nil
+		return atomBody
 	}
-	feedTagEnd := strings.Index(out[feedTagStart:], ">")
+	feedTagEnd := strings.Index(atomBody[feedTagStart:], ">")
 	if feedTagEnd == -1 {
-		return out, nil
+		return atomBody
 	}
 	insertAt := feedTagStart + feedTagEnd + 1
-	selfLink := `<link href="` + escapeXML(m.SelfAtom) + `" rel="self"></link>`
-	out = out[:insertAt] + "\n  " + selfLink + out[insertAt:]
-	return out, nil
+	link := `<link href="` + escapeXML(selfURL) + `" rel="self"></link>`
+	return atomBody[:insertAt] + "\n  " + link + atomBody[insertAt:]
+}
+
+// injectRSSSelf adds the atom namespace to <rss> and an <atom:link rel="self">
+// inside <channel>. No-op when selfURL is empty or the tags are not found.
+func injectRSSSelf(rssBody, selfURL string) string {
+	if selfURL == "" {
+		return rssBody
+	}
+	const ns = ` xmlns:atom="http://www.w3.org/2005/Atom"`
+	rssStart := strings.Index(rssBody, "<rss")
+	if rssStart == -1 {
+		return rssBody
+	}
+	rssEnd := strings.Index(rssBody[rssStart:], ">")
+	if rssEnd == -1 {
+		return rssBody
+	}
+	nsAt := rssStart + rssEnd
+	rssBody = rssBody[:nsAt] + ns + rssBody[nsAt:]
+
+	chanTag := "<channel>"
+	chanAt := strings.Index(rssBody, chanTag)
+	if chanAt == -1 {
+		return rssBody
+	}
+	insertAt := chanAt + len(chanTag)
+	link := `<atom:link href="` + escapeXML(selfURL) + `" rel="self" type="application/rss+xml"></atom:link>`
+	return rssBody[:insertAt] + "\n    " + link + rssBody[insertAt:]
 }
