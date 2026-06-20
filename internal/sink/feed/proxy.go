@@ -186,6 +186,42 @@ func firstValue(h string) string {
 	return strings.TrimSpace(h)
 }
 
+// peerIP returns the host portion of r.RemoteAddr.
+func peerIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
+// clientIP returns the real client IP. When the direct peer is untrusted (or no
+// proxies are configured) it is the peer itself. Otherwise we walk the
+// X-Forwarded-For chain right-to-left, skipping trusted hops; the first
+// untrusted address is the client. If every hop is trusted we return the
+// left-most entry; with no chain we return the peer.
+func (p proxyConfig) clientIP(r *http.Request) string {
+	peer := peerIP(r)
+	if !p.trusted.trusts(r.RemoteAddr) {
+		return peer
+	}
+	xff := r.Header.Get("X-Forwarded-For")
+	if xff == "" {
+		return peer
+	}
+	parts := strings.Split(xff, ",")
+	for i := len(parts) - 1; i >= 0; i-- {
+		ip := strings.TrimSpace(parts[i])
+		if ip == "" {
+			continue
+		}
+		if !p.trusted.contains(net.ParseIP(ip)) {
+			return ip
+		}
+	}
+	return strings.TrimSpace(parts[0])
+}
+
 // normalizePrefix ensures a leading slash and no trailing slash ("" stays "").
 func normalizePrefix(p string) string {
 	p = strings.TrimRight(strings.TrimSpace(p), "/")

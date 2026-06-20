@@ -135,3 +135,35 @@ func TestTrustedProxies_All(t *testing.T) {
 		t.Fatal("'all' must trust any peer")
 	}
 }
+
+func TestProxyConfig_ClientIP(t *testing.T) {
+	trusted, _ := parseTrustedProxies([]string{"private"})
+	p := proxyConfig{trusted: trusted}
+
+	t.Run("untrusted peer => peer IP, headers ignored", func(t *testing.T) {
+		r := reqWith("8.8.8.8:1", map[string]string{"X-Forwarded-For": "1.2.3.4"}, false)
+		if got := p.clientIP(r); got != "8.8.8.8" {
+			t.Fatalf("got %q", got)
+		}
+	})
+	t.Run("trusted peer => right-most untrusted in XFF chain", func(t *testing.T) {
+		r := reqWith("10.0.0.1:1", map[string]string{
+			"X-Forwarded-For": "203.0.113.7, 172.16.0.9, 10.0.0.2",
+		}, false)
+		if got := p.clientIP(r); got != "203.0.113.7" {
+			t.Fatalf("got %q", got)
+		}
+	})
+	t.Run("trusted peer, no XFF => peer IP", func(t *testing.T) {
+		r := reqWith("10.0.0.1:1", nil, false)
+		if got := p.clientIP(r); got != "10.0.0.1" {
+			t.Fatalf("got %q", got)
+		}
+	})
+	t.Run("all hops trusted => left-most", func(t *testing.T) {
+		r := reqWith("10.0.0.1:1", map[string]string{"X-Forwarded-For": "10.0.0.9, 10.0.0.2"}, false)
+		if got := p.clientIP(r); got != "10.0.0.9" {
+			t.Fatalf("got %q", got)
+		}
+	})
+}
