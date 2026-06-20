@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/iambod/rss2msg/internal/model"
+	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -25,6 +26,7 @@ type handlerConfig struct {
 	rssAuth         *SurfaceAuth
 	atomAuth        *SurfaceAuth
 	proxy           proxyConfig
+	logger          zerolog.Logger
 	startedAt       time.Time
 }
 
@@ -64,7 +66,13 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a := h.authFor(path)
 	name, ok := authenticate(a, r)
 	if !ok {
-		h.recordAuthFailure(r.Context(), h.surfaceName(path), authFailReason(a, r))
+		reason := authFailReason(a, r)
+		h.recordAuthFailure(r.Context(), h.surfaceName(path), reason)
+		h.cfg.logger.Warn().
+			Str("sink_surface", h.surfaceName(path)).
+			Str("reason", reason).
+			Str("client_ip", h.cfg.proxy.clientIP(r)).
+			Msg("feed sink auth failure")
 		writeAuthChallenge(a, w)
 		return
 	}
