@@ -608,9 +608,9 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 			TLSCertFile: f.TLS.CertFile, TLSKeyFile: f.TLS.KeyFile, HTTP3: f.HTTP3,
 			TrustedProxies: f.TrustedProxies,
 			RSSAuth:        toFeedSurfaceAuth(f.EffectiveAuth(f.RSS)),
-			AtomAuth:    toFeedSurfaceAuth(f.EffectiveAuth(f.Atom)),
-			MCPAuth:     toFeedSurfaceAuth(f.EffectiveAuth(f.MCP)),
-			StoreDriver: f.Store.Driver, SQLitePath: f.Store.SQLite.Path,
+			AtomAuth:       toFeedSurfaceAuth(f.EffectiveAuth(f.Atom)),
+			MCPAuth:        toFeedSurfaceAuth(f.EffectiveAuth(f.MCP)),
+			StoreDriver:    f.Store.Driver, SQLitePath: f.Store.SQLite.Path,
 			PostgresDSN: f.Store.Postgres.DSN, Table: f.Store.Postgres.Table, PostgresTLS: pgTLS,
 			Meter: tel.Meter, Logger: tel.Logger,
 		})
