@@ -1033,6 +1033,19 @@ func TestValidateAcceptsAMQP091WithoutOptionalFields(t *testing.T) {
 	}
 }
 
+func TestValidateRabbitMQStreamRequiresStreamAndURI(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{Name: "st", Driver: "rabbitmq_stream"})
+	if _, err := Validate(c); err == nil || !strings.Contains(err.Error(), "rabbitmq_stream.stream") {
+		t.Fatalf("want stream required error, got %v", err)
+	}
+	c.Sinks[len(c.Sinks)-1].RabbitMQStream = RabbitMQStreamSinkConfig{Stream: "changes"}
+	if _, err := Validate(c); err == nil || !strings.Contains(err.Error(), "rabbitmq_stream.uris") {
+		t.Fatalf("want uris/url required error, got %v", err)
+	}
+}
+
 func TestValidateAllowsEmptyFeedsWithSources(t *testing.T) {
 	t.Parallel()
 	cfg := Defaults()
