@@ -68,6 +68,22 @@ func TestProxyConfig_SelfURL(t *testing.T) {
 			t.Fatalf("got %q", got)
 		}
 	})
+
+	t.Run("untrusted peer with TLS uses https + request host", func(t *testing.T) {
+		p := proxyConfig{trusted: trusted}
+		r := reqWith("8.8.8.8:5000", nil, true)
+		if got := p.selfURL(r, "/atom"); got != "https://internal:8088/atom" {
+			t.Fatalf("got %q", got)
+		}
+	})
+
+	t.Run("trusted prefix without forwarded host is dropped", func(t *testing.T) {
+		p := proxyConfig{trusted: trusted}
+		r := reqWith("10.0.0.1:5000", map[string]string{"X-Forwarded-Prefix": "/news"}, false)
+		if got := p.selfURL(r, "/atom"); got != "http://internal:8088/atom" {
+			t.Fatalf("got %q", got)
+		}
+	})
 }
 
 func TestParseTrustedProxies(t *testing.T) {

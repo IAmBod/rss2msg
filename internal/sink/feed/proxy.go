@@ -117,9 +117,10 @@ func (p proxyConfig) selfURL(r *http.Request, surfacePath string) string {
 		return p.publicURL + surfacePath
 	}
 	fw := p.parseForwarded(r)
-	proto, host := fw.proto, fw.host
+	proto, host, prefix := fw.proto, fw.host, fw.prefix
 	if host == "" {
 		host = r.Host
+		prefix = "" // a header-supplied prefix is only meaningful with a header-supplied host
 	}
 	if proto == "" {
 		if r.TLS != nil {
@@ -129,7 +130,7 @@ func (p proxyConfig) selfURL(r *http.Request, surfacePath string) string {
 		}
 	}
 	if host != "" {
-		return proto + "://" + host + fw.prefix + surfacePath
+		return proto + "://" + host + prefix + surfacePath
 	}
 	if p.link != "" {
 		return p.link + surfacePath
