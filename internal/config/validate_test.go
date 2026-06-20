@@ -2138,3 +2138,22 @@ func TestValidateKubernetesFeedSource(t *testing.T) {
 		}
 	})
 }
+
+func TestValidate_FeedTrustedProxies(t *testing.T) {
+	base := func(tp []string) Config {
+		c := feedSinkBase()
+		c.Sinks[0].Feed.TrustedProxies = tp
+		return c
+	}
+	t.Run("valid mix", func(t *testing.T) {
+		if _, err := Validate(base([]string{"private", "10.0.0.0/8", "127.0.0.1", "all", "::1"})); err != nil {
+			t.Fatalf("want nil err, got %v", err)
+		}
+	})
+	t.Run("invalid entry", func(t *testing.T) {
+		_, err := Validate(base([]string{"not-an-ip"}))
+		if err == nil {
+			t.Fatal("want error for bogus trusted_proxies entry")
+		}
+	})
+}

@@ -363,7 +363,8 @@ type FeedSinkConfig struct {
 	CacheControlTTL time.Duration      `mapstructure:"cache_control_ttl"`
 	Timeouts        FeedTimeoutsConfig `mapstructure:"timeouts"`
 	TLS             FeedTLSConfig      `mapstructure:"tls"`
-	HTTP3           bool               `mapstructure:"http3"` // serve HTTP/3 (QUIC) alongside TCP; requires tls
+	HTTP3           bool               `mapstructure:"http3"`           // serve HTTP/3 (QUIC) alongside TCP; requires tls
+	TrustedProxies  []string           `mapstructure:"trusted_proxies"` // CIDRs and/or presets (private, all); empty => forwarding headers ignored
 	Auth            FeedAuthConfig     `mapstructure:"auth"`
 	Store           FeedStoreConfig    `mapstructure:"store"`
 }

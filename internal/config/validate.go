@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"net/textproto"
 	"net/url"
 	"os"
@@ -690,6 +691,11 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 					return *warnings, fmt.Errorf("sinks[%d] (feed %q): %q is not an absolute URL", i, s.Name, raw)
 				}
 			}
+			for _, raw := range f.TrustedProxies {
+				if err := validateTrustedProxyEntry(raw); err != nil {
+					return *warnings, fmt.Errorf("sinks[%d] (feed %q): trusted_proxies entry %q: %w", i, s.Name, raw, err)
+				}
+			}
 			if (f.TLS.CertFile == "") != (f.TLS.KeyFile == "") {
 				return *warnings, fmt.Errorf("sinks[%d] (feed %q): tls.cert_file and key_file must both be set or both empty", i, s.Name)
 			}
@@ -1064,6 +1070,24 @@ func firstDupFeedName(names []string) string {
 		seen[n] = true
 	}
 	return ""
+}
+
+// validateTrustedProxyEntry accepts a preset token (private, all) or a CIDR /
+// bare IP. Kept in lockstep with the runtime parser in internal/sink/feed.
+func validateTrustedProxyEntry(raw string) error {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "":
+		return fmt.Errorf("must not be empty")
+	case "private", "all":
+		return nil
+	}
+	if _, _, err := net.ParseCIDR(strings.TrimSpace(raw)); err == nil {
+		return nil
+	}
+	if net.ParseIP(strings.TrimSpace(raw)) != nil {
+		return nil
+	}
+	return fmt.Errorf("not a preset (private|all), CIDR, or IP")
 }
 
 // pgSSLModeIsDisable returns true when dsn explicitly sets sslmode=disable in
