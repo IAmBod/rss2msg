@@ -17,6 +17,7 @@ import (
 	"github.com/iambod/rss2msg/internal/scheduler"
 	"github.com/iambod/rss2msg/internal/sink"
 	sinkamqp091 "github.com/iambod/rss2msg/internal/sink/amqp091"
+	sinkamqp10 "github.com/iambod/rss2msg/internal/sink/amqp10"
 	sinkasb "github.com/iambod/rss2msg/internal/sink/azureservicebus"
 	compositesink "github.com/iambod/rss2msg/internal/sink/composite"
 	sinkcosmos "github.com/iambod/rss2msg/internal/sink/cosmosdb"
@@ -341,6 +342,21 @@ func schemaRegistryTLSFromConfig(t config.SinkTLSConfig) *sinkschema.TLSOptions 
 	}
 }
 
+// sinkAMQP10TLSFromConfig maps the canonical sink TLS block to the amqp10
+// sink's TLS options, returning nil when the block is inactive.
+func sinkAMQP10TLSFromConfig(t config.SinkTLSConfig) *sinkamqp10.TLSOptions {
+	if !t.Active() {
+		return nil
+	}
+	return &sinkamqp10.TLSOptions{
+		CAFile:             t.CAFile,
+		CertFile:           t.CertFile,
+		KeyFile:            t.KeyFile,
+		ServerName:         t.ServerName,
+		InsecureSkipVerify: t.InsecureSkipVerify,
+	}
+}
+
 // sinkAMQP091TLSFromConfig maps the canonical sink TLS block to the amqp091
 // sink's TLS options, returning nil when the block is inactive.
 func sinkAMQP091TLSFromConfig(t config.SinkTLSConfig) *sinkamqp091.TLSOptions {
@@ -547,6 +563,15 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 			Durable:      sc.AMQP091.Durable,
 			Mandatory:    sc.AMQP091.Mandatory,
 			TLS:          sinkAMQP091TLSFromConfig(sc.AMQP091.TLS),
+		})
+	case "amqp10":
+		return sinkamqp10.New(ctx, sinkamqp10.Options{
+			Name:     sc.Name,
+			URL:      sc.AMQP10.URL,
+			Target:   sc.AMQP10.Target,
+			Username: sc.AMQP10.Username,
+			Password: sc.AMQP10.Password,
+			TLS:      sinkAMQP10TLSFromConfig(sc.AMQP10.TLS),
 		})
 	case "sqs":
 		return sinksqs.New(ctx, sinksqs.Options{
