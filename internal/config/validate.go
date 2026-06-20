@@ -49,6 +49,7 @@ var knownSinkDrivers = map[string]struct{}{
 	"postgres":        {},
 	"kafka":           {},
 	"amqp091":         {},
+	"amqp10":          {},
 	"sqs":             {},
 	"sns":             {},
 	"dynamodb":        {},
@@ -562,6 +563,13 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			if s.AMQP091.Declare && strings.TrimSpace(s.AMQP091.Exchange) == "" {
 				return *warnings, fmt.Errorf("sinks[%d] (amqp091 %q): declare=true requires a non-empty exchange (the default exchange cannot be declared)", i, s.Name)
 			}
+		case "amqp10":
+			if strings.TrimSpace(s.AMQP10.URL) == "" {
+				return *warnings, fmt.Errorf("sinks[%d] (amqp10 %q): amqp10.url is required", i, s.Name)
+			}
+			if strings.TrimSpace(s.AMQP10.Target) == "" {
+				return *warnings, fmt.Errorf("sinks[%d] (amqp10 %q): amqp10.target is required", i, s.Name)
+			}
 		case "azureservicebus":
 			a := s.AzureServiceBus
 			hasConn := strings.TrimSpace(a.ConnectionString) != ""
@@ -761,6 +769,8 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			stls = s.Kafka.TLS
 		case "amqp091":
 			stls = s.AMQP091.TLS
+		case "amqp10":
+			stls = s.AMQP10.TLS
 		case "http":
 			stls = s.HTTP.TLS
 		case "nats":

@@ -289,6 +289,7 @@ type SinkConfig struct {
 	Postgres        PostgresSinkConfig        `mapstructure:"postgres"`
 	Kafka           KafkaSinkConfig           `mapstructure:"kafka"`
 	AMQP091         AMQP091SinkConfig         `mapstructure:"amqp091"`
+	AMQP10          AMQP10SinkConfig          `mapstructure:"amqp10"`
 	SQS             SQSSinkConfig             `mapstructure:"sqs"`
 	SNS             SNSSinkConfig             `mapstructure:"sns"`
 	DynamoDB        DynamoDBSinkConfig        `mapstructure:"dynamodb"`
@@ -488,6 +489,15 @@ type AMQP091SinkConfig struct {
 	Durable      bool          `mapstructure:"durable"`
 	Mandatory    bool          `mapstructure:"mandatory"`
 	TLS          SinkTLSConfig `mapstructure:"tls"`
+}
+
+// AMQP10SinkConfig configures the broker-agnostic AMQP 1.0 sink.
+type AMQP10SinkConfig struct {
+	URL      string        `mapstructure:"url"`      // amqp:// or amqps://
+	Target   string        `mapstructure:"target"`   // node/queue/topic address (required)
+	Username string        `mapstructure:"username"` // optional; overrides URL userinfo
+	Password string        `mapstructure:"password"` // optional; overrides URL userinfo
+	TLS      SinkTLSConfig `mapstructure:"tls"`
 }
 
 type PostgresSinkConfig struct {

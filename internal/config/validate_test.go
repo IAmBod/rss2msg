@@ -2157,3 +2157,15 @@ func TestValidate_FeedTrustedProxies(t *testing.T) {
 		}
 	})
 }
+
+func TestValidateAMQP10RequiresURLAndTarget(t *testing.T) {
+	c := goodCfg()
+	c.Sinks = append(c.Sinks, SinkConfig{Name: "bus", Driver: "amqp10"})
+	if _, err := Validate(c); err == nil || !strings.Contains(err.Error(), "amqp10.url") {
+		t.Fatalf("want amqp10.url required error, got %v", err)
+	}
+	c.Sinks[len(c.Sinks)-1].AMQP10 = AMQP10SinkConfig{URL: "amqp://localhost"}
+	if _, err := Validate(c); err == nil || !strings.Contains(err.Error(), "amqp10.target") {
+		t.Fatalf("want amqp10.target required error, got %v", err)
+	}
+}
