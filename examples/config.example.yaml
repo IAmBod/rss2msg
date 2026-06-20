@@ -222,8 +222,8 @@ sinks:
   #     #   partitionKey: feeds
   #   dead_letter: dlq-main
   # - name: rmq-main
-  #   driver: rabbitmq
-  #   rabbitmq:
+  #   driver: amqp091
+  #   amqp091:
   #     url: amqp://guest:guest@rabbit-1:5672/      # or amqps:// for TLS
   #     exchange: feed.changes
   #     exchange_type: topic                        # direct (default) | topic | fanout | headers

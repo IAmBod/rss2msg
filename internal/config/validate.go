@@ -48,7 +48,7 @@ var knownZerologLevels = map[string]struct{}{
 var knownSinkDrivers = map[string]struct{}{
 	"postgres":        {},
 	"kafka":           {},
-	"rabbitmq":        {},
+	"amqp091":         {},
 	"sqs":             {},
 	"sns":             {},
 	"dynamodb":        {},
@@ -550,17 +550,17 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 					return *warnings, fmt.Errorf("sinks[%d] (grpc %q): grpc.metadata key %q is reserved", i, s.Name, k)
 				}
 			}
-		case "rabbitmq":
-			if strings.TrimSpace(s.RabbitMQ.URL) == "" {
-				return *warnings, fmt.Errorf("sinks[%d] (rabbitmq %q): rabbitmq.url is required", i, s.Name)
+		case "amqp091":
+			if strings.TrimSpace(s.AMQP091.URL) == "" {
+				return *warnings, fmt.Errorf("sinks[%d] (amqp091 %q): amqp091.url is required", i, s.Name)
 			}
-			if et := s.RabbitMQ.ExchangeType; et != "" {
+			if et := s.AMQP091.ExchangeType; et != "" {
 				if _, ok := knownRabbitMQExchangeTypes[et]; !ok {
-					return *warnings, fmt.Errorf("sinks[%d] (rabbitmq %q): unknown exchange_type %q (want one of direct, topic, fanout, headers)", i, s.Name, et)
+					return *warnings, fmt.Errorf("sinks[%d] (amqp091 %q): unknown exchange_type %q (want one of direct, topic, fanout, headers)", i, s.Name, et)
 				}
 			}
-			if s.RabbitMQ.Declare && strings.TrimSpace(s.RabbitMQ.Exchange) == "" {
-				return *warnings, fmt.Errorf("sinks[%d] (rabbitmq %q): declare=true requires a non-empty exchange (the default exchange cannot be declared)", i, s.Name)
+			if s.AMQP091.Declare && strings.TrimSpace(s.AMQP091.Exchange) == "" {
+				return *warnings, fmt.Errorf("sinks[%d] (amqp091 %q): declare=true requires a non-empty exchange (the default exchange cannot be declared)", i, s.Name)
 			}
 		case "azureservicebus":
 			a := s.AzureServiceBus
@@ -750,7 +750,7 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 	}
 
-	// Client-TLS blocks (postgres/kafka/rabbitmq/http/nats sinks) require
+	// Client-TLS blocks (postgres/kafka/amqp091/http/nats sinks) require
 	// cert_file and key_file to be set together for mutual-TLS.
 	for i, s := range c.Sinks {
 		var stls SinkTLSConfig
@@ -759,8 +759,8 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			stls = s.Postgres.TLS
 		case "kafka":
 			stls = s.Kafka.TLS
-		case "rabbitmq":
-			stls = s.RabbitMQ.TLS
+		case "amqp091":
+			stls = s.AMQP091.TLS
 		case "http":
 			stls = s.HTTP.TLS
 		case "nats":

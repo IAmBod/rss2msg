@@ -26,7 +26,7 @@ updated: 2026-05-30
 Postgres `payload` is the full envelope — everything else is extractable
 from it; the columns are for indexing and basic SQL filtering.
 
-The [rabbitmq](../how-to/sinks/rabbitmq.md),
+The [amqp091](../how-to/sinks/amqp091.md),
 [azureservicebus](../how-to/sinks/azureservicebus.md),
 [cosmosdb](../how-to/sinks/cosmosdb.md),
 [nats](../how-to/sinks/nats.md),

@@ -77,7 +77,7 @@ func TestTLSFromConfigMapping(t *testing.T) {
 		{"statePG", statePGTLSFromConfig(config.StatePGTLSConfig{}), statePGTLSFromConfig(activeStatePG)},
 		{"sinkPG", sinkPGTLSFromConfig(config.SinkTLSConfig{}), sinkPGTLSFromConfig(activeSinkTLS)},
 		{"sinkKafka", sinkKafkaTLSFromConfig(config.SinkTLSConfig{}), sinkKafkaTLSFromConfig(activeSinkTLS)},
-		{"sinkRabbitMQ", sinkRabbitMQTLSFromConfig(config.SinkTLSConfig{}), sinkRabbitMQTLSFromConfig(activeSinkTLS)},
+		{"sinkAMQP091", sinkAMQP091TLSFromConfig(config.SinkTLSConfig{}), sinkAMQP091TLSFromConfig(activeSinkTLS)},
 		{"sinkNATS", sinkNATSTLSFromConfig(config.SinkTLSConfig{}), sinkNATSTLSFromConfig(activeSinkTLS)},
 		{"sinkHTTP", sinkHTTPTLSFromConfig(config.SinkTLSConfig{}), sinkHTTPTLSFromConfig(activeSinkTLS)},
 		{"sinkGRPC", sinkGRPCTLSFromConfig(config.SinkTLSConfig{}), sinkGRPCTLSFromConfig(activeSinkTLS)},

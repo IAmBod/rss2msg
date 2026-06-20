@@ -13,8 +13,8 @@ state:
 
 sinks:
   - name: default
-    driver: rabbitmq
-    rabbitmq:
+    driver: amqp091
+    amqp091:
       url: amqp://guest:guest@rabbitmq:5672/   # amqps:// for TLS
       exchange: feed.changes
       exchange_type: topic

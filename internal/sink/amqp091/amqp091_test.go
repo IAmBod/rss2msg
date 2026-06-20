@@ -1,6 +1,6 @@
 //go:build integration
 
-package rabbitmq_test
+package amqp091_test
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	tcrabbitmq "github.com/testcontainers/testcontainers-go/modules/rabbitmq"
 
 	"github.com/iambod/rss2msg/internal/model"
-	sinkrabbitmq "github.com/iambod/rss2msg/internal/sink/rabbitmq"
+	sinkamqp091 "github.com/iambod/rss2msg/internal/sink/amqp091"
 )
 
 // setup boots a rabbitmq:3-management-alpine container and returns its
@@ -87,7 +87,7 @@ func TestPublishRoundTripsEnvelopeAndHeaders(t *testing.T) {
 		queue      = "rss2msg.test.q"
 	)
 
-	pub, err := sinkrabbitmq.New(sinkrabbitmq.Options{
+	pub, err := sinkamqp091.New(sinkamqp091.Options{
 		Name:         "rmq-test",
 		URL:          url,
 		Exchange:     exchange,
@@ -163,7 +163,7 @@ func TestPublishDLQHeadersWhenDLQFieldsPopulated(t *testing.T) {
 		queue      = "rss2msg.dlq.test.q"
 	)
 
-	pub, err := sinkrabbitmq.New(sinkrabbitmq.Options{
+	pub, err := sinkamqp091.New(sinkamqp091.Options{
 		Name: "rmq-dlq-test", URL: url, Exchange: exchange, ExchangeType: "direct",
 		RoutingKey: routingKey, Declare: true, Durable: true,
 	})

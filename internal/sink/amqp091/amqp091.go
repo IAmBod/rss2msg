@@ -1,8 +1,8 @@
-// Package rabbitmq implements the sink.Publisher interface against a RabbitMQ
-// broker via amqp091-go. One connection + one channel per Publisher; publishes
-// are serialised with a mutex because AMQP channels are NOT safe for
-// concurrent use.
-package rabbitmq
+// Package amqp091 implements the sink.Publisher interface against an AMQP 0-9-1
+// broker (e.g. RabbitMQ) via amqp091-go. One connection + one channel per
+// Publisher; publishes are serialised with a mutex because AMQP channels are
+// NOT safe for concurrent use.
+package amqp091
 
 import (
 	"context"
@@ -99,56 +99,56 @@ type Publisher struct {
 // and returns a ready Publisher.
 func New(opts Options) (*Publisher, error) {
 	if opts.Name == "" {
-		return nil, fmt.Errorf("rabbitmq sink: name is required")
+		return nil, fmt.Errorf("amqp091 sink: name is required")
 	}
 	if opts.URL == "" {
-		return nil, fmt.Errorf("rabbitmq sink %q: url is required", opts.Name)
+		return nil, fmt.Errorf("amqp091 sink %q: url is required", opts.Name)
 	}
 	exchangeType := opts.ExchangeType
 	if exchangeType == "" {
 		exchangeType = "direct"
 	}
 	if _, ok := validExchangeTypes[exchangeType]; !ok {
-		return nil, fmt.Errorf("rabbitmq sink %q: unknown exchange_type %q", opts.Name, opts.ExchangeType)
+		return nil, fmt.Errorf("amqp091 sink %q: unknown exchange_type %q", opts.Name, opts.ExchangeType)
 	}
 	if opts.Declare && opts.Exchange == "" {
-		return nil, fmt.Errorf("rabbitmq sink %q: declare=true requires a non-empty exchange (the default exchange cannot be declared)", opts.Name)
+		return nil, fmt.Errorf("amqp091 sink %q: declare=true requires a non-empty exchange (the default exchange cannot be declared)", opts.Name)
 	}
 
 	var conn *amqp.Connection
 	if opts.TLS != nil {
 		tc, err := buildTLSConfig(*opts.TLS)
 		if err != nil {
-			return nil, fmt.Errorf("rabbitmq sink %q: build TLS config: %w", opts.Name, err)
+			return nil, fmt.Errorf("amqp091 sink %q: build TLS config: %w", opts.Name, err)
 		}
 		if opts.TLS.InsecureSkipVerify {
 			log.Warn().
 				Str("sink", opts.Name).
-				Str("sink_driver", "rabbitmq").
-				Msg("rabbitmq sink: TLS verification disabled (insecure_skip_verify=true)")
+				Str("sink_driver", "amqp091").
+				Msg("amqp091 sink: TLS verification disabled (insecure_skip_verify=true)")
 		}
 		conn, err = amqp.DialTLS(opts.URL, tc)
 		if err != nil {
-			return nil, fmt.Errorf("rabbitmq sink %q: dial: %w", opts.Name, err)
+			return nil, fmt.Errorf("amqp091 sink %q: dial: %w", opts.Name, err)
 		}
 	} else {
 		var err error
 		conn, err = amqp.Dial(opts.URL)
 		if err != nil {
-			return nil, fmt.Errorf("rabbitmq sink %q: dial: %w", opts.Name, err)
+			return nil, fmt.Errorf("amqp091 sink %q: dial: %w", opts.Name, err)
 		}
 	}
 	ch, err := conn.Channel()
 	if err != nil {
 		_ = conn.Close()
-		return nil, fmt.Errorf("rabbitmq sink %q: channel: %w", opts.Name, err)
+		return nil, fmt.Errorf("amqp091 sink %q: channel: %w", opts.Name, err)
 	}
 
 	if opts.Declare {
 		if err := ch.ExchangeDeclare(opts.Exchange, exchangeType, opts.Durable, false, false, false, nil); err != nil {
 			_ = ch.Close()
 			_ = conn.Close()
-			return nil, fmt.Errorf("rabbitmq sink %q: declare exchange %q: %w", opts.Name, opts.Exchange, err)
+			return nil, fmt.Errorf("amqp091 sink %q: declare exchange %q: %w", opts.Name, opts.Exchange, err)
 		}
 	}
 
@@ -210,7 +210,7 @@ func (p *Publisher) Close() error {
 func (p *Publisher) Publish(ctx context.Context, change model.Change) error {
 	body, err := json.Marshal(change)
 	if err != nil {
-		return fmt.Errorf("rabbitmq sink %q: marshal: %w", p.name, err)
+		return fmt.Errorf("amqp091 sink %q: marshal: %w", p.name, err)
 	}
 
 	headers := amqp.Table{
@@ -247,7 +247,7 @@ func (p *Publisher) Publish(ctx context.Context, change model.Change) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if err := p.ch.PublishWithContext(ctx, p.exchange, p.routingKey, p.mandatory, false, pub); err != nil {
-		return fmt.Errorf("rabbitmq sink %q: publish: %w", p.name, err)
+		return fmt.Errorf("amqp091 sink %q: publish: %w", p.name, err)
 	}
 	return nil
 }

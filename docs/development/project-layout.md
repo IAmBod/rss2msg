@@ -27,7 +27,7 @@ implement, see [How It Works](../explanation/how-it-works.md).
 | [`internal/model`](../../internal/model) | The `Change` envelope — the canonical published message. See [Change Envelope](../reference/change-envelope.md). |
 | [`internal/state`](../../internal/state) | `Store` interface plus `ItemState` / `FeedMeta` types (the `seen_items` + `feed_meta` tables). Backends: `state/postgres`, `state/sqlite`. |
 | [`internal/coord`](../../internal/coord) | `Coordinator` interface that gates polling across instances. Backends: `coord/memory`, `coord/postgres`, `coord/redis`. See [Run Multiple Instances](../how-to/run-multiple-instances.md). |
-| [`internal/sink`](../../internal/sink) | `Publisher` abstraction and the `RetryingPublisher` wrapper. Driver backends: `sink/{postgres,kafka,rabbitmq,sqs,sns,stdout,http}`. See [Choose a Sink](../how-to/choose-a-sink.md). |
+| [`internal/sink`](../../internal/sink) | `Publisher` abstraction and the `RetryingPublisher` wrapper. Driver backends: `sink/{postgres,kafka,amqp091,sqs,sns,stdout,http}`. See [Choose a Sink](../how-to/choose-a-sink.md). |
 | [`internal/retry`](../../internal/retry) | Retry policy (`Config`/`Result`) — exponential backoff with jitter applied per publish. See the `retry` block in [Configuration Reference](../reference/configuration.md). |
 | [`internal/scheduler`](../../internal/scheduler) | Drives execution: `RunOnce` (bounded worker pool) for `run-once`, the per-feed scheduling loop for `serve`, and `ServeDynamic` which reconciles the feed set from `feedsource` (SIGHUP / file-watch reload). |
 | [`internal/telemetry`](../../internal/telemetry) | zerolog + OpenTelemetry setup (`Telemetry`, `Instruments`). See [Telemetry](../reference/telemetry.md). |

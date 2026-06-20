@@ -1,17 +1,17 @@
 ---
-title: RabbitMQ sink
+title: amqp091 sink
 type: how-to
-tags: [rss2msg/docs, sinks, rabbitmq, amqp]
-summary: Publish Changes to an AMQP exchange; routing, declaration, and connection caveats.
-updated: 2026-05-30
+tags: [rss2msg/docs, sinks, amqp091, amqp]
+summary: Publish Changes to an AMQP 0-9-1 exchange (e.g. RabbitMQ); routing, declaration, and connection caveats.
+updated: 2026-06-20
 ---
 
-# RabbitMQ sink
+# amqp091 sink
 
 ```yaml
 - name: rmq-main
-  driver: rabbitmq
-  rabbitmq:
+  driver: amqp091
+  amqp091:
     url: amqp://guest:guest@rabbit-1:5672/      # or amqps://... for TLS
     exchange: feed.changes
     exchange_type: topic          # direct (default) | topic | fanout | headers

@@ -288,7 +288,7 @@ type SinkConfig struct {
 	DeadLetter      string                    `mapstructure:"dead_letter"`
 	Postgres        PostgresSinkConfig        `mapstructure:"postgres"`
 	Kafka           KafkaSinkConfig           `mapstructure:"kafka"`
-	RabbitMQ        RabbitMQSinkConfig        `mapstructure:"rabbitmq"`
+	AMQP091         AMQP091SinkConfig         `mapstructure:"amqp091"`
 	SQS             SQSSinkConfig             `mapstructure:"sqs"`
 	SNS             SNSSinkConfig             `mapstructure:"sns"`
 	DynamoDB        DynamoDBSinkConfig        `mapstructure:"dynamodb"`
@@ -326,7 +326,7 @@ type HTTPSinkConfig struct {
 }
 
 // SinkTLSConfig is the canonical client-TLS surface shared by the postgres,
-// kafka, rabbitmq, and http sinks. It mirrors the coordinator / state-store TLS
+// kafka, amqp091, and http sinks. It mirrors the coordinator / state-store TLS
 // options. The block is "active" when Enabled is true or any field is set.
 type SinkTLSConfig struct {
 	// Enabled forces TLS even when no custom files are given (system roots).
@@ -479,7 +479,7 @@ type StdoutSinkConfig struct {
 	Format string `mapstructure:"format"` // json (default) | pretty
 }
 
-type RabbitMQSinkConfig struct {
+type AMQP091SinkConfig struct {
 	URL          string        `mapstructure:"url"`
 	Exchange     string        `mapstructure:"exchange"`
 	ExchangeType string        `mapstructure:"exchange_type"` // direct (default) | topic | fanout | headers
