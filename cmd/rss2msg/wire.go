@@ -16,6 +16,7 @@ import (
 	"github.com/iambod/rss2msg/internal/retry"
 	"github.com/iambod/rss2msg/internal/scheduler"
 	"github.com/iambod/rss2msg/internal/sink"
+	sinkamqp091 "github.com/iambod/rss2msg/internal/sink/amqp091"
 	sinkasb "github.com/iambod/rss2msg/internal/sink/azureservicebus"
 	compositesink "github.com/iambod/rss2msg/internal/sink/composite"
 	sinkcosmos "github.com/iambod/rss2msg/internal/sink/cosmosdb"
@@ -29,7 +30,6 @@ import (
 	sinkschema "github.com/iambod/rss2msg/internal/sink/kafka/schema"
 	sinknats "github.com/iambod/rss2msg/internal/sink/nats"
 	sinkpg "github.com/iambod/rss2msg/internal/sink/postgres"
-	sinkrabbitmq "github.com/iambod/rss2msg/internal/sink/rabbitmq"
 	sinksns "github.com/iambod/rss2msg/internal/sink/sns"
 	sinksqs "github.com/iambod/rss2msg/internal/sink/sqs"
 	sinkstdout "github.com/iambod/rss2msg/internal/sink/stdout"
@@ -341,13 +341,13 @@ func schemaRegistryTLSFromConfig(t config.SinkTLSConfig) *sinkschema.TLSOptions 
 	}
 }
 
-// sinkRabbitMQTLSFromConfig maps the canonical sink TLS block to the rabbitmq
+// sinkAMQP091TLSFromConfig maps the canonical sink TLS block to the amqp091
 // sink's TLS options, returning nil when the block is inactive.
-func sinkRabbitMQTLSFromConfig(t config.SinkTLSConfig) *sinkrabbitmq.TLSOptions {
+func sinkAMQP091TLSFromConfig(t config.SinkTLSConfig) *sinkamqp091.TLSOptions {
 	if !t.Active() {
 		return nil
 	}
-	return &sinkrabbitmq.TLSOptions{
+	return &sinkamqp091.TLSOptions{
 		CAFile:             t.CAFile,
 		CertFile:           t.CertFile,
 		KeyFile:            t.KeyFile,
@@ -536,17 +536,17 @@ func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Te
 			Metadata:  sc.GRPC.Metadata,
 			TLS:       sinkGRPCTLSFromConfig(sc.GRPC.TLS),
 		})
-	case "rabbitmq":
-		return sinkrabbitmq.New(sinkrabbitmq.Options{
+	case "amqp091":
+		return sinkamqp091.New(sinkamqp091.Options{
 			Name:         sc.Name,
-			URL:          sc.RabbitMQ.URL,
-			Exchange:     sc.RabbitMQ.Exchange,
-			ExchangeType: sc.RabbitMQ.ExchangeType,
-			RoutingKey:   sc.RabbitMQ.RoutingKey,
-			Declare:      sc.RabbitMQ.Declare,
-			Durable:      sc.RabbitMQ.Durable,
-			Mandatory:    sc.RabbitMQ.Mandatory,
-			TLS:          sinkRabbitMQTLSFromConfig(sc.RabbitMQ.TLS),
+			URL:          sc.AMQP091.URL,
+			Exchange:     sc.AMQP091.Exchange,
+			ExchangeType: sc.AMQP091.ExchangeType,
+			RoutingKey:   sc.AMQP091.RoutingKey,
+			Declare:      sc.AMQP091.Declare,
+			Durable:      sc.AMQP091.Durable,
+			Mandatory:    sc.AMQP091.Mandatory,
+			TLS:          sinkAMQP091TLSFromConfig(sc.AMQP091.TLS),
 		})
 	case "sqs":
 		return sinksqs.New(ctx, sinksqs.Options{

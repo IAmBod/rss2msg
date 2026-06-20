@@ -17,7 +17,7 @@ Common fields on every sink:
 | field         | required | notes |
 | ------------- | -------- | ----- |
 | `name`        | yes      | Unique per config. Referenced by `feeds[].sinks` and `dead_letter`. |
-| `driver`      | yes      | One of `postgres`, `kafka`, `rabbitmq`, `nats`, `sqs`, `sns`, `dynamodb`, `gcp_pubsub`, `azureservicebus`, `cosmosdb`, `dapr_pubsub`, `stdout`, `http`, `grpc`, `feed`, `composite`. |
+| `driver`      | yes      | One of `postgres`, `kafka`, `amqp091`, `nats`, `sqs`, `sns`, `dynamodb`, `gcp_pubsub`, `azureservicebus`, `cosmosdb`, `dapr_pubsub`, `stdout`, `http`, `grpc`, `feed`, `composite`. |
 | `dead_letter` | no       | Name of another declared sink. On retry exhaustion the change is delivered there once, with `dlq_from_sink`, `dlq_error`, and `dlq_attempts` annotations. A sink cannot be its own DLQ. |
 
 ## Drivers
@@ -30,7 +30,7 @@ Common fields on every sink:
 | sns       | AWS pub/sub fan-out, optional FIFO                                                       | [sns](sinks/sns.md)             |
 | dynamodb  | AWS key-value datastore; idempotent upsert change-log, consume via Streams/polling      | [dynamodb](sinks/dynamodb.md)   |
 | gcp_pubsub | GCP-native pub/sub, optional ordered delivery                                           | [gcp_pubsub](sinks/gcp-pubsub.md) |
-| rabbitmq  | AMQP routing (topic/direct/fanout)                                                       | [rabbitmq](sinks/rabbitmq.md)   |
+| amqp091   | AMQP routing (topic/direct/fanout)                                                       | [amqp091](sinks/amqp091.md)    |
 | nats      | NATS subjects; core fire-and-forget or JetStream persisted+acked                         | [nats](sinks/nats.md)           |
 | azureservicebus | Azure queue/topic, SAS or Azure AD auth                                            | [azureservicebus](sinks/azureservicebus.md) |
 | cosmosdb  | Azure Cosmos DB (NoSQL) document store, idempotent on item id, key or Azure AD auth      | [cosmosdb](sinks/cosmosdb.md)   |

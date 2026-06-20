@@ -953,13 +953,13 @@ func TestValidateRejectsStdoutSinkUnknownFormat(t *testing.T) {
 	}
 }
 
-func TestValidateAcceptsRabbitMQSink(t *testing.T) {
+func TestValidateAcceptsAMQP091Sink(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()
 	c.Sinks = append(c.Sinks, SinkConfig{
 		Name:   "rmq-x",
-		Driver: "rabbitmq",
-		RabbitMQ: RabbitMQSinkConfig{
+		Driver: "amqp091",
+		AMQP091: AMQP091SinkConfig{
 			URL:          "amqp://guest:guest@localhost:5672/",
 			Exchange:     "feed.changes",
 			ExchangeType: "topic",
@@ -973,23 +973,23 @@ func TestValidateAcceptsRabbitMQSink(t *testing.T) {
 	}
 }
 
-func TestValidateRejectsRabbitMQWithoutURL(t *testing.T) {
+func TestValidateRejectsAMQP091WithoutURL(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()
-	c.Sinks = append(c.Sinks, SinkConfig{Name: "rmq-x", Driver: "rabbitmq"})
+	c.Sinks = append(c.Sinks, SinkConfig{Name: "rmq-x", Driver: "amqp091"})
 	_, err := Validate(c)
-	if err == nil || !strings.Contains(err.Error(), "rabbitmq.url") {
+	if err == nil || !strings.Contains(err.Error(), "amqp091.url") {
 		t.Fatalf("got %v", err)
 	}
 }
 
-func TestValidateRejectsRabbitMQUnknownExchangeType(t *testing.T) {
+func TestValidateRejectsAMQP091UnknownExchangeType(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()
 	c.Sinks = append(c.Sinks, SinkConfig{
 		Name:   "rmq-x",
-		Driver: "rabbitmq",
-		RabbitMQ: RabbitMQSinkConfig{
+		Driver: "amqp091",
+		AMQP091: AMQP091SinkConfig{
 			URL:          "amqp://localhost",
 			ExchangeType: "broadcast",
 		},
@@ -1000,13 +1000,13 @@ func TestValidateRejectsRabbitMQUnknownExchangeType(t *testing.T) {
 	}
 }
 
-func TestValidateRejectsRabbitMQDeclareWithoutExchange(t *testing.T) {
+func TestValidateRejectsAMQP091DeclareWithoutExchange(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()
 	c.Sinks = append(c.Sinks, SinkConfig{
 		Name:   "rmq-x",
-		Driver: "rabbitmq",
-		RabbitMQ: RabbitMQSinkConfig{
+		Driver: "amqp091",
+		AMQP091: AMQP091SinkConfig{
 			URL:     "amqp://localhost",
 			Declare: true,
 		},
@@ -1017,13 +1017,13 @@ func TestValidateRejectsRabbitMQDeclareWithoutExchange(t *testing.T) {
 	}
 }
 
-func TestValidateAcceptsRabbitMQWithoutOptionalFields(t *testing.T) {
+func TestValidateAcceptsAMQP091WithoutOptionalFields(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()
 	c.Sinks = append(c.Sinks, SinkConfig{
 		Name:   "rmq-x",
-		Driver: "rabbitmq",
-		RabbitMQ: RabbitMQSinkConfig{
+		Driver: "amqp091",
+		AMQP091: AMQP091SinkConfig{
 			URL:        "amqp://localhost",
 			RoutingKey: "rss2msg",
 		},

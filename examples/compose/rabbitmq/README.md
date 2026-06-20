@@ -1,7 +1,7 @@
 # RabbitMQ / AMQP integration
 
 rss2msg publishing to **RabbitMQ** through the
-[`rabbitmq` sink](../../../docs/how-to/sinks/rabbitmq.md) (AMQP 0-9-1). Messages are
+[`amqp091` sink](../../../docs/how-to/sinks/amqp091.md) (AMQP 0-9-1). Messages are
 routed to a topic exchange; a queue is pre-bound to that exchange so you can watch them
 accumulate in the management UI.
 
@@ -28,7 +28,7 @@ Tear down with `docker compose down -v`.
   exchange, the `feed.changes.q` queue, and a binding between them. Without a bound
   queue, messages published to an exchange are dropped — the binding is what makes the
   output observable.
-- **`rss2msg`** — `rabbitmq` sink at `amqp://guest:guest@rabbitmq:5672/`, declaring the
+- **`rss2msg`** — `amqp091` sink at `amqp://guest:guest@rabbitmq:5672/`, declaring the
   durable exchange at startup. See [`config.yaml`](config.yaml).
 
 ## Try changing it
