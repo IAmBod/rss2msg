@@ -66,7 +66,8 @@ Self-URLs become **per-request**. Base URL is chosen in this order:
 Then `self = base + [prefix] + surface.path`.
 
 - **Headers parsed** (only from a trusted peer):
-  - `Forwarded` (RFC 7239: `proto=`, `host=`, `for=`).
+  - `Forwarded` (RFC 7239: `proto=`, `host=`). The `for=` parameter is **not**
+    consumed — client-IP recovery uses `X-Forwarded-For` only (see §4).
   - `X-Forwarded-Proto`, `X-Forwarded-Host`, `X-Forwarded-Prefix`,
     `X-Forwarded-For`.
   - When both `Forwarded` and an `X-Forwarded-*` header carry the same field,
@@ -99,13 +100,17 @@ the current behavior.
 
 ### 4. Real client IP
 
-- Derive by walking the `X-Forwarded-For` (or `Forwarded for=`) chain
-  **right-to-left, skipping addresses in the trusted set**; the first untrusted
-  address is the real client. Fallbacks: if every hop is trusted, use the
-  left-most entry; if no forwarding header (or untrusted peer), use
-  `RemoteAddr`.
-- Surfaced into: request context, access-log lines, and the auth audit/metric
-  attributes added in issue #131.
+- Derive by walking the `X-Forwarded-For` chain **right-to-left, skipping
+  addresses in the trusted set**; the first untrusted address is the real
+  client. Fallbacks: if every hop is trusted, use the left-most entry; if no
+  forwarding header (or untrusted peer), use `RemoteAddr`. The RFC 7239
+  `Forwarded` header's `for=` parameter is intentionally **not** parsed for
+  client IP — only the de-facto `X-Forwarded-For` is. (Documented in
+  `docs/how-to/sinks/feed.md`.)
+- Surfaced into the **auth-failure log line only** — never a metric attribute.
+  Client IP is high-cardinality, so adding it as a metric label would explode
+  the time-series cardinality; the auth-failure/auth-success metric attributes
+  added in issue #131 stay `surface` + `reason`/`credential` only.
 - **No IP-based authorization** is added — client IP is for correct
   logging/attribution only.
 
@@ -116,22 +121,21 @@ the current behavior.
 - Add `TrustedProxies []string` to `FeedSinkConfig` (`internal/config/config.go`),
   `mapstructure:"trusted_proxies"`.
 - Validate entries at config load (CIDR / preset parsing).
-- Update **both** `internal/config/example.yaml` **and**
-  `examples/config.example.yaml` — they must stay byte-identical (drift-guard
-  test).
+- Document the key in `docs/how-to/sinks/feed.md`. Note: the example YAML files
+  (`internal/config/example.yaml` / `examples/config.example.yaml`) contain no
+  feed-sink section, so there is nothing to extend there; the drift-guard test
+  still passes unchanged.
 
 ### Files touched
 
 | File | Change |
 | --- | --- |
 | `internal/sink/feed/proxy.go` *(new)* | Trust set, header parsing, client-IP walk, base-URL derivation — pure and unit-testable. |
-| `internal/sink/feed/server.go` | Per-request: derive base URL, inject self-link, set client IP in context/logs. |
+| `internal/sink/feed/server.go` | Per-request: derive base URL, inject self-link, recompute ETag over the injected body, and log the real client IP on auth failure (log line only, never a metric attribute). |
 | `internal/sink/feed/render.go` | Cache body without self-link; per-request injection helper (Atom + RSS). |
-| `internal/sink/feed/feed.go` | Stop baking `SelfRSS`/`SelfAtom` at init (or keep only as the static fallback base). |
-| `internal/sink/feed/auth.go` / metrics | Include client IP in auth audit/metric attributes. |
+| `internal/sink/feed/feed.go` | Stop baking `SelfRSS`/`SelfAtom` at init; build `proxyConfig` and pass it (plus the logger) into the handler. |
 | `internal/config/config.go` | `TrustedProxies` field. |
-| `internal/config/validation*` | Validate `trusted_proxies` entries. |
-| `internal/config/example.yaml`, `examples/config.example.yaml` | Document the key (both, identical). |
+| `internal/config/validate.go` | Validate `trusted_proxies` entries (`validateTrustedProxyEntry`), kept in lockstep with the runtime `parseTrustedProxies`. |
 | `cmd/rss2msg/wire.go` | Pass `trusted_proxies` into the publisher options. |
 | `docs/how-to/sinks/feed.md` | Rewrite the "TLS vs reverse proxy" section. |
 
