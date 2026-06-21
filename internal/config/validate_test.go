@@ -2215,3 +2215,57 @@ func TestValidateAllowsZeroPerFeedRetry(t *testing.T) {
 		t.Fatalf("zero per-feed retry should inherit, got error: %v", err)
 	}
 }
+
+func TestAssignmentValidation(t *testing.T) {
+	base := func() Config {
+		c := Defaults()
+		c.Coordination.Driver = "redis"
+		c.Coordination.Redis.URL = "redis://localhost:6379"
+		c.State.Driver = "postgres"
+		c.State.Postgres.DSN = "postgres://x"
+		c.Coordination.Assignment = CoordinationAssignmentConfig{
+			Enabled: true, Strategy: "rendezvous",
+			HeartbeatInterval: 10 * time.Second, MemberTTL: 30 * time.Second, RebalanceGrace: 5 * time.Second,
+		}
+		c.Sinks = []SinkConfig{{Name: "s", Driver: "stdout"}}
+		c.Feeds = []FeedConfig{{URL: "https://e/a", Interval: time.Minute, Sinks: []string{"s"}}}
+		return c
+	}
+
+	t.Run("valid passes", func(t *testing.T) {
+		if _, err := Validate(base()); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("member_ttl must exceed heartbeat_interval", func(t *testing.T) {
+		c := base()
+		c.Coordination.Assignment.MemberTTL = 10 * time.Second
+		c.Coordination.Assignment.HeartbeatInterval = 10 * time.Second
+		if _, err := Validate(c); err == nil {
+			t.Fatal("expected error when member_ttl <= heartbeat_interval")
+		}
+	})
+
+	t.Run("unknown strategy rejected", func(t *testing.T) {
+		c := base()
+		c.Coordination.Assignment.Strategy = "magic"
+		if _, err := Validate(c); err == nil {
+			t.Fatal("expected error for unknown strategy")
+		}
+	})
+
+	t.Run("enabled with memory driver warns not errors", func(t *testing.T) {
+		c := base()
+		c.Coordination.Driver = "memory"
+		c.Coordination.Redis = CoordinationRedisConfig{}
+		warns, err := Validate(c)
+		if err != nil {
+			t.Fatalf("memory+assignment should warn, not error: %v", err)
+		}
+		joined := strings.Join(warns, "\n")
+		if !strings.Contains(joined, "assignment") {
+			t.Fatalf("expected an assignment warning, got %v", warns)
+		}
+	})
+}

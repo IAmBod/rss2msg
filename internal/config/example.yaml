@@ -119,6 +119,15 @@ coordination:
   #     key_file:  /etc/ssl/redis-client.key
   #     server_name: redis.internal             # SNI / cert-verify hostname override
   #     insecure_skip_verify: false             # true = disable cert verification (test only)
+  # assignment: membership + rendezvous-hash partitioning so each feed is polled
+  # by exactly one instance. Default off (every instance polls every feed, the
+  # per-tick lease decides). Requires a distributed driver to have any effect.
+  assignment:
+    enabled: false
+    strategy: rendezvous      # only "rendezvous" is supported today
+    heartbeat_interval: 10s
+    member_ttl: 30s           # must exceed heartbeat_interval; dead members expire after this
+    rebalance_grace: 5s
 
 state:
   driver: sqlite   # postgres | sqlite | dynamodb

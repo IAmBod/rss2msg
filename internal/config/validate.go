@@ -312,6 +312,29 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 	}
 
+	if a := c.Coordination.Assignment; a.Enabled {
+		if a.Strategy != "" && a.Strategy != "rendezvous" {
+			return *warnings, fmt.Errorf("coordination.assignment.strategy %q is not supported (only \"rendezvous\")", a.Strategy)
+		}
+		if a.HeartbeatInterval < 0 || a.MemberTTL < 0 || a.RebalanceGrace < 0 {
+			return *warnings, fmt.Errorf("coordination.assignment durations must be non-negative")
+		}
+		hb := a.HeartbeatInterval
+		if hb == 0 {
+			hb = 10 * time.Second
+		}
+		ttl := a.MemberTTL
+		if ttl == 0 {
+			ttl = 30 * time.Second
+		}
+		if ttl <= hb {
+			return *warnings, fmt.Errorf("coordination.assignment.member_ttl (%s) must exceed heartbeat_interval (%s)", ttl, hb)
+		}
+		if c.Coordination.Driver == "" || c.Coordination.Driver == "memory" {
+			*warnings = append(*warnings, "coordination.assignment.enabled has no effect with the memory coordinator (single instance); use redis/postgres/dynamodb/cosmosdb for multi-instance assignment")
+		}
+	}
+
 	if c.Runtime.DeliverTimeout < 0 {
 		return *warnings, fmt.Errorf("runtime.deliver_timeout %v must not be negative (0 disables it)", c.Runtime.DeliverTimeout)
 	}
