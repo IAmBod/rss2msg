@@ -237,6 +237,26 @@ In both directions, momentary **overlap** (two owners briefly) is made safe by
 the per-tick guard, and momentary **gaps** (no owner briefly) cost only a delayed
 poll. See "Guard model" below.
 
+**Feed-set change — feeds added/removed/edited (membership unchanged):** the
+inner `feedsource.Aggregator` (SIGHUP reload, HTTP/K8s sources, config reload)
+signals `Changes()`, which `OwnerProvider` merges and forwards, so the same
+reconcile path runs. `Desired()` re-filters the *new* feed set through HRW:
+
+- **Added feed** hashes deterministically to exactly one current member — every
+  instance agrees on the owner, so precisely one starts its ticker; no race.
+- **Removed feed** drops out of every `Desired()`; its owner stops the ticker.
+- **Edited feed** (same URL) keeps its owner — HRW keys on the **URL**, so
+  ownership does not move on a config change; the owner restarts the ticker with
+  the new config (existing `reflect.DeepEqual` reconcile), non-owners unaffected.
+
+Because HRW keys on URL alone, feed-set churn and membership churn are
+**orthogonal**: adding/removing feed X never disturbs the ownership of feed Y,
+and a feed-set change with stable membership migrates **nothing** between
+instances — only the touched feeds change, each handled by its unchanged owner. A
+URL change is a remove + add. `ServeDynamic`'s atomic-reload semantics
+(pre-build all, abort on any build failure) still hold, now scoped to this
+instance's owned subset.
+
 ### More instances than feeds (N > M)
 
 HRW assigns each feed independently to exactly one live member, so **every feed
