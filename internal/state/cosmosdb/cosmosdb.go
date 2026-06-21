@@ -259,6 +259,13 @@ func (s *Store) UpsertItem(ctx context.Context, feedURL, itemID, hash string, se
 	return nil
 }
 
+// PruneItemsBefore is a no-op for Cosmos DB: old item rows are pruned by the
+// service from the write-time `ttl` property (see ItemTTL), so the application
+// never scans or deletes. It always returns (0, nil) to satisfy state.Store.
+func (s *Store) PruneItemsBefore(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
+}
+
 // buildItemDoc renders a seen-item row. It is a pure method (apart from the TTL
 // clock) so the wire layout can be unit-tested.
 func (s *Store) buildItemDoc(feedURL, itemID, hash string, seenAt time.Time) itemDoc {

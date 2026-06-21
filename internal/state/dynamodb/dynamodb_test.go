@@ -100,3 +100,11 @@ func TestTimeAttr(t *testing.T) {
 		t.Fatal("expected error for unparseable time")
 	}
 }
+
+func TestPruneItemsBeforeIsNoOp(t *testing.T) {
+	s := &Store{} // no client needed; method must not touch it
+	n, err := s.PruneItemsBefore(context.Background(), time.Now())
+	if err != nil || n != 0 {
+		t.Fatalf("got (%d, %v), want (0, nil)", n, err)
+	}
+}

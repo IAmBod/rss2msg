@@ -176,6 +176,13 @@ func (s *Store) UpsertItem(ctx context.Context, feedURL, itemID, hash string, se
 	return nil
 }
 
+// PruneItemsBefore is a no-op for DynamoDB: old item rows are pruned by the
+// service from the write-time TTL attribute (see ItemTTL), so the application
+// never scans or deletes. It always returns (0, nil) to satisfy state.Store.
+func (s *Store) PruneItemsBefore(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
+}
+
 func (s *Store) GetFeedMeta(ctx context.Context, feedURL string) (state.FeedMeta, bool, error) {
 	out, err := s.client.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName:      aws.String(s.table),
