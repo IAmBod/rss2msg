@@ -2344,13 +2344,14 @@ func TestValidateShortItemTTLWarns(t *testing.T) {
 	}
 }
 
-func TestValidateDynamoTTLRequiresAttribute(t *testing.T) {
+func TestValidateNegativeCleanupInterval(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()
-	c.State.Driver = "dynamodb"
-	c.State.DynamoDB.Table = "t"
-	c.State.ItemTTL = 720 * time.Hour // set but no ttl_attribute
+	c.State.Driver = "sqlite"
+	c.State.SQLite.Path = "x.db"
+	c.State.ItemTTL = 720 * time.Hour
+	c.State.SQLite.CleanupInterval = -1
 	if _, err := Validate(c); err == nil {
-		t.Fatal("expected error: dynamodb item_ttl set without ttl_attribute")
+		t.Fatal("expected error for negative state.sqlite.cleanup_interval")
 	}
 }
