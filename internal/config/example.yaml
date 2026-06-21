@@ -73,6 +73,13 @@ runtime:
   # wedged sink can't stall a feed's poll loop. 0 (or omitted) disables it.
   deliver_timeout: 0s
 
+heartbeat:
+  # Opt-in liveness signal. When enabled, emit one info log line every interval
+  # ("heartbeat: service alive") for as long as the service runs, so a
+  # quiet-but-healthy daemon still produces an alertable signal in the logs.
+  enabled: false
+  interval: 1m
+
 health:
   enabled: true
   listen: ":8080"               # probe listener address

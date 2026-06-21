@@ -175,4 +175,7 @@ func TestDefaults(t *testing.T) {
 	if d.Runtime.ShutdownDrainTimeout != 30*time.Second {
 		t.Fatalf("bad shutdown default: %v", d.Runtime.ShutdownDrainTimeout)
 	}
+	if d.Heartbeat.Enabled || d.Heartbeat.Interval != time.Minute {
+		t.Fatalf("bad heartbeat defaults: %+v", d.Heartbeat)
+	}
 }

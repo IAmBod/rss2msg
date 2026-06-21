@@ -84,6 +84,8 @@ func applyDefaults(v *viper.Viper, d Config) {
 	v.SetDefault("retry.max_delay", d.Retry.MaxDelay)
 	v.SetDefault("runtime.shutdown_drain_timeout", d.Runtime.ShutdownDrainTimeout)
 	v.SetDefault("runtime.run_once_concurrency", d.Runtime.RunOnceConcurrency)
+	v.SetDefault("heartbeat.enabled", d.Heartbeat.Enabled)
+	v.SetDefault("heartbeat.interval", d.Heartbeat.Interval)
 	v.SetDefault("coordination.driver", d.Coordination.Driver)
 	v.SetDefault("coordination.assignment.enabled", d.Coordination.Assignment.Enabled)
 	v.SetDefault("coordination.assignment.strategy", d.Coordination.Assignment.Strategy)

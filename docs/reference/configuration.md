@@ -43,6 +43,7 @@ telemetry:     # zerolog + OTEL traces/metrics
 http:          # global HTTP defaults for feed fetching
 retry:         # sink retry policy
 runtime:       # shutdown + run-once concurrency
+heartbeat:     # opt-in liveness log line (serve)
 health:        # Kubernetes-style probe endpoints (serve)
 state:         # seen-item store (required)
 coordination:  # multi-instance gating (optional)
@@ -284,6 +285,25 @@ poll and re-detected on the next.
 | `shutdown_drain_timeout` | `30s`   | `serve` waits this long for in-flight publishes to finish on SIGINT/SIGTERM before forcing exit. |
 | `run_once_concurrency`   | `0`     | Bounded worker pool for `run-once`. `0` means "one per feed" (no pool). |
 | `deliver_timeout`        | `0s`    | Bounds a single sink delivery — all retry attempts plus the DLQ handoff — so one wedged sink can't stall a feed's poll loop. `0` (or omitted) disables it; a positive value (e.g. `60s`) caps each delivery. |
+
+## `heartbeat`
+
+An opt-in liveness signal for the `serve` daemon. When enabled, the service
+emits one info log line (`heartbeat: service alive`, with `component=heartbeat`)
+every `interval` for as long as it runs — so a quiet-but-healthy daemon that
+isn't logging feed changes still produces a steady, alertable signal in the logs.
+The first line is emitted after one full interval, not immediately on start.
+
+```yaml
+heartbeat:
+  enabled: false
+  interval: 1m
+```
+
+| field      | default | notes |
+| ---------- | ------- | ----- |
+| `enabled`  | `false` | `true` starts the heartbeat goroutine under `serve`. No heartbeat is emitted under `run-once`. |
+| `interval` | `1m`    | How often to emit the liveness line. Must be positive when `enabled: true`. |
 
 ## `health`
 

@@ -8,6 +8,7 @@ type Config struct {
 	HTTP         HTTPConfig         `mapstructure:"http"`
 	Retry        RetryConfig        `mapstructure:"retry"`
 	Runtime      RuntimeConfig      `mapstructure:"runtime"`
+	Heartbeat    HeartbeatConfig    `mapstructure:"heartbeat"`
 	Coordination CoordinationConfig `mapstructure:"coordination"`
 	State        StateConfig        `mapstructure:"state"`
 	Health       HealthConfig       `mapstructure:"health"`
@@ -135,6 +136,14 @@ type RuntimeConfig struct {
 	// DeliverTimeout bounds a single sink delivery (all retry attempts plus the
 	// DLQ handoff) so one wedged sink can't stall a feed's poll loop. 0 = off.
 	DeliverTimeout time.Duration `mapstructure:"deliver_timeout"`
+}
+
+// HeartbeatConfig controls the opt-in liveness heartbeat: when enabled, the
+// service emits a single Info log line every Interval for as long as it runs,
+// so a quiet-but-healthy service still produces an alertable signal.
+type HeartbeatConfig struct {
+	Enabled  bool          `mapstructure:"enabled"`
+	Interval time.Duration `mapstructure:"interval"`
 }
 
 type CoordinationConfig struct {
@@ -766,9 +775,10 @@ func Defaults() Config {
 				Metrics: CloudWatchMetricsConfig{Namespace: "rss2msg", Interval: 60 * time.Second},
 			},
 		},
-		HTTP:    HTTPConfig{UserAgent: "rss2msg/0.1", Timeout: 30 * time.Second, Retry: RetryConfig{MaxAttempts: 3, BaseDelay: 500 * time.Millisecond, MaxDelay: 10 * time.Second}},
-		Retry:   RetryConfig{MaxAttempts: 3, BaseDelay: 500 * time.Millisecond, MaxDelay: 10 * time.Second},
-		Runtime: RuntimeConfig{ShutdownDrainTimeout: 30 * time.Second, RunOnceConcurrency: 0},
+		HTTP:      HTTPConfig{UserAgent: "rss2msg/0.1", Timeout: 30 * time.Second, Retry: RetryConfig{MaxAttempts: 3, BaseDelay: 500 * time.Millisecond, MaxDelay: 10 * time.Second}},
+		Retry:     RetryConfig{MaxAttempts: 3, BaseDelay: 500 * time.Millisecond, MaxDelay: 10 * time.Second},
+		Runtime:   RuntimeConfig{ShutdownDrainTimeout: 30 * time.Second, RunOnceConcurrency: 0},
+		Heartbeat: HeartbeatConfig{Enabled: false, Interval: time.Minute},
 		Coordination: CoordinationConfig{
 			Driver: "memory",
 			Assignment: CoordinationAssignmentConfig{
