@@ -247,10 +247,20 @@ needs the `cloudwatch:PutMetricData` IAM permission.
 Global HTTP defaults for feed fetching. Each feed can override these under
 `feeds[].http`.
 
-| field        | default                | notes                                   |
-| ------------ | ---------------------- | --------------------------------------- |
-| `user_agent` | `rss2msg/0.1`          | Sent as the `User-Agent` header. Override to identify your deployment. |
-| `timeout`    | `30s`                  | Per-request timeout. |
+| field                  | default       | notes |
+| ---------------------- | ------------- | ----- |
+| `user_agent`           | `rss2msg/0.1` | Sent as the `User-Agent` header. Override to identify your deployment. |
+| `timeout`              | `30s`         | Per-request timeout. |
+| `retry.max_attempts`   | `3`           | Total fetch tries within one poll tick (including the first). `1` disables retry. |
+| `retry.base_delay`     | `500ms`       | Initial backoff between fetch attempts (exponential, full jitter). |
+| `retry.max_delay`      | `10s`         | Cap on the fetch backoff delay. |
+
+`http.retry` retries a **feed fetch** within the same poll tick on transient
+errors only — network/connection failures, request timeouts, HTTP `5xx`, and
+`429`. Permanent failures (HTTP `4xx` other than `429`, and feed parse errors)
+are not retried. Each feed can override any field under `feeds[].http.retry`;
+omitted fields inherit the global value (`0` means "inherit"). This is distinct
+from the [`retry`](#retry) block below, which governs **sink delivery**.
 
 ## `retry`
 
