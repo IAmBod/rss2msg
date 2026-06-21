@@ -249,9 +249,10 @@ func openCoordinator(ctx context.Context, cc config.CoordinationConfig, sc confi
 			return nil, fmt.Errorf("coordination postgres: no dsn (and no state.postgres.dsn fallback)")
 		}
 		return coordpg.New(ctx, coordpg.Options{
-			DSN:      dsn,
-			MinConns: feedCount,
-			TLS:      coordPGTLSFromConfig(cc.Postgres.TLS),
+			DSN:       dsn,
+			MinConns:  feedCount,
+			TLS:       coordPGTLSFromConfig(cc.Postgres.TLS),
+			MemberTTL: cc.Assignment.MemberTTL,
 		})
 	case "redis":
 		return coordredis.New(ctx, redisCoordOptions(cc))
