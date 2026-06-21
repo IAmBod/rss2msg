@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -41,6 +42,17 @@ type sinkBranch struct {
 
 func (p *pipeline) FeedURL() string { return p.cfg.URL }
 
+// pollErrEvent picks the log level for a poll-path error. A context.Canceled is
+// the expected teardown of a poll whose feed was deregistered by a rebalance (or
+// the daemon draining), so it logs at debug; everything else (timeouts, HTTP
+// failures, store errors) is a real failure and logs at error.
+func pollErrEvent(log zerolog.Logger, err error) *zerolog.Event {
+	if errors.Is(err, context.Canceled) {
+		return log.Debug()
+	}
+	return log.Error()
+}
+
 func (p *pipeline) RunOnce(ctx context.Context, feedURL string, at time.Time) ([]model.Change, error) {
 	ctx, span := p.tracer.Start(ctx, "feed.poll", trace.WithAttributes(attribute.String("feed_url", feedURL)))
 	defer span.End()
@@ -69,7 +81,7 @@ func (p *pipeline) RunOnce(ctx context.Context, feedURL string, at time.Time) ([
 
 	meta, _, err := p.store.GetFeedMeta(ctx, feedURL)
 	if err != nil {
-		log.Error().Err(err).Msg("read feed meta")
+		pollErrEvent(log, err).Err(err).Msg("read feed meta")
 		return nil, err
 	}
 
@@ -95,7 +107,7 @@ func (p *pipeline) RunOnce(ctx context.Context, feedURL string, at time.Time) ([
 	fetchSpan.SetAttributes(attribute.Int("fetch.attempts", rr.Attempts))
 	fetchSpan.End()
 	if rr.Err != nil {
-		log.Error().Err(rr.Err).Int("attempts", rr.Attempts).Msg("fetch")
+		pollErrEvent(log, rr.Err).Err(rr.Err).Int("attempts", rr.Attempts).Msg("fetch")
 		return nil, rr.Err
 	}
 	if res.NotModified {
@@ -111,7 +123,7 @@ func (p *pipeline) RunOnce(ctx context.Context, feedURL string, at time.Time) ([
 	changes, err := p.detect.Detect(detectCtx, feedURL, res.Feed, p.store, at)
 	detectSpan.End()
 	if err != nil {
-		log.Error().Err(err).Msg("detect")
+		pollErrEvent(log, err).Err(err).Msg("detect")
 		return nil, err
 	}
 

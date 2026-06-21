@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/http"
@@ -341,6 +342,32 @@ func TestRunOnceDetectErrorPropagates(t *testing.T) {
 	require.Error(t, err, "a detect failure must surface as a poll error")
 	require.Nil(t, changes)
 	require.Zero(t, snk.count())
+}
+
+func TestRunOnceContextCanceledLogsAtDebugNotError(t *testing.T) {
+	// A poll whose context is cancelled mid-flight is the expected result of a
+	// rebalance deregistering this feed (or the daemon draining), not a failure.
+	// It must surface the error to the scheduler but log at debug, not error, so
+	// a routine rebalance does not spew a wall of error-level "fetch" lines.
+	url := serveRSS(t, rssOneItem)
+	st := newFakeStore()
+	cd := &fakeCoord{acquired: true}
+	p := newTestPipeline(t, url, cd, st)
+
+	var buf bytes.Buffer
+	p.log = zerolog.New(&buf).Level(zerolog.DebugLevel)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // feed deregistered by a rebalance: the poll context is already done
+
+	_, err := p.RunOnce(ctx, url, time.Now())
+	require.Error(t, err, "a cancelled poll still returns the error to the scheduler")
+	require.ErrorIs(t, err, context.Canceled)
+
+	logs := buf.String()
+	require.Contains(t, logs, "context canceled")
+	require.NotContains(t, logs, `"level":"error"`,
+		"a context-cancelled poll is expected teardown, not an error")
 }
 
 func TestPipelineFeedURL(t *testing.T) {
