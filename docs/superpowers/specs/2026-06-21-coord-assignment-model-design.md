@@ -271,6 +271,41 @@ against. Distribution is per-feed, so with few feeds the split can be uneven
 (e.g. 2 feeds, 5 instances → 2 busy, 3 idle); that is inherent to having fewer
 units of work than workers.
 
+### Parameter relationships (and what is *not* coupled)
+
+The membership params and the per-feed poll interval are deliberately
+independent axes. The only **hard** relationships are:
+
+- `member_ttl` > `heartbeat_interval` — validated — and ideally a small multiple
+  (defaults `30s` / `10s` = 3×) so a single slow/missed heartbeat does not
+  falsely evict a live member.
+- The pre-existing **lease vs poll-time** rule is unchanged: the per-feed
+  coordinator lease (`lease_duration` 60s Dynamo/Cosmos, `LockTTL` 30s Redis)
+  must exceed worst-case poll time so a peer cannot steal a lock mid-poll. The
+  new membership params do not enter this rule.
+
+There is **no hard constraint tying membership timing to the feed interval.** The
+only relationship is a **soft tuning** one: `heartbeat_interval` / `member_ttl`
+set the worst-case **reassignment delay** when an instance disappears (≤
+`heartbeat_interval` graceful, ≤ `member_ttl` crash). For typical feeds (interval
+in minutes) that delay is negligible — leave the defaults. For very low-latency
+feeds (interval of seconds) where freshness *during* a failover matters, lower
+`heartbeat_interval` / `member_ttl` so the gap stays small relative to the
+interval, at the cost of more membership traffic and more false-eviction
+sensitivity.
+
+Two facts keep this from forcing aggressive tuning:
+
+- A reassigned feed is polled **immediately** on the new owner (the ticker fires
+  once on start), so the gap is just the detection delay, not detection delay +
+  one interval.
+- The gap is **lossless** at any interval — change-detection state lives in the
+  store, so the next poll still sees everything since the last successful poll. A
+  short interval degrades freshness during failover, never correctness.
+- The gap is bounded by heartbeat/TTL, **not** by `lease_duration`: the pipeline
+  releases the lease at the end of each poll, so a graceful move leaves no stale
+  lease blocking the new owner.
+
 ### Guard model (decision: always-on guard)
 
 The per-tick `TryAcquire` lease in `pipeline.go` is **retained on every tick**,
