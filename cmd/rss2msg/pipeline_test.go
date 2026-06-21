@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -173,15 +174,16 @@ func noopInstruments(t *testing.T) telemetry.Instruments {
 func newTestPipeline(t *testing.T, feedURL string, cd coord.Coordinator, st state.Store, sinks ...sinkBranch) *pipeline {
 	t.Helper()
 	return &pipeline{
-		cfg:     config.FeedConfig{URL: feedURL},
-		sinks:   sinks,
-		fetcher: feed.NewFetcher(feed.Options{UserAgent: "rss2msg/test", Timeout: 5 * time.Second}),
-		detect:  feed.NewDetector(),
-		store:   st,
-		log:     zerolog.Nop(),
-		tracer:  tracenoop.NewTracerProvider().Tracer("test"),
-		instr:   noopInstruments(t),
-		coord:   cd,
+		cfg:        config.FeedConfig{URL: feedURL},
+		sinks:      sinks,
+		fetcher:    feed.NewFetcher(feed.Options{UserAgent: "rss2msg/test", Timeout: 5 * time.Second}),
+		detect:     feed.NewDetector(),
+		store:      st,
+		log:        zerolog.Nop(),
+		tracer:     tracenoop.NewTracerProvider().Tracer("test"),
+		instr:      noopInstruments(t),
+		coord:      cd,
+		fetchRetry: fastRetry,
 	}
 }
 
@@ -360,4 +362,62 @@ func TestRunOnceCommitsOnlyWhenEverySinkSucceeds(t *testing.T) {
 	require.Equal(t, 1, ok.count(), "the healthy sink still receives the change")
 	require.Empty(t, st.committedIDs(),
 		"one dropped branch keeps the change uncommitted even though another branch succeeded")
+}
+
+// serveRSSFlaky returns 503 for the first failTimes requests, then the body.
+func serveRSSFlaky(t *testing.T, body string, failTimes int32) string {
+	t.Helper()
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) <= failTimes {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("Content-Type", "application/rss+xml")
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
+func TestRunOnceRetriesTransientThenSucceeds(t *testing.T) {
+	url := serveRSSFlaky(t, rssOneItem, 2) // fail twice, succeed on 3rd
+	st := newFakeStore()
+	cd := &fakeCoord{acquired: true}
+	snk := &fakeSink{name: "s"}
+	p := newTestPipeline(t, url, cd, st, branch("s", snk, nil))
+	p.fetchRetry = retry.Config{
+		MaxAttempts: 3,
+		BaseDelay:   time.Millisecond,
+		MaxDelay:    2 * time.Millisecond,
+		Retryable:   feed.IsRetryable,
+	}
+
+	changes, err := p.RunOnce(context.Background(), url, time.Now())
+	require.NoError(t, err)
+	require.Len(t, changes, 1)
+	require.Equal(t, 1, snk.count())
+}
+
+func TestRunOnceDoesNotRetryPermanent(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(srv.Close)
+
+	st := newFakeStore()
+	cd := &fakeCoord{acquired: true}
+	p := newTestPipeline(t, srv.URL, cd, st)
+	p.fetchRetry = retry.Config{
+		MaxAttempts: 5,
+		BaseDelay:   time.Millisecond,
+		MaxDelay:    2 * time.Millisecond,
+		Retryable:   feed.IsRetryable,
+	}
+
+	_, err := p.RunOnce(context.Background(), srv.URL, time.Now())
+	require.Error(t, err)
+	require.Equal(t, int32(1), calls.Load(), "404 must not be retried")
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/iambod/rss2msg/internal/coord"
 	"github.com/iambod/rss2msg/internal/feed"
 	"github.com/iambod/rss2msg/internal/model"
+	"github.com/iambod/rss2msg/internal/retry"
 	"github.com/iambod/rss2msg/internal/sink"
 	"github.com/iambod/rss2msg/internal/state"
 	"github.com/iambod/rss2msg/internal/telemetry"
@@ -21,15 +22,16 @@ import (
 // pipeline implements scheduler.FeedPipeline by stringing the per-feed
 // fetcher -> detector -> sinks together.
 type pipeline struct {
-	cfg     config.FeedConfig
-	sinks   []sinkBranch
-	fetcher *feed.Fetcher
-	detect  *feed.Detector
-	store   state.Store
-	log     zerolog.Logger
-	tracer  trace.Tracer
-	instr   telemetry.Instruments
-	coord   coord.Coordinator
+	cfg        config.FeedConfig
+	sinks      []sinkBranch
+	fetcher    *feed.Fetcher
+	detect     *feed.Detector
+	store      state.Store
+	log        zerolog.Logger
+	tracer     trace.Tracer
+	instr      telemetry.Instruments
+	coord      coord.Coordinator
+	fetchRetry retry.Config
 }
 
 type sinkBranch struct {
@@ -73,21 +75,28 @@ func (p *pipeline) RunOnce(ctx context.Context, feedURL string, at time.Time) ([
 
 	fetchCtx, fetchSpan := p.tracer.Start(ctx, "feed.fetch")
 	fetchStart := time.Now()
-	res, err := p.fetcher.Fetch(fetchCtx, feed.FetchRequest{
-		URL:          feedURL,
-		Headers:      p.cfg.HTTP.Headers,
-		Timeout:      p.cfg.HTTP.Timeout,
-		ETag:         meta.ETag,
-		LastModified: meta.LastModified,
+	var res feed.FetchResult
+	rr := retry.Do(fetchCtx, p.fetchRetry, func(ctx context.Context) error {
+		var ferr error
+		res, ferr = p.fetcher.Fetch(ctx, feed.FetchRequest{
+			URL:          feedURL,
+			Headers:      p.cfg.HTTP.Headers,
+			Timeout:      p.cfg.HTTP.Timeout,
+			ETag:         meta.ETag,
+			LastModified: meta.LastModified,
+		})
+		// Count every HTTP attempt so the status distribution reflects retried 5xx.
+		p.instr.FeedFetches.Add(ctx, 1,
+			metric.WithAttributes(attribute.String("feed_url", feedURL), attribute.Int("http.status", res.Status)))
+		return ferr
 	})
 	p.instr.FeedFetchDuration.Record(ctx, float64(time.Since(fetchStart).Milliseconds()),
 		metric.WithAttributes(attribute.String("feed_url", feedURL)))
-	p.instr.FeedFetches.Add(ctx, 1,
-		metric.WithAttributes(attribute.String("feed_url", feedURL), attribute.Int("http.status", res.Status)))
+	fetchSpan.SetAttributes(attribute.Int("fetch.attempts", rr.Attempts))
 	fetchSpan.End()
-	if err != nil {
-		log.Error().Err(err).Msg("fetch")
-		return nil, err
+	if rr.Err != nil {
+		log.Error().Err(rr.Err).Int("attempts", rr.Attempts).Msg("fetch")
+		return nil, rr.Err
 	}
 	if res.NotModified {
 		log.Debug().Msg("not modified")
