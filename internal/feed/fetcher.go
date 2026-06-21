@@ -54,7 +54,7 @@ func (f *Fetcher) Fetch(ctx context.Context, fr FetchRequest) (FetchResult, erro
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fr.URL, nil)
 	if err != nil {
-		return FetchResult{}, fmt.Errorf("build request: %w", err)
+		return FetchResult{}, &FetchError{Op: "request", Err: fmt.Errorf("build request: %w", err)}
 	}
 
 	// Defaults.
@@ -85,7 +85,7 @@ func (f *Fetcher) Fetch(ctx context.Context, fr FetchRequest) (FetchResult, erro
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return FetchResult{}, fmt.Errorf("http get: %w", err)
+		return FetchResult{}, &FetchError{Op: "transport", Err: fmt.Errorf("http get: %w", err)}
 	}
 	defer resp.Body.Close()
 
@@ -106,11 +106,11 @@ func (f *Fetcher) Fetch(ctx context.Context, fr FetchRequest) (FetchResult, erro
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
 		feed, err := f.parser.Parse(resp.Body)
 		if err != nil {
-			return res, fmt.Errorf("parse feed: %w", err)
+			return res, &FetchError{Op: "parse", Err: fmt.Errorf("parse feed: %w", err)}
 		}
 		res.Feed = feed
 		return res, nil
 	default:
-		return res, fmt.Errorf("unexpected status %d", resp.StatusCode)
+		return res, &FetchError{Op: "status", Status: resp.StatusCode, Err: fmt.Errorf("unexpected status %d", resp.StatusCode)}
 	}
 }

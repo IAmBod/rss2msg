@@ -78,16 +78,39 @@ func (w *wired) newPipelineFactory(cfg config.Config, tel *telemetry.Telemetry, 
 			branches = append(branches, sinkBranch{name: name, wrapped: wrapped})
 		}
 		return &pipeline{
-			cfg:     fc,
-			sinks:   branches,
-			fetcher: fetcher,
-			detect:  det,
-			store:   w.store,
-			log:     tel.Logger,
-			tracer:  tel.Tracer,
-			instr:   instr,
-			coord:   w.coord,
+			cfg:        fc,
+			sinks:      branches,
+			fetcher:    fetcher,
+			detect:     det,
+			store:      w.store,
+			log:        tel.Logger,
+			tracer:     tel.Tracer,
+			instr:      instr,
+			coord:      w.coord,
+			fetchRetry: effectiveFetchRetry(cfg.HTTP.Retry, fc.HTTP.Retry),
 		}, nil
+	}
+}
+
+// effectiveFetchRetry merges the global http.retry defaults with a per-feed
+// override: each field uses the per-feed value when non-zero, else the global
+// value. The transient-only predicate is always applied.
+func effectiveFetchRetry(global, perFeed config.RetryConfig) retry.Config {
+	eff := global
+	if perFeed.MaxAttempts != 0 {
+		eff.MaxAttempts = perFeed.MaxAttempts
+	}
+	if perFeed.BaseDelay != 0 {
+		eff.BaseDelay = perFeed.BaseDelay
+	}
+	if perFeed.MaxDelay != 0 {
+		eff.MaxDelay = perFeed.MaxDelay
+	}
+	return retry.Config{
+		MaxAttempts: eff.MaxAttempts,
+		BaseDelay:   eff.BaseDelay,
+		MaxDelay:    eff.MaxDelay,
+		Retryable:   feed.IsRetryable,
 	}
 }
 

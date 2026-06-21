@@ -11,6 +11,9 @@ type Config struct {
 	MaxAttempts int
 	BaseDelay   time.Duration
 	MaxDelay    time.Duration
+	// Retryable reports whether an error returned by fn is worth retrying.
+	// Nil means "retry any error" (the behavior used by sink delivery).
+	Retryable func(error) bool
 }
 
 type Result struct {
@@ -45,6 +48,9 @@ func Do(ctx context.Context, cfg Config, fn func(ctx context.Context) error) Res
 			return Result{Attempts: attempt, Err: nil}
 		}
 		lastErr = err
+		if cfg.Retryable != nil && !cfg.Retryable(err) {
+			return Result{Attempts: attempt, Err: err}
+		}
 		if attempt == cfg.MaxAttempts {
 			break
 		}

@@ -2182,3 +2182,36 @@ func TestValidateAMQP10RequiresURLAndTarget(t *testing.T) {
 		t.Fatalf("want amqp10.target required error, got %v", err)
 	}
 }
+
+func TestValidateRejectsNegativeFetchRetry(t *testing.T) {
+	c := goodCfg()
+	c.HTTP.Retry.MaxAttempts = -1
+	if _, err := Validate(c); err == nil {
+		t.Fatalf("expected error for negative http.retry.max_attempts")
+	}
+}
+
+func TestValidateRejectsMaxDelayBelowBaseDelay(t *testing.T) {
+	c := goodCfg()
+	c.HTTP.Retry.BaseDelay = 2 * time.Second
+	c.HTTP.Retry.MaxDelay = time.Second
+	if _, err := Validate(c); err == nil {
+		t.Fatalf("expected error for http.retry.max_delay < base_delay")
+	}
+}
+
+func TestValidateRejectsNegativePerFeedRetry(t *testing.T) {
+	c := goodCfg()
+	c.Feeds[0].HTTP.Retry.MaxAttempts = -2
+	if _, err := Validate(c); err == nil {
+		t.Fatalf("expected error for negative feeds[0].http.retry.max_attempts")
+	}
+}
+
+func TestValidateAllowsZeroPerFeedRetry(t *testing.T) {
+	c := goodCfg()
+	c.Feeds[0].HTTP.Retry = RetryConfig{} // all zero == inherit
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("zero per-feed retry should inherit, got error: %v", err)
+	}
+}

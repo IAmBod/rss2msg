@@ -834,6 +834,10 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		hasDefault = true
 	}
 
+	if err := validateRetry("http.retry", c.HTTP.Retry); err != nil {
+		return *warnings, err
+	}
+
 	if len(c.Feeds) == 0 && len(c.FeedSources) == 0 {
 		return *warnings, fmt.Errorf("at least one feed must be declared")
 	}
@@ -859,6 +863,9 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 			if _, bad := reservedHeaders[canon]; bad {
 				return *warnings, fmt.Errorf("feeds[%d].http.headers must not set reserved cache header %q", i, h)
 			}
+		}
+		if err := validateRetry(fmt.Sprintf("feeds[%d].http.retry", i), f.HTTP.Retry); err != nil {
+			return *warnings, err
 		}
 	}
 	for i, s := range c.FeedSources {
@@ -1108,6 +1115,24 @@ func validateTrustedProxyEntry(raw string) error {
 		return nil
 	}
 	return fmt.Errorf("not a preset (private|all), CIDR, or IP")
+}
+
+// validateRetry checks that a RetryConfig is self-consistent. label is the
+// config path (e.g. "http.retry" or "feeds[0].http.retry") used in error messages.
+func validateRetry(label string, r RetryConfig) error {
+	if r.MaxAttempts < 0 {
+		return fmt.Errorf("%s.max_attempts must not be negative", label)
+	}
+	if r.BaseDelay < 0 {
+		return fmt.Errorf("%s.base_delay must not be negative", label)
+	}
+	if r.MaxDelay < 0 {
+		return fmt.Errorf("%s.max_delay must not be negative", label)
+	}
+	if r.MaxDelay != 0 && r.BaseDelay != 0 && r.MaxDelay < r.BaseDelay {
+		return fmt.Errorf("%s.max_delay %v is below base_delay %v", label, r.MaxDelay, r.BaseDelay)
+	}
+	return nil
 }
 
 // pgSSLModeIsDisable returns true when dsn explicitly sets sslmode=disable in

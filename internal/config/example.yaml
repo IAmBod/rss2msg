@@ -56,6 +56,10 @@ telemetry:
 http:
   user_agent: "rss2msg/0.1 (+https://example.com)"
   timeout: 30s
+  retry:                 # in-tick retry of a feed fetch on transient errors
+    max_attempts: 3      # total tries including the first; 1 disables retry
+    base_delay: 500ms    # initial backoff (exponential, full jitter)
+    max_delay: 10s       # cap on the backoff delay
 
 retry:
   max_attempts: 3
@@ -300,6 +304,8 @@ feeds:
       timeout: 10s
       headers:
         Authorization: "Bearer ${OTHER_FEED_TOKEN}"
+      retry:             # per-feed override; omitted fields inherit http.retry above
+        max_attempts: 5
 
 # Dynamic feed sources (optional). Ordered list; earlier entries win on URL
 # collision. Omit entirely to use only the static feeds: block above. The serve

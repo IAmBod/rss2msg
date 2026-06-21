@@ -2,6 +2,7 @@ package feed
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -113,5 +114,43 @@ func TestFetchHonoursPerRequestTimeout(t *testing.T) {
 	_, err := f.Fetch(context.Background(), FetchRequest{URL: srv.URL, Timeout: 10 * time.Millisecond})
 	if err == nil {
 		t.Fatalf("expected timeout error")
+	}
+}
+
+func TestFetchReturnsTypedStatusError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	_, err := NewFetcher(Options{}).Fetch(context.Background(), FetchRequest{URL: srv.URL})
+	var fe *FetchError
+	if !errors.As(err, &fe) {
+		t.Fatalf("expected *FetchError, got %T: %v", err, err)
+	}
+	if fe.Op != "status" || fe.Status != http.StatusServiceUnavailable {
+		t.Fatalf("got Op=%q Status=%d", fe.Op, fe.Status)
+	}
+	if !IsRetryable(err) {
+		t.Fatalf("503 should be retryable")
+	}
+}
+
+func TestFetchReturnsTypedParseError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("not xml at all"))
+	}))
+	defer srv.Close()
+
+	_, err := NewFetcher(Options{}).Fetch(context.Background(), FetchRequest{URL: srv.URL})
+	var fe *FetchError
+	if !errors.As(err, &fe) {
+		t.Fatalf("expected *FetchError, got %T: %v", err, err)
+	}
+	if fe.Op != "parse" {
+		t.Fatalf("got Op=%q, want parse", fe.Op)
+	}
+	if IsRetryable(err) {
+		t.Fatalf("parse errors must not be retryable")
 	}
 }
