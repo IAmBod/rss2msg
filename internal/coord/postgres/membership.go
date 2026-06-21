@@ -88,4 +88,3 @@ func (m *pgMembership) Deregister(ctx context.Context) error {
 
 // Close is a no-op: the Coordinator owns the underlying pool.
 func (m *pgMembership) Close() error { return nil }
-

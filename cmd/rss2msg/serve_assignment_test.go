@@ -15,7 +15,7 @@ import (
 type stubFeedProvider struct{}
 
 func (stubFeedProvider) Desired(_ context.Context) ([]config.FeedConfig, error) { return nil, nil }
-func (stubFeedProvider) Changes() <-chan struct{}                                { return make(chan struct{}) }
+func (stubFeedProvider) Changes() <-chan struct{}                               { return make(chan struct{}) }
 
 // Verify the interface is satisfied at compile time.
 var _ scheduler.FeedProvider = stubFeedProvider{}
