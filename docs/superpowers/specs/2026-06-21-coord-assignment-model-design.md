@@ -327,6 +327,40 @@ layered on later without changing this design's interfaces.
 
 Because the guard is unchanged, **`cmd/rss2msg/pipeline.go` is not modified.**
 
+### Poll duration vs lock TTL
+
+A single poll has **no overall deadline**; its worst-case duration is the sum of
+component timeouts — `fetch (max_attempts × (http.timeout + backoff)) + detect +
+publish (changes × sinks × (deliver_timeout + retry backoff))`. Within one
+instance this is harmless: same-feed ticks **serialize** (`runFeedLoop` runs
+`runTick` synchronously), so a slow poll only delays the next tick and fires the
+`PollOverran` metric — never a self-overlap.
+
+The lease-vs-poll-time interaction is per backend and **unchanged** by this work:
+
+- **redis** — the renew loop CAS-extends `LockTTL` every ~`LockTTL/3`, so the
+  lease is held for the whole poll however long it runs; the only risk is a
+  process stall longer than `LockTTL` between renews.
+- **postgres** — `pg_try_advisory_lock` is session-scoped: held until unlock or
+  connection death, independent of poll duration. Safe.
+- **dynamodb / cosmosdb** — fixed `lease_duration` (default 60s), **no renew**: a
+  poll that outruns it lets the lease expire mid-poll.
+
+**Assignment shrinks this hazard rather than adding to it.** In steady state only
+the owner ticks a feed, so even an expired Dynamo/Cosmos lease cannot be stolen —
+no peer is polling that feed. The poll-time-vs-lease-TTL concern, which today
+applies on *every* cycle, now only matters during a **rebalance overlap window**
+(≤ heartbeat propagation) when two instances briefly tick the same feed. There,
+on Dynamo/Cosmos, a poll outrunning `lease_duration` could double-publish —
+bounded to **one duplicate** by the idempotent state commit; on redis/postgres
+the lease/session is held for the poll's duration, so the contender's
+`TryAcquire` simply fails until the old poll releases.
+
+**Guidance (unchanged, now scoped):** size `lease_duration` / `LockTTL` above
+worst-case poll time. With assignment that becomes a rebalance-window concern,
+not a steady-state one. An overall `RunOnce` deadline (to bound worst-case poll
+time tightly) is a possible future hardening and is **out of scope** for #183.
+
 ## Configuration (config-first)
 
 New block under the existing `coordination` config (note: the repo key is
