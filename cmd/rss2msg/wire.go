@@ -534,7 +534,7 @@ func openStateStore(ctx context.Context, c config.StateConfig) (state.Store, err
 			Region:       c.DynamoDB.Region,
 			EndpointURL:  c.DynamoDB.EndpointURL,
 			TTLAttribute: c.DynamoDB.TTLAttribute,
-			ItemTTL:      c.DynamoDB.ItemTTL,
+			ItemTTL:      c.ItemTTL,
 		})
 	case "cosmosdb":
 		return statecosmos.New(ctx, statecosmos.Options{
@@ -544,7 +544,7 @@ func openStateStore(ctx context.Context, c config.StateConfig) (state.Store, err
 			Container:        c.CosmosDB.Container,
 			CreateIfMissing:  c.CosmosDB.CreateIfMissing,
 			Throughput:       c.CosmosDB.Throughput,
-			ItemTTL:          c.CosmosDB.ItemTTL,
+			ItemTTL:          c.ItemTTL,
 		})
 	default:
 		return nil, fmt.Errorf("unsupported state driver %q", c.Driver)

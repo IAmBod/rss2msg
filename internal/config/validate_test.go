@@ -785,8 +785,8 @@ func TestValidateAcceptsStateDynamoDBWithTTL(t *testing.T) {
 	t.Parallel()
 	c := goodCfg()
 	c.State = StateConfig{Driver: "dynamodb", DynamoDB: DynamoDBStateConfig{
-		Table: "t", TTLAttribute: "expires_at", ItemTTL: 720 * time.Hour,
-	}}
+		Table: "t", TTLAttribute: "expires_at",
+	}, ItemTTL: 720 * time.Hour}
 	if _, err := Validate(c); err != nil {
 		t.Fatalf("expected nil, got %v", err)
 	}
@@ -802,12 +802,13 @@ func TestValidateRejectsStateDynamoDBMissingTable(t *testing.T) {
 	}
 }
 
-func TestValidateRejectsStateDynamoDBHalfTTL(t *testing.T) {
+func TestValidateRejectsStateDynamoDBTTLWithoutAttribute(t *testing.T) {
 	t.Parallel()
+	// state.item_ttl > 0 on dynamodb requires ttl_attribute.
 	c := goodCfg()
-	c.State = StateConfig{Driver: "dynamodb", DynamoDB: DynamoDBStateConfig{Table: "t", TTLAttribute: "expires_at"}}
+	c.State = StateConfig{Driver: "dynamodb", DynamoDB: DynamoDBStateConfig{Table: "t"}, ItemTTL: 720 * time.Hour}
 	_, err := Validate(c)
-	if err == nil || !strings.Contains(err.Error(), "ttl_attribute and item_ttl") {
+	if err == nil || !strings.Contains(err.Error(), "ttl_attribute") {
 		t.Fatalf("got %v", err)
 	}
 }
@@ -2297,4 +2298,59 @@ func TestAssignmentValidation(t *testing.T) {
 			t.Fatalf("expected an assignment warning, got %v", warns)
 		}
 	})
+}
+
+func TestValidateStateItemTTLNegative(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.State.Driver = "sqlite"
+	c.State.SQLite.Path = "x.db"
+	c.State.ItemTTL = -1
+	if _, err := Validate(c); err == nil {
+		t.Fatal("expected error for negative state.item_ttl")
+	}
+}
+
+func TestValidateCleanupIntervalWithoutTTL(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.State.Driver = "sqlite"
+	c.State.SQLite.Path = "x.db"
+	c.State.ItemTTL = 0
+	c.State.SQLite.CleanupInterval = time.Hour
+	if _, err := Validate(c); err == nil {
+		t.Fatal("expected error: cleanup_interval set but item_ttl=0")
+	}
+}
+
+func TestValidateShortItemTTLWarns(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.State.Driver = "sqlite"
+	c.State.SQLite.Path = "x.db"
+	c.State.ItemTTL = 30 * time.Minute
+	warnings, err := Validate(c)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "item_ttl") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected a short-item_ttl warning")
+	}
+}
+
+func TestValidateDynamoTTLRequiresAttribute(t *testing.T) {
+	t.Parallel()
+	c := goodCfg()
+	c.State.Driver = "dynamodb"
+	c.State.DynamoDB.Table = "t"
+	c.State.ItemTTL = 720 * time.Hour // set but no ttl_attribute
+	if _, err := Validate(c); err == nil {
+		t.Fatal("expected error: dynamodb item_ttl set without ttl_attribute")
+	}
 }

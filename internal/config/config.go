@@ -255,6 +255,7 @@ type HealthConfig struct {
 
 type StateConfig struct {
 	Driver   string                 `mapstructure:"driver"`
+	ItemTTL  time.Duration          `mapstructure:"item_ttl"` // 0 = disabled (default); retention since last_seen_at, honored by all backends
 	Postgres PostgresStateConfig    `mapstructure:"postgres"`
 	SQLite   SQLiteStateConfig      `mapstructure:"sqlite"`
 	DynamoDB DynamoDBStateConfig    `mapstructure:"dynamodb"`
@@ -263,8 +264,9 @@ type StateConfig struct {
 }
 
 type PostgresStateConfig struct {
-	DSN string           `mapstructure:"dsn"`
-	TLS StatePGTLSConfig `mapstructure:"tls"`
+	DSN             string           `mapstructure:"dsn"`
+	TLS             StatePGTLSConfig `mapstructure:"tls"`
+	CleanupInterval time.Duration    `mapstructure:"cleanup_interval"` // SQL-only: sweep cadence; 0 -> 1h when item_ttl > 0
 }
 
 type StatePGTLSConfig struct {
@@ -276,34 +278,34 @@ type StatePGTLSConfig struct {
 }
 
 type SQLiteStateConfig struct {
-	Path string `mapstructure:"path"`
+	Path            string        `mapstructure:"path"`
+	CleanupInterval time.Duration `mapstructure:"cleanup_interval"` // SQL-only: sweep cadence; 0 -> 1h when item_ttl > 0
 }
 
 // DynamoDBStateConfig configures the "dynamodb" state store: a shared,
-// distributed-safe table keyed by (feed_url, item_id). TTLAttribute + ItemTTL
-// opt into DynamoDB-native auto-pruning of old seen-items.
+// distributed-safe table keyed by (feed_url, item_id). TTLAttribute opts into
+// DynamoDB-native auto-pruning of old seen-items; item_ttl now lives at
+// state.item_ttl (the unified retention field).
 type DynamoDBStateConfig struct {
-	Table        string        `mapstructure:"table"`         // required: table name
-	Region       string        `mapstructure:"region"`        // optional: AWS region (SDK default chain when empty)
-	EndpointURL  string        `mapstructure:"endpoint_url"`  // optional: LocalStack / DynamoDB Local
-	TTLAttribute string        `mapstructure:"ttl_attribute"` // optional: TTL attribute name on item rows
-	ItemTTL      time.Duration `mapstructure:"item_ttl"`      // optional: how long item rows live; requires ttl_attribute
+	Table        string `mapstructure:"table"`         // required: table name
+	Region       string `mapstructure:"region"`        // optional: AWS region (SDK default chain when empty)
+	EndpointURL  string `mapstructure:"endpoint_url"`  // optional: LocalStack / DynamoDB Local
+	TTLAttribute string `mapstructure:"ttl_attribute"` // optional: TTL attribute name on item rows; required when state.item_ttl > 0
 }
 
 // CosmosDBStateConfig configures the "cosmosdb" state store: a shared,
 // distributed-safe Azure Cosmos DB (NoSQL) container partitioned on /feed_url.
 // Item rows are keyed by sha256(item_id); a feed's meta row uses the reserved
-// id "__meta__". item_ttl opts into Cosmos-native auto-pruning of old
-// seen-items (the container must have TTL enabled; create_if_missing does this).
-// Exactly one of Endpoint or ConnectionString must be set.
+// id "__meta__". item_ttl now lives at state.item_ttl (the unified retention
+// field); the container must have TTL enabled when item_ttl > 0 (create_if_missing
+// does this). Exactly one of Endpoint or ConnectionString must be set.
 type CosmosDBStateConfig struct {
-	Endpoint         string        `mapstructure:"endpoint"`          // Azure AD auth (DefaultAzureCredential)
-	ConnectionString string        `mapstructure:"connection_string"` // account-key auth
-	Database         string        `mapstructure:"database"`          // required
-	Container        string        `mapstructure:"container"`         // defaults to "feed_state"
-	CreateIfMissing  bool          `mapstructure:"create_if_missing"` // create db/container (TTL-enabled) on startup (dev/test)
-	Throughput       int32         `mapstructure:"throughput"`        // manual RU/s when creating; 0 = serverless/shared
-	ItemTTL          time.Duration `mapstructure:"item_ttl"`          // optional: per-item TTL; 0 disables
+	Endpoint         string `mapstructure:"endpoint"`          // Azure AD auth (DefaultAzureCredential)
+	ConnectionString string `mapstructure:"connection_string"` // account-key auth
+	Database         string `mapstructure:"database"`          // required
+	Container        string `mapstructure:"container"`         // defaults to "feed_state"
+	CreateIfMissing  bool   `mapstructure:"create_if_missing"` // create db/container (TTL-enabled) on startup (dev/test)
+	Throughput       int32  `mapstructure:"throughput"`        // manual RU/s when creating; 0 = serverless/shared
 }
 
 type SinkConfig struct {
