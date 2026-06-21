@@ -197,6 +197,60 @@ drain — is entirely handled by the unchanged reconcile loop.
 When `assignment.enabled: false`, `bootstrap`/`wire` does **not** wrap the
 aggregator; `ServeDynamic` receives the raw aggregator exactly as today.
 
+### Rebalance walkthroughs
+
+There is no central rebalancer. Every instance derives ownership locally from
+the *same* shared member set with the *same* deterministic HRW function, so they
+converge without coordinating. HRW's minimal-churn property — a feed's owner
+changes only when the specific member it hashes highest for joins or leaves —
+means each event moves only ~`M/|members|` feeds and leaves everyone else's
+assignments untouched.
+
+**Scale-up — instance C joins `{A, B}`:**
+
+1. C's first `Heartbeat` registers its member entry and reads the live set
+   `{A, B, C}`; C immediately computes `Owned(C, …)` and starts its tickers — it
+   works as soon as it is up, without waiting to be "assigned" anything.
+2. A and B learn about C on their next heartbeat (≤ `heartbeat_interval`), see
+   the set changed, and signal `Changes()`.
+3. Each recomputes `Owned`. A feed `f` owned by A moves only if C now outscores
+   A; B's score for `f` was already below A's and is unchanged, so **feeds move
+   only A/B → C, never A↔B**. ~`M/3` feeds migrate; the rest stay put.
+4. Reconcile: A/B stop the moved feeds' tickers (with drain); C starts them.
+
+**Scale-down — instance B leaves `{A, B, C}`:**
+
+1. Peers learn B is gone either by **deregister** (graceful, ≤
+   `heartbeat_interval`) or by **`member_ttl` expiry** (crash, ~30s).
+2. A and C enumerate `{A, C}`, see the set shrank, signal `Changes()`.
+3. Each recomputes `Owned`. Only feeds **B** previously owned move — to whichever
+   of `{A, C}` now scores highest, spread roughly evenly. Feeds A and C already
+   owned are untouched.
+4. Reconcile: A/C start the reassigned tickers. There is a brief **unpolled gap**
+   for B's feeds between B stopping and a survivor picking them up (≤
+   `heartbeat_interval` graceful, ≤ `member_ttl` crash); the feed is simply
+   polled one cycle late — no items are dropped, since change-detection state in
+   the store means the next poll still sees everything since the last successful
+   poll.
+
+In both directions, momentary **overlap** (two owners briefly) is made safe by
+the per-tick guard, and momentary **gaps** (no owner briefly) cost only a delayed
+poll. See "Guard model" below.
+
+### More instances than feeds (N > M)
+
+HRW assigns each feed independently to exactly one live member, so **every feed
+always has an owner** regardless of fleet size — there is no error or unowned
+state. When there are more instances than feeds, at most M instances own a feed
+each (and, by hash collisions, possibly fewer), leaving the remaining N − M
+instances **idle hot standbys**: they still heartbeat (cheap, membership-only
+traffic) and participate in the member set, so when an owner leaves they
+immediately become eligible to pick up its feeds on the next reconcile. This is
+desirable over-provisioning for failover headroom, not a problem to guard
+against. Distribution is per-feed, so with few feeds the split can be uneven
+(e.g. 2 feeds, 5 instances → 2 busy, 3 idle); that is inherent to having fewer
+units of work than workers.
+
 ### Guard model (decision: always-on guard)
 
 The per-tick `TryAcquire` lease in `pipeline.go` is **retained on every tick**,
@@ -340,6 +394,9 @@ Add to `telemetry.Instruments`:
 - **Graceful vs crash departure:** graceful shutdown deregisters (peers reassign
   within ~`heartbeat_interval`); a crash falls back to `member_ttl` expiry. See
   "Departure" above.
+- **More instances than feeds (N > M):** every feed still has exactly one owner;
+  surplus instances are idle hot standbys (heartbeat only) ready for failover.
+  See "More instances than feeds" above.
 - **All peers gone (enumerate returns only self / empty on error):** fail-static
   to last-known members; if truly alone, this instance owns everything (safe —
   degrades to single-instance behavior rather than dropping feeds).
