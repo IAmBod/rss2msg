@@ -47,6 +47,15 @@ func newServeCmd(opts *rootOpts) *cobra.Command {
 				return err
 			}
 			if owner != nil {
+				// Prime membership synchronously so ServeDynamic's immediate
+				// reconcile already reflects the live member set. Without this the
+				// reconcile races the async heartbeat, wins under the fail-static
+				// "own everything" baseline, starts every feed, then sheds the ones
+				// this instance doesn't own — cancelling their in-flight polls.
+				if _, err := owner.Heartbeat(ctx); err != nil {
+					tel.Logger.Warn().Err(err).
+						Msg("initial membership heartbeat failed; starting fail-static (owns all feeds until next heartbeat)")
+				}
 				go owner.Run(ctx)
 				defer func() {
 					cctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
