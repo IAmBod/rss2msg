@@ -21,6 +21,12 @@ type Store interface {
 	GetItem(ctx context.Context, feedURL, itemID string) (state ItemState, found bool, err error)
 	UpsertItem(ctx context.Context, feedURL, itemID, hash string, seenAt time.Time) error
 
+	// PruneItemsBefore deletes per-item seen-state whose LastSeenAt is older
+	// than cutoff and returns the number of rows removed. Feed metadata is
+	// never pruned. Backends with service-managed TTL (DynamoDB, Cosmos) may
+	// implement this as a no-op returning (0, nil).
+	PruneItemsBefore(ctx context.Context, cutoff time.Time) (removed int64, err error)
+
 	GetFeedMeta(ctx context.Context, feedURL string) (meta FeedMeta, found bool, err error)
 	UpsertFeedMeta(ctx context.Context, feedURL string, meta FeedMeta) error
 
