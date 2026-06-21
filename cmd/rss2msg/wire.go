@@ -273,6 +273,7 @@ func openCoordinator(ctx context.Context, cc config.CoordinationConfig, sc confi
 			CreateIfMissing:  cc.CosmosDB.CreateIfMissing,
 			Throughput:       cc.CosmosDB.Throughput,
 			LeaseDuration:    cc.CosmosDB.LeaseDuration,
+			MemberTTL:        cc.Assignment.MemberTTL,
 		})
 	default:
 		return nil, fmt.Errorf("unsupported coordination driver %q", driver)

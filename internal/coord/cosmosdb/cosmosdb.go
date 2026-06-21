@@ -38,6 +38,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azruntime "github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/rs/zerolog/log"
@@ -84,6 +85,12 @@ type Options struct {
 	// steal it. 0 -> DefaultLeaseDuration.
 	LeaseDuration time.Duration
 
+	// MemberTTL is how long a member heartbeat document lives before it is
+	// considered stale and excluded from the live set. 0 falls back to
+	// LeaseDuration. Used by the membership layer; leave 0 unless you need a
+	// different TTL for membership vs. lock leases.
+	MemberTTL time.Duration
+
 	// Owner, if set, overrides the auto-generated per-process owner token.
 	// Tests use this to simulate distinct instances. Leave empty in production.
 	Owner string
@@ -101,6 +108,7 @@ type containerAPI interface {
 	ReadItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemID string, o *azcosmos.ItemOptions) (azcosmos.ItemResponse, error)
 	ReplaceItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemID string, item []byte, o *azcosmos.ItemOptions) (azcosmos.ItemResponse, error)
 	DeleteItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemID string, o *azcosmos.ItemOptions) (azcosmos.ItemResponse, error)
+	NewQueryItemsPager(query string, partitionKey azcosmos.PartitionKey, o *azcosmos.QueryOptions) *azruntime.Pager[azcosmos.QueryItemsResponse]
 }
 
 // leaseDoc is the wire layout of a lock document.
@@ -122,6 +130,7 @@ type Coordinator struct {
 	container     containerAPI
 	owner         string
 	leaseDuration time.Duration
+	memberTTL     time.Duration // 0 means fall back to leaseDuration
 
 	// now is overridable in tests; defaults to time.Now.
 	now func() time.Time
@@ -181,6 +190,7 @@ func newWithContainer(container containerAPI, opts Options) *Coordinator {
 		container:     container,
 		owner:         owner,
 		leaseDuration: ld,
+		memberTTL:     opts.MemberTTL,
 		now:           time.Now,
 		held:          make(map[*lease]struct{}),
 	}
