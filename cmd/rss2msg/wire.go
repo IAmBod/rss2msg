@@ -262,6 +262,7 @@ func openCoordinator(ctx context.Context, cc config.CoordinationConfig, sc confi
 			Region:        cc.DynamoDB.Region,
 			EndpointURL:   cc.DynamoDB.EndpointURL,
 			LeaseDuration: cc.DynamoDB.LeaseDuration,
+			MemberTTL:     cc.Assignment.MemberTTL,
 		})
 	case "cosmosdb":
 		return coordcosmos.New(ctx, coordcosmos.Options{

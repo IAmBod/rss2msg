@@ -62,6 +62,11 @@ type Options struct {
 	EndpointURL   string        // optional; LocalStack/testing BaseEndpoint override
 	LeaseDuration time.Duration // 0 -> DefaultLeaseDuration
 
+	// MemberTTL is how long a member heartbeat item stays valid before it is
+	// considered expired and removed from the live set. 0 falls back to
+	// LeaseDuration so membership has a sane TTL even if unset.
+	MemberTTL time.Duration
+
 	// Owner, if set, overrides the auto-generated per-process owner token. Tests
 	// use this to simulate distinct instances. Leave empty in production.
 	Owner string
@@ -72,6 +77,7 @@ type Options struct {
 type ddbAPI interface {
 	PutItem(ctx context.Context, in *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
 	DeleteItem(ctx context.Context, in *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error)
+	Scan(ctx context.Context, in *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error)
 }
 
 type lease struct {
@@ -85,6 +91,7 @@ type Coordinator struct {
 	table         string
 	owner         string
 	leaseDuration time.Duration
+	memberTTL     time.Duration // 0 means fall back to leaseDuration in Membership
 
 	// now is overridable in tests; defaults to time.Now.
 	now func() time.Time
@@ -137,6 +144,7 @@ func newWithClient(client ddbAPI, opts Options) *Coordinator {
 		table:         opts.Table,
 		owner:         owner,
 		leaseDuration: ld,
+		memberTTL:     opts.MemberTTL,
 		now:           time.Now,
 		held:          make(map[*lease]struct{}),
 	}
