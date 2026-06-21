@@ -120,6 +120,7 @@ type TelemetryGraphiteConfig struct {
 type HTTPConfig struct {
 	UserAgent string        `mapstructure:"user_agent"`
 	Timeout   time.Duration `mapstructure:"timeout"`
+	Retry     RetryConfig   `mapstructure:"retry"`
 }
 
 type RetryConfig struct {
@@ -720,6 +721,7 @@ type FeedConfig struct {
 type FeedHTTPConfig struct {
 	Timeout time.Duration     `mapstructure:"timeout"`
 	Headers map[string]string `mapstructure:"headers"`
+	Retry   RetryConfig       `mapstructure:"retry"`
 }
 
 // Defaults returns a Config populated with built-in defaults.
@@ -750,7 +752,7 @@ func Defaults() Config {
 				Metrics: CloudWatchMetricsConfig{Namespace: "rss2msg", Interval: 60 * time.Second},
 			},
 		},
-		HTTP:         HTTPConfig{UserAgent: "rss2msg/0.1", Timeout: 30 * time.Second},
+		HTTP:         HTTPConfig{UserAgent: "rss2msg/0.1", Timeout: 30 * time.Second, Retry: RetryConfig{MaxAttempts: 3, BaseDelay: 500 * time.Millisecond, MaxDelay: 10 * time.Second}},
 		Retry:        RetryConfig{MaxAttempts: 3, BaseDelay: 500 * time.Millisecond, MaxDelay: 10 * time.Second},
 		Runtime:      RuntimeConfig{ShutdownDrainTimeout: 30 * time.Second, RunOnceConcurrency: 0},
 		Coordination: CoordinationConfig{Driver: "memory"},
