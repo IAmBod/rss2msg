@@ -100,6 +100,22 @@ func (s *Store) UpsertItem(ctx context.Context, feedURL, itemID, hash string, se
 	return err
 }
 
+// PruneItemsBefore deletes seen_items whose last_seen_at is older than cutoff
+// and returns the number of rows removed. feed_meta is never touched.
+//
+// last_seen_at is stored as RFC3339Nano text; datetime() normalizes both sides
+// to a canonical second-precision form so the comparison is correct regardless
+// of fractional-second width (a plain string "<" is not).
+func (s *Store) PruneItemsBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	res, err := s.db.ExecContext(ctx,
+		`DELETE FROM seen_items WHERE datetime(last_seen_at) < datetime(?)`,
+		cutoff.UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		return 0, fmt.Errorf("state/sqlite: prune: %w", err)
+	}
+	return res.RowsAffected()
+}
+
 func (s *Store) GetFeedMeta(ctx context.Context, feedURL string) (state.FeedMeta, bool, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT etag, last_modified FROM feed_meta WHERE feed_url=?`, feedURL)

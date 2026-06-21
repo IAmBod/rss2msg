@@ -98,6 +98,52 @@ func TestFeedMetaMissingThenUpsertedWithAndWithoutLastModified(t *testing.T) {
 	}
 }
 
+func TestPruneItemsBefore(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	ctx := context.Background()
+
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	// Two old items with DIFFERENT fractional-second widths straddling the
+	// naive-string-compare trap, plus one fresh item, plus a feed_meta row.
+	old1 := base.Add(-48 * time.Hour).Add(100 * time.Millisecond) // ...:00.1Z
+	old2 := base.Add(-48 * time.Hour).Add(120 * time.Millisecond) // ...:00.12Z
+	fresh := base.Add(-1 * time.Minute)
+	if err := s.UpsertItem(ctx, "f", "old1", "h", old1); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpsertItem(ctx, "f", "old2", "h", old2); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpsertItem(ctx, "f", "fresh", "h", fresh); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpsertFeedMeta(ctx, "f", state.FeedMeta{ETag: "e"}); err != nil {
+		t.Fatal(err)
+	}
+
+	cutoff := base.Add(-24 * time.Hour)
+	n, err := s.PruneItemsBefore(ctx, cutoff)
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("removed = %d, want 2", n)
+	}
+	// Fresh item survives.
+	if _, found, err := s.GetItem(ctx, "f", "fresh"); err != nil || !found {
+		t.Fatalf("fresh item gone: found=%v err=%v", found, err)
+	}
+	// Old items deleted.
+	if _, found, _ := s.GetItem(ctx, "f", "old1"); found {
+		t.Fatal("old1 not pruned")
+	}
+	// feed_meta is never pruned.
+	if _, found, err := s.GetFeedMeta(ctx, "f"); err != nil || !found {
+		t.Fatalf("feed_meta gone: found=%v err=%v", found, err)
+	}
+}
+
 func TestSchemaIsIdempotent(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
