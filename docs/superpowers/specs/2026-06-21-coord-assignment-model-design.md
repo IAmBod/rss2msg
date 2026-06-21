@@ -104,9 +104,34 @@ type Membership interface {
     // member set, including self. Called every heartbeat_interval. On error
     // the caller keeps the last-known member set (fail-static).
     Heartbeat(ctx context.Context) ([]string, error)
+    // Deregister removes this instance's member entry so peers reassign its
+    // feeds promptly on a graceful shutdown, rather than waiting for member_ttl.
+    // Best-effort: a failure (e.g. coordinator already gone) is logged, not
+    // fatal — the TTL is the backstop. Called from Close().
+    Deregister(ctx context.Context) error
     Close() error
 }
 ```
+
+### Departure: deregister-on-shutdown vs TTL backstop
+
+A departing instance's feeds must return to the live fleet. Two paths:
+
+- **Graceful shutdown** (SIGTERM/SIGINT → `ctx` cancelled): `serve` calls
+  `Membership.Deregister` (via `Close`), which **deletes** this instance's member
+  entry (Redis `DEL`, PG `DELETE`, Dynamo/Cosmos `DeleteItem`). Peers observe the
+  smaller member set on their next `Heartbeat` (≤ `heartbeat_interval`, ~10s) and
+  reassign its feeds promptly — no `member_ttl` wait. Ordering: the daemon first
+  drains its own tickers (existing `ServeDynamic` drain), *then* deregisters, so
+  it never deregisters while still polling.
+- **Crash / SIGKILL / partition:** no deregister is possible, so the entry lingers
+  and peers fall back to **`member_ttl` expiry** (~30s). This is the unavoidable
+  case the TTL exists for.
+
+There is a benign gap on graceful shutdown between "this instance stopped its
+tickers" and "a peer picked them up": those feeds are simply polled one interval
+later, which is harmless for RSS polling. If the windows overlap, the per-tick
+guard prevents any double-poll.
 
 **Self-ID** reuses the existing owner-token scheme already used by the
 DynamoDB/CosmosDB coordinators: `hostname-pid-randomhex`, generated once per
@@ -234,8 +259,10 @@ byte-identical** (an existing test enforces this).
   `openCoordinator`, switching on `cc.Driver`, returning a `coord.Membership`.
   Built only when `cc.Assignment.Enabled`.
 - `serve.go` — when assignment is enabled, wrap `agg` in `OwnerProvider` before
-  passing to `ServeDynamic`; start the heartbeat goroutine; `Close()` membership
-  on shutdown. When disabled, unchanged.
+  passing to `ServeDynamic`; start the heartbeat goroutine; after
+  `ServeDynamic` returns (tickers drained), `Close()` membership, which
+  deregisters this instance so peers reassign its feeds without a `member_ttl`
+  wait. When disabled, unchanged.
 - The membership self-ID is generated once and shared with the coordinator's
   owner token where applicable.
 - One-shot modes (`run-once`, `lambda`, `azure`) ignore assignment entirely —
@@ -262,8 +289,9 @@ Add to `telemetry.Instruments`:
 - **Integration (`-tags=integration`)** — per backend (redis, postgres,
   dynamodb, cosmosdb), reusing the existing testcontainer helpers
   (`tcredis.Run`, `tcpg.Run`, `test/awslocal`, `tccosmos.Run`): two members
-  register, both enumerate the same live set; one stops heartbeating and is
-  dropped from the live set after `member_ttl`.
+  register, both enumerate the same live set; one **deregisters** and is dropped
+  from the live set immediately (no TTL wait); a member that stops heartbeating
+  without deregistering is dropped after `member_ttl`.
 - **Scheduler** — unit test that `OwnerProvider` over two distinct self-IDs and
   the same membership yields **disjoint, complete** owned sets (every feed owned
   by exactly one instance), and that a membership change signals `Changes()`.
@@ -308,7 +336,10 @@ Add to `telemetry.Instruments`:
 - **Config reload** changing the feed set: `OwnerProvider.Desired` recomputes
   ownership over the new feed set; no restart.
 - **Single instance / memory:** assignment is a no-op, zero added coordinator
-  traffic.
+  traffic. `Deregister` is a no-op (nothing to remove).
+- **Graceful vs crash departure:** graceful shutdown deregisters (peers reassign
+  within ~`heartbeat_interval`); a crash falls back to `member_ttl` expiry. See
+  "Departure" above.
 - **All peers gone (enumerate returns only self / empty on error):** fail-static
   to last-known members; if truly alone, this instance owns everything (safe —
   degrades to single-instance behavior rather than dropping feeds).
