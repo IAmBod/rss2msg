@@ -11,7 +11,8 @@ updated: 2026-06-09
 Serialises polling across instances with a conditional-write lease. Acquire is a
 conditional `PutItem` of a lease item `{pk, owner, lease_expiry}` with condition
 `attribute_not_exists(pk) OR lease_expiry < now`; release is a conditional
-`DeleteItem` on `owner = :me`. The key is `rss2msg:coord:<feed_url>` and each
+`DeleteItem` on `owner = :me`. The key is `rss2msg:coord:<sha256-hex(feed_url)>`
+(the same scheme as the Redis and Postgres coordinators) and each
 process uses an owner token (`hostname-pid-randomhex`). Crash recovery is
 expiry-based — a peer reclaims a crashed instance's lock once `lease_expiry` passes
 (after `lease_duration`). There is no leader election.

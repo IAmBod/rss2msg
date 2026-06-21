@@ -11,7 +11,9 @@ updated: 2026-06-09
 Serialises polling across instances with an optimistic-concurrency lease. Acquire is
 a `CreateItem` of a lease document `{id, pk, owner, lease_expiry}`; on a 409 Conflict
 an expired lease is reclaimed with an ETag-guarded `ReplaceItem` (`If-Match`), and
-release is an ETag-guarded `DeleteItem`. The key is `rss2msg:coord:<feed_url>` and
+release is an ETag-guarded `DeleteItem`. The key is `rss2msg:coord:<sha256-hex(feed_url)>`
+(the same scheme as the Redis and Postgres coordinators; hashing also keeps the
+`/`, `?` and `#` of feed URLs out of the Cosmos document id) and
 each process uses an owner token (`hostname-pid-randomhex`). Crash recovery is
 expiry-based — a peer reclaims a crashed instance's lock once `lease_expiry` passes
 (after `lease_duration`). There is no leader election.
@@ -44,7 +46,7 @@ coordination:
 The Cosmos DB coordinator authenticates with either an account-key
 `connection_string` or an `endpoint` plus `DefaultAzureCredential` (env / workload
 identity / managed identity) — set **exactly one**. Each feed lock is a document keyed
-by the feed URL and partitioned on `/pk`. Like DynamoDB it enforces lease liveness
+by the SHA-256 hex of the feed URL and partitioned on `/pk`. Like DynamoDB it enforces lease liveness
 with an explicit `lease_expiry` (Cosmos native TTL is not trusted for locks), and the
 same `lease_duration` warning applies: it **must safely exceed your worst-case per-feed
 poll time** — if a poll outruns the lease, a peer may steal the lock mid-poll and both
