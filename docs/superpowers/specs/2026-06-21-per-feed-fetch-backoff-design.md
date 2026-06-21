@@ -72,8 +72,11 @@ feeds:
   `http.retry.max_attempts=3`, `http.retry.base_delay=500ms`,
   `http.retry.max_delay=10s`.
 - Validation in `internal/config/validate.go` for both the global `http.retry`
-  and each `feeds[].http.retry`: `max_attempts >= 1`, `base_delay >= 0`,
-  and `max_delay >= base_delay` when `max_delay` is set.
+  and each `feeds[].http.retry`: `max_attempts`, `base_delay`, and `max_delay`
+  must not be negative, and `max_delay >= base_delay` when both are non-zero.
+  A field of `0` means "inherit / default" (the global default fills the global
+  block via Viper; a per-feed `0` inherits the global value), so `0` is valid —
+  only negatives and `max_delay < base_delay` are rejected.
 
 ## Components
 
