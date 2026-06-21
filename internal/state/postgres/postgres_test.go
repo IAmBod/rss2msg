@@ -86,3 +86,38 @@ func TestStoreFeedMetaRoundTrip(t *testing.T) {
 		t.Fatalf("round-trip mismatch: %+v", got)
 	}
 }
+
+func TestPruneItemsBefore(t *testing.T) {
+	store := setupStore(t)
+	ctx := context.Background()
+
+	base := time.Now().UTC().Truncate(time.Second)
+	old := base.Add(-48 * time.Hour)
+	fresh := base.Add(-1 * time.Minute)
+	if err := store.UpsertItem(ctx, "f", "old", "h", old); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.UpsertItem(ctx, "f", "fresh", "h", fresh); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.UpsertFeedMeta(ctx, "f", state.FeedMeta{ETag: "e"}); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := store.PruneItemsBefore(ctx, base.Add(-24*time.Hour))
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("removed = %d, want 1", n)
+	}
+	if _, found, _ := store.GetItem(ctx, "f", "old"); found {
+		t.Fatal("old not pruned")
+	}
+	if _, found, _ := store.GetItem(ctx, "f", "fresh"); !found {
+		t.Fatal("fresh pruned")
+	}
+	if _, found, _ := store.GetFeedMeta(ctx, "f"); !found {
+		t.Fatal("feed_meta pruned")
+	}
+}
