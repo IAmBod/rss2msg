@@ -41,7 +41,8 @@ type dynamoMembership struct {
 // Heartbeat upserts this instance's member item and returns the set of
 // currently live member IDs (including self).
 func (m *dynamoMembership) Heartbeat(ctx context.Context) ([]string, error) {
-	expiry := m.c.now().Add(m.ttl).UnixMilli()
+	now := m.c.now()
+	expiry := now.Add(m.ttl).UnixMilli()
 	_, err := m.c.client.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: aws.String(m.c.table),
 		Item: map[string]ddbtypes.AttributeValue{
@@ -53,7 +54,7 @@ func (m *dynamoMembership) Heartbeat(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 
-	nowMs := m.c.now().UnixMilli()
+	nowMs := now.UnixMilli()
 	var ids []string
 	var startKey map[string]ddbtypes.AttributeValue
 	for {
