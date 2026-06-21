@@ -7,6 +7,8 @@ import (
 	"github.com/iambod/rss2msg/internal/coord"
 )
 
+var _ coord.MembershipProvider = (*Coordinator)(nil)
+
 func memberKeyPrefix() string      { return "rss2msg:coord:member:" }
 func memberKey(self string) string { return memberKeyPrefix() + self }
 

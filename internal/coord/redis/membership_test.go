@@ -43,14 +43,20 @@ func TestRedisMembershipRegistersAndDeregisters(t *testing.T) {
 	if err := m1.Deregister(ctx); err != nil {
 		t.Fatal(err)
 	}
-	got, _ = m2.Heartbeat(ctx)
+	got, err = m2.Heartbeat(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if contains(got, "inst-1") {
 		t.Fatalf("inst-1 should be gone after deregister, got %v", got)
 	}
 
 	// TTL expiry drops a crashed member (stop heartbeating inst-2; wait past TTL).
 	time.Sleep(3 * time.Second)
-	got, _ = m1.Heartbeat(ctx) // re-registers inst-1
+	got, err = m1.Heartbeat(ctx) // re-registers inst-1
+	if err != nil {
+		t.Fatal(err)
+	}
 	if contains(got, "inst-2") {
 		t.Fatalf("inst-2 should have expired via TTL, got %v", got)
 	}
