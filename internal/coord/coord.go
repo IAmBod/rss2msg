@@ -24,3 +24,25 @@ type Coordinator interface {
 
 	Close() error
 }
+
+// Membership tracks the live set of rss2msg instances sharing a coordinator.
+// Implementations register this instance under a TTL lease and return the
+// currently-live member IDs (including self). Safe for concurrent use.
+type Membership interface {
+	// Heartbeat refreshes this instance's lease and returns the current live
+	// member set, including self. Called every heartbeat_interval. On error the
+	// caller keeps the last-known member set (fail-static).
+	Heartbeat(ctx context.Context) ([]string, error)
+	// Deregister removes this instance's member entry so peers reassign its
+	// feeds promptly on graceful shutdown instead of waiting for the TTL.
+	// Best-effort: callers log failures rather than treating them as fatal.
+	Deregister(ctx context.Context) error
+	Close() error
+}
+
+// MembershipProvider is implemented by coordinators that support the assignment
+// layer. Membership returns a Membership bound to this instance's member ID,
+// reusing the coordinator's existing client/connection.
+type MembershipProvider interface {
+	Membership(self string) (Membership, error)
+}

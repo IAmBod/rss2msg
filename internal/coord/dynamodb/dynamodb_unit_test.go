@@ -37,14 +37,18 @@ func (f *fakeDDB) PutItem(_ context.Context, in *dynamodb.PutItemInput, _ ...fun
 	pk := in.Item[pkAttr].(*ddbtypes.AttributeValueMemberS).Value
 	existing := f.items[pk]
 
-	// Evaluate: attribute_not_exists(#pk) OR #exp < :now
-	if existing != nil {
-		nowStr := in.ExpressionAttributeValues[":now"].(*ddbtypes.AttributeValueMemberN).Value
-		now, _ := strconv.ParseInt(nowStr, 10, 64)
-		expStr := existing[expiryAttr].(*ddbtypes.AttributeValueMemberN).Value
-		exp, _ := strconv.ParseInt(expStr, 10, 64)
-		if exp >= now {
-			return nil, &ddbtypes.ConditionalCheckFailedException{}
+	// Conditional put (lock acquire): condition is "attribute_not_exists(#pk) OR #exp < :now".
+	// Membership heartbeat uses an unconditional put (no ConditionExpression).
+	if in.ConditionExpression != nil {
+		// Evaluate: attribute_not_exists(#pk) OR #exp < :now
+		if existing != nil {
+			nowStr := in.ExpressionAttributeValues[":now"].(*ddbtypes.AttributeValueMemberN).Value
+			now, _ := strconv.ParseInt(nowStr, 10, 64)
+			expStr := existing[expiryAttr].(*ddbtypes.AttributeValueMemberN).Value
+			exp, _ := strconv.ParseInt(expStr, 10, 64)
+			if exp >= now {
+				return nil, &ddbtypes.ConditionalCheckFailedException{}
+			}
 		}
 	}
 	f.items[pk] = in.Item
@@ -58,17 +62,44 @@ func (f *fakeDDB) DeleteItem(_ context.Context, in *dynamodb.DeleteItemInput, _ 
 
 	pk := in.Key[pkAttr].(*ddbtypes.AttributeValueMemberS).Value
 	existing := f.items[pk]
-	// Condition: #owner = :me
-	me := in.ExpressionAttributeValues[":me"].(*ddbtypes.AttributeValueMemberS).Value
-	if existing == nil {
-		return nil, &ddbtypes.ConditionalCheckFailedException{}
+
+	// Conditional delete (lock release): condition is "#owner = :me".
+	if meAV, ok := in.ExpressionAttributeValues[":me"]; ok {
+		me := meAV.(*ddbtypes.AttributeValueMemberS).Value
+		if existing == nil {
+			return nil, &ddbtypes.ConditionalCheckFailedException{}
+		}
+		owner := existing[ownerAttr].(*ddbtypes.AttributeValueMemberS).Value
+		if owner != me {
+			return nil, &ddbtypes.ConditionalCheckFailedException{}
+		}
+		delete(f.items, pk)
+		return &dynamodb.DeleteItemOutput{}, nil
 	}
-	owner := existing[ownerAttr].(*ddbtypes.AttributeValueMemberS).Value
-	if owner != me {
-		return nil, &ddbtypes.ConditionalCheckFailedException{}
-	}
+
+	// Unconditional delete (membership deregister): just remove the item.
 	delete(f.items, pk)
 	return &dynamodb.DeleteItemOutput{}, nil
+}
+
+// Scan is an in-memory implementation sufficient to drive membership unit tests.
+// It iterates all items and filters those whose "pk" begins_with the :p prefix.
+// The expiry split and reap are done in production code, not here.
+// Pagination (ExclusiveStartKey) is not simulated — in-memory store is small.
+func (f *fakeDDB) Scan(_ context.Context, in *dynamodb.ScanInput, _ ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	prefix := in.ExpressionAttributeValues[":p"].(*ddbtypes.AttributeValueMemberS).Value
+
+	var items []map[string]ddbtypes.AttributeValue
+	for pk, item := range f.items {
+		if !strings.HasPrefix(pk, prefix) {
+			continue
+		}
+		items = append(items, item)
+	}
+	return &dynamodb.ScanOutput{Items: items}, nil
 }
 
 func (f *fakeDDB) get(pk string) map[string]ddbtypes.AttributeValue {
@@ -302,4 +333,8 @@ func (c *captureDDB) PutItem(_ context.Context, in *dynamodb.PutItemInput, _ ...
 func (c *captureDDB) DeleteItem(_ context.Context, in *dynamodb.DeleteItemInput, _ ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
 	c.onDel(in)
 	return &dynamodb.DeleteItemOutput{}, nil
+}
+
+func (c *captureDDB) Scan(_ context.Context, _ *dynamodb.ScanInput, _ ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
+	return &dynamodb.ScanOutput{}, nil
 }

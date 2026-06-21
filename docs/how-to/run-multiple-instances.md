@@ -72,6 +72,15 @@ Graphite exporters add it as a dimension/tag; Prometheus is already per-instance
 via separate scrape targets. See
 [Telemetry → Multi-instance deployments](../reference/telemetry.md#multi-instance-deployments).
 
+## Assignment model (feed partitioning)
+
+For large fleets the default N×M try-acquire pattern can become a coordinator
+bottleneck. The optional **assignment model** partitions feeds across instances so
+each feed is polled by exactly one owner per cycle, reducing N×M lock attempts to M:
+
+- [Coordination Assignment Model](../explanation/coordination-assignment.md) — explains the problem, rendezvous-hash partitioning, membership leases, rebalance walkthroughs, and parameter trade-offs.
+- [Coordination Assignment Reference](../reference/coordination-assignment.md) — every `coordination.assignment.*` key, defaults, and constraints.
+
 ## Related
 
 - [Memory coordinator](coordinators/memory.md) — the single-instance default.

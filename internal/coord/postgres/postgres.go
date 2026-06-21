@@ -30,6 +30,11 @@ type Options struct {
 	// produced. Forces TLS by also clearing pgx fallbacks (so plaintext is
 	// never attempted).
 	TLS *TLSOptions
+
+	// MemberTTL is the lifetime of a member's heartbeat row in
+	// coordination_members. Rows older than MemberTTL are considered stale
+	// and are reaped on the next Heartbeat call. Defaults to 30s when 0.
+	MemberTTL time.Duration
 }
 
 // TLSOptions configures custom TLS for the coordinator's Postgres pool. Same
@@ -51,7 +56,8 @@ type TLSOptions struct {
 }
 
 type Coordinator struct {
-	pool *pgxpool.Pool
+	pool      *pgxpool.Pool
+	memberTTL time.Duration
 
 	mu   sync.Mutex
 	held map[*pgxpool.Conn]struct{}
@@ -89,9 +95,14 @@ func New(ctx context.Context, opts Options) (*Coordinator, error) {
 	if err != nil {
 		return nil, fmt.Errorf("coord/postgres: pgxpool: %w", err)
 	}
+	memberTTL := opts.MemberTTL
+	if memberTTL <= 0 {
+		memberTTL = 30 * time.Second
+	}
 	return &Coordinator{
-		pool: pool,
-		held: make(map[*pgxpool.Conn]struct{}),
+		pool:      pool,
+		memberTTL: memberTTL,
+		held:      make(map[*pgxpool.Conn]struct{}),
 	}, nil
 }
 

@@ -138,11 +138,25 @@ type RuntimeConfig struct {
 }
 
 type CoordinationConfig struct {
-	Driver   string                     `mapstructure:"driver"`
-	Postgres CoordinationPGConfig       `mapstructure:"postgres"`
-	Redis    CoordinationRedisConfig    `mapstructure:"redis"`
-	DynamoDB CoordinationDynamoDBConfig `mapstructure:"dynamodb"`
-	CosmosDB CoordinationCosmosDBConfig `mapstructure:"cosmosdb"`
+	Driver     string                       `mapstructure:"driver"`
+	Postgres   CoordinationPGConfig         `mapstructure:"postgres"`
+	Redis      CoordinationRedisConfig      `mapstructure:"redis"`
+	DynamoDB   CoordinationDynamoDBConfig   `mapstructure:"dynamodb"`
+	CosmosDB   CoordinationCosmosDBConfig   `mapstructure:"cosmosdb"`
+	Assignment CoordinationAssignmentConfig `mapstructure:"assignment"`
+}
+
+// CoordinationAssignmentConfig configures the membership/partition layer. When
+// disabled (default) every instance schedules every feed and the per-tick
+// TryAcquire lease alone decides who polls (today's behavior). When enabled,
+// each instance heartbeats into the coordinator and schedules only the feeds it
+// owns under rendezvous hashing of the live member set.
+type CoordinationAssignmentConfig struct {
+	Enabled           bool          `mapstructure:"enabled"`
+	Strategy          string        `mapstructure:"strategy"`           // "rendezvous" (default)
+	HeartbeatInterval time.Duration `mapstructure:"heartbeat_interval"` // 0 -> 10s
+	MemberTTL         time.Duration `mapstructure:"member_ttl"`         // 0 -> 30s; must exceed heartbeat_interval
+	RebalanceGrace    time.Duration `mapstructure:"rebalance_grace"`    // 0 -> 5s; documents the transition window covered by the guard
 }
 
 // CoordinationCosmosDBConfig configures the Azure Cosmos DB (NoSQL) lease
@@ -752,10 +766,19 @@ func Defaults() Config {
 				Metrics: CloudWatchMetricsConfig{Namespace: "rss2msg", Interval: 60 * time.Second},
 			},
 		},
-		HTTP:         HTTPConfig{UserAgent: "rss2msg/0.1", Timeout: 30 * time.Second, Retry: RetryConfig{MaxAttempts: 3, BaseDelay: 500 * time.Millisecond, MaxDelay: 10 * time.Second}},
-		Retry:        RetryConfig{MaxAttempts: 3, BaseDelay: 500 * time.Millisecond, MaxDelay: 10 * time.Second},
-		Runtime:      RuntimeConfig{ShutdownDrainTimeout: 30 * time.Second, RunOnceConcurrency: 0},
-		Coordination: CoordinationConfig{Driver: "memory"},
+		HTTP:    HTTPConfig{UserAgent: "rss2msg/0.1", Timeout: 30 * time.Second, Retry: RetryConfig{MaxAttempts: 3, BaseDelay: 500 * time.Millisecond, MaxDelay: 10 * time.Second}},
+		Retry:   RetryConfig{MaxAttempts: 3, BaseDelay: 500 * time.Millisecond, MaxDelay: 10 * time.Second},
+		Runtime: RuntimeConfig{ShutdownDrainTimeout: 30 * time.Second, RunOnceConcurrency: 0},
+		Coordination: CoordinationConfig{
+			Driver: "memory",
+			Assignment: CoordinationAssignmentConfig{
+				Enabled:           false,
+				Strategy:          "rendezvous",
+				HeartbeatInterval: 10 * time.Second,
+				MemberTTL:         30 * time.Second,
+				RebalanceGrace:    5 * time.Second,
+			},
+		},
 		Health: HealthConfig{
 			Enabled:       true,
 			Listen:        ":8080",

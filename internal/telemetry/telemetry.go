@@ -366,6 +366,9 @@ type Instruments struct {
 	SinkPublishFailures metric.Int64Counter
 	PollSkipped         metric.Int64Counter
 	PollOverran         metric.Int64Counter
+	MembershipSize      metric.Int64Gauge
+	AssignedFeeds       metric.Int64Gauge
+	RebalanceEvents     metric.Int64Counter
 	FeedFetchDuration   metric.Float64Histogram
 	SinkPublishDuration metric.Float64Histogram
 }
@@ -386,6 +389,18 @@ func NewInstruments(meter metric.Meter) (Instruments, error) {
 		return i, err
 	}
 	if i.PollOverran, err = meter.Int64Counter("feed.poll.overran"); err != nil {
+		return i, err
+	}
+	if i.MembershipSize, err = meter.Int64Gauge("coord.membership.size",
+		metric.WithDescription("live coordinator members as last observed by this instance")); err != nil {
+		return i, err
+	}
+	if i.AssignedFeeds, err = meter.Int64Gauge("coord.assignment.feeds",
+		metric.WithDescription("feeds owned by this instance under the assignment layer")); err != nil {
+		return i, err
+	}
+	if i.RebalanceEvents, err = meter.Int64Counter("coord.assignment.rebalance",
+		metric.WithDescription("number of times this instance's owned feed set changed")); err != nil {
 		return i, err
 	}
 	if i.FeedFetchDuration, err = meter.Float64Histogram("feed.fetch.duration", metric.WithUnit("ms")); err != nil {

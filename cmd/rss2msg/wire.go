@@ -249,9 +249,10 @@ func openCoordinator(ctx context.Context, cc config.CoordinationConfig, sc confi
 			return nil, fmt.Errorf("coordination postgres: no dsn (and no state.postgres.dsn fallback)")
 		}
 		return coordpg.New(ctx, coordpg.Options{
-			DSN:      dsn,
-			MinConns: feedCount,
-			TLS:      coordPGTLSFromConfig(cc.Postgres.TLS),
+			DSN:       dsn,
+			MinConns:  feedCount,
+			TLS:       coordPGTLSFromConfig(cc.Postgres.TLS),
+			MemberTTL: cc.Assignment.MemberTTL,
 		})
 	case "redis":
 		return coordredis.New(ctx, redisCoordOptions(cc))
@@ -261,6 +262,7 @@ func openCoordinator(ctx context.Context, cc config.CoordinationConfig, sc confi
 			Region:        cc.DynamoDB.Region,
 			EndpointURL:   cc.DynamoDB.EndpointURL,
 			LeaseDuration: cc.DynamoDB.LeaseDuration,
+			MemberTTL:     cc.Assignment.MemberTTL,
 		})
 	case "cosmosdb":
 		return coordcosmos.New(ctx, coordcosmos.Options{
@@ -271,6 +273,7 @@ func openCoordinator(ctx context.Context, cc config.CoordinationConfig, sc confi
 			CreateIfMissing:  cc.CosmosDB.CreateIfMissing,
 			Throughput:       cc.CosmosDB.Throughput,
 			LeaseDuration:    cc.CosmosDB.LeaseDuration,
+			MemberTTL:        cc.Assignment.MemberTTL,
 		})
 	default:
 		return nil, fmt.Errorf("unsupported coordination driver %q", driver)
@@ -497,6 +500,7 @@ func redisCoordOptions(cc config.CoordinationConfig) coordredis.Options {
 		URL:             r.URL,
 		LockTTL:         r.LockTTL,
 		RenewalInterval: r.RenewalInterval,
+		MemberTTL:       cc.Assignment.MemberTTL,
 		TLS:             redisTLSFromConfig(r.TLS),
 		Sentinel: coordredis.SentinelOptions{
 			MasterName:       r.Sentinel.MasterName,
