@@ -497,6 +497,7 @@ func redisCoordOptions(cc config.CoordinationConfig) coordredis.Options {
 		URL:             r.URL,
 		LockTTL:         r.LockTTL,
 		RenewalInterval: r.RenewalInterval,
+		MemberTTL:       cc.Assignment.MemberTTL,
 		TLS:             redisTLSFromConfig(r.TLS),
 		Sentinel: coordredis.SentinelOptions{
 			MasterName:       r.Sentinel.MasterName,

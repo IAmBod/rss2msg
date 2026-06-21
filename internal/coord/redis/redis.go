@@ -27,11 +27,12 @@ import (
 )
 
 // Options configures the Redis-backed Coordinator. Zero LockTTL means "30s";
-// zero RenewalInterval means "LockTTL / 3".
+// zero RenewalInterval means "LockTTL / 3"; zero MemberTTL means "30s".
 type Options struct {
 	URL             string        // required for single mode
 	LockTTL         time.Duration // 0 -> 30s
 	RenewalInterval time.Duration // 0 -> LockTTL / 3
+	MemberTTL       time.Duration // 0 -> 30s
 
 	// TLS, if non-nil, overrides the default TLS config that redis.ParseURL
 	// produces for rediss:// URLs (system roots, SNI = URL host). Must be
@@ -83,6 +84,7 @@ type resolvedOptions struct {
 	URL             string
 	LockTTL         time.Duration
 	RenewalInterval time.Duration
+	MemberTTL       time.Duration
 }
 
 func (o Options) resolved() resolvedOptions {
@@ -90,12 +92,16 @@ func (o Options) resolved() resolvedOptions {
 		URL:             o.URL,
 		LockTTL:         o.LockTTL,
 		RenewalInterval: o.RenewalInterval,
+		MemberTTL:       o.MemberTTL,
 	}
 	if r.LockTTL <= 0 {
 		r.LockTTL = 30 * time.Second
 	}
 	if r.RenewalInterval <= 0 {
 		r.RenewalInterval = r.LockTTL / 3
+	}
+	if r.MemberTTL <= 0 {
+		r.MemberTTL = 30 * time.Second
 	}
 	return r
 }
