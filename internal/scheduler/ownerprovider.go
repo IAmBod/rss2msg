@@ -56,6 +56,12 @@ func (o *OwnerProvider) snapshot() []string {
 // Heartbeat refreshes membership once and returns the live set. It updates the
 // cached snapshot and signals Changes() if the set changed. Exposed for tests
 // and the priming call.
+//
+// Single-driver invariant: Heartbeat is intended to be driven by Run (via its
+// ticker) or called once for priming before Run starts. It must not be called
+// concurrently with a running Run loop — the onRebalance callback counts are
+// best-effort and assume a single heartbeat driver; concurrent calls would
+// cause the counts to reflect a momentarily-stale member set.
 func (o *OwnerProvider) Heartbeat(ctx context.Context) ([]string, error) {
 	members, err := o.membership.Heartbeat(ctx)
 	if err != nil {

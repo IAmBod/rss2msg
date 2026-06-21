@@ -77,9 +77,13 @@ func TestOwnerProviderSignalsOnMembershipChange(t *testing.T) {
 	go op.Run(ctx)
 
 	// Drain the initial signal (first heartbeat establishes the baseline).
+	// Run calls Heartbeat immediately, so the baseline signal is guaranteed;
+	// a timeout here means the signal never arrived → fail rather than silently
+	// leaving a stale signal that would cause a false PASS below.
 	select {
 	case <-op.Changes():
 	case <-time.After(time.Second):
+		t.Fatal("expected baseline signal from initial heartbeat")
 	}
 
 	mem.set("self", "peer") // membership grows
