@@ -110,7 +110,7 @@ Membership traffic scales with the member count and `heartbeat_interval`,
 |---|---|
 | **Type** | duration |
 | **Default** | `30s` |
-| **Constraint** | must be `> 0`; must be `> heartbeat_interval` (validated — error if violated) |
+| **Constraint** | must be `> heartbeat_interval` (validated — error if violated; implies `> 0`) |
 
 How long a member entry lives in the coordinator without a heartbeat refresh
 before peers consider it dead and reassign its feeds. This is the backstop for

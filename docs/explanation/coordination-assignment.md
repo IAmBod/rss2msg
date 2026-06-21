@@ -196,7 +196,7 @@ where freshness *during* a failover matters, lower `heartbeat_interval` / `membe
 so the gap stays small relative to the interval, at the cost of more membership
 traffic and more false-eviction sensitivity.
 
-Two facts keep this from forcing aggressive tuning:
+Three facts keep this from forcing aggressive tuning:
 
 - A reassigned feed is polled **immediately** on the new owner (the ticker fires once
   on start), so the gap is just the detection delay, not detection delay + one
