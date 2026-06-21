@@ -4,6 +4,8 @@ package dynamodb_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"strconv"
 	"testing"
 	"time"
@@ -16,6 +18,12 @@ import (
 	coordddb "github.com/iambod/rss2msg/internal/coord/dynamodb"
 	"github.com/iambod/rss2msg/test/awslocal"
 )
+
+// lockKeyFor mirrors production lockKey for test use: sha256 hex of the feed URL.
+func lockKeyFor(feedURL string) string {
+	sum := sha256.Sum256([]byte(feedURL))
+	return "rss2msg:coord:" + hex.EncodeToString(sum[:])
+}
 
 const (
 	region = "us-east-1"
@@ -108,7 +116,7 @@ func TestDynamoDBExpiredLeaseStolenByDifferentOwner(t *testing.T) {
 	}
 
 	// Manually expire a's lease by rewriting lease_expiry into the past.
-	key := "rss2msg:coord:feedE"
+	key := lockKeyFor("feedE")
 	past := strconv.FormatInt(time.Now().Add(-time.Minute).UnixMilli(), 10)
 	_, err := admin.UpdateItem(context.Background(), &awsddb.UpdateItemInput{
 		TableName: aws.String(table),
@@ -151,7 +159,7 @@ func TestDynamoDBStaleReleaseDoesNotDeleteNewerLease(t *testing.T) {
 	}
 
 	// Force-expire a's lease and let b steal it.
-	key := "rss2msg:coord:feedS"
+	key := lockKeyFor("feedS")
 	past := strconv.FormatInt(time.Now().Add(-time.Minute).UnixMilli(), 10)
 	if _, err := admin.UpdateItem(context.Background(), &awsddb.UpdateItemInput{
 		TableName:                 aws.String(table),
