@@ -26,7 +26,7 @@ func IsRetryable(err error) bool {
 	}
 	switch fe.Op {
 	case "transport":
-		return !errors.Is(err, context.Canceled)
+		return !errors.Is(fe.Err, context.Canceled)
 	case "status":
 		return fe.Status >= 500 || fe.Status == 429
 	default: // "parse", "request"

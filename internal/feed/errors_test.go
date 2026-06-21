@@ -25,6 +25,7 @@ func TestIsRetryable(t *testing.T) {
 		{"request", &FetchError{Op: "request", Err: errors.New("bad url")}, false},
 		{"untyped", errors.New("???"), false},
 		{"wrapped-transport", fmt.Errorf("poll: %w", &FetchError{Op: "transport", Err: errors.New("x")}), true},
+		{"wrapped-transport-canceled", fmt.Errorf("poll: %w", &FetchError{Op: "transport", Err: context.Canceled}), false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
