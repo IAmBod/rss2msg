@@ -8,6 +8,7 @@ import (
 	"time"
 
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
 
 	"github.com/iambod/rss2msg/internal/config"
 )
@@ -195,6 +196,17 @@ func TestLoggerCarriesTraceIDFromContext(t *testing.T) {
 	}
 	if !strings.Contains(out, span.SpanContext().TraceID().String()) {
 		t.Fatalf("expected trace_id %s in log line, got %q", span.SpanContext().TraceID().String(), out)
+	}
+}
+
+func TestInstrumentsHasAssignmentMeters(t *testing.T) {
+	mp := metricnoop.NewMeterProvider()
+	in, err := NewInstruments(mp.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments: %v", err)
+	}
+	if in.MembershipSize == nil || in.AssignedFeeds == nil || in.RebalanceEvents == nil {
+		t.Fatal("expected MembershipSize, AssignedFeeds, RebalanceEvents to be initialized")
 	}
 }
 
