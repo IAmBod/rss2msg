@@ -861,6 +861,10 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		return *warnings, err
 	}
 
+	if c.Heartbeat.Enabled && c.Heartbeat.Interval <= 0 {
+		return *warnings, fmt.Errorf("heartbeat.interval %v must be positive when heartbeat.enabled is true", c.Heartbeat.Interval)
+	}
+
 	if len(c.Feeds) == 0 && len(c.FeedSources) == 0 {
 		return *warnings, fmt.Errorf("at least one feed must be declared")
 	}

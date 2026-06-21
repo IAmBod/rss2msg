@@ -2183,6 +2183,35 @@ func TestValidateAMQP10RequiresURLAndTarget(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsEnabledHeartbeatWithNonPositiveInterval(t *testing.T) {
+	for _, d := range []time.Duration{0, -time.Second} {
+		c := goodCfg()
+		c.Heartbeat.Enabled = true
+		c.Heartbeat.Interval = d
+		if _, err := Validate(c); err == nil || !strings.Contains(err.Error(), "heartbeat.interval") {
+			t.Fatalf("expected heartbeat.interval error for interval %v, got %v", d, err)
+		}
+	}
+}
+
+func TestValidateAllowsDisabledHeartbeatWithAnyInterval(t *testing.T) {
+	c := goodCfg()
+	c.Heartbeat.Enabled = false
+	c.Heartbeat.Interval = 0
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("disabled heartbeat should not be validated: %v", err)
+	}
+}
+
+func TestValidateAllowsEnabledHeartbeatWithPositiveInterval(t *testing.T) {
+	c := goodCfg()
+	c.Heartbeat.Enabled = true
+	c.Heartbeat.Interval = time.Minute
+	if _, err := Validate(c); err != nil {
+		t.Fatalf("enabled heartbeat with positive interval should be valid: %v", err)
+	}
+}
+
 func TestValidateRejectsNegativeFetchRetry(t *testing.T) {
 	c := goodCfg()
 	c.HTTP.Retry.MaxAttempts = -1

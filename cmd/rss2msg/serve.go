@@ -15,6 +15,7 @@ import (
 	"github.com/iambod/rss2msg/internal/feedsource"
 	k8ssource "github.com/iambod/rss2msg/internal/feedsource/sources/kubernetes"
 	"github.com/iambod/rss2msg/internal/health"
+	"github.com/iambod/rss2msg/internal/heartbeat"
 	"github.com/iambod/rss2msg/internal/scheduler"
 )
 
@@ -96,6 +97,14 @@ func newServeCmd(opts *rootOpts) *cobra.Command {
 				<-ctx.Done()
 				hs.SetDraining()
 			}()
+
+			// Opt-in liveness heartbeat: emit a steady log line while the service
+			// runs so a quiet-but-healthy daemon still produces an alertable signal.
+			if cfg.Heartbeat.Enabled {
+				go heartbeat.Run(ctx, cfg.Heartbeat.Interval, func() {
+					tel.Logger.Info().Str("component", "heartbeat").Msg("heartbeat: service alive")
+				})
+			}
 
 			// SIGHUP forces a re-read of all sources.
 			hup := make(chan os.Signal, 1)
