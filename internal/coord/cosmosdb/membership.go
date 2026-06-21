@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+	"github.com/rs/zerolog/log"
 
 	"github.com/iambod/rss2msg/internal/coord"
 )
@@ -138,6 +139,11 @@ func (m *cosmosMembership) queryLiveMembers(ctx context.Context, now time.Time) 
 				ID string `json:"id"`
 			}
 			if err := json.Unmarshal(raw, &doc); err != nil {
+				log.Warn().
+					Str("coord_driver", "cosmosdb").
+					Str("event", "member_doc_unmarshal_error").
+					Err(err).
+					Msg("coord/cosmosdb: skipping malformed member document")
 				continue
 			}
 			ids = append(ids, strings.TrimPrefix(doc.ID, "member:"))

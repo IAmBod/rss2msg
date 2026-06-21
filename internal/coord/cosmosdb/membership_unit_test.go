@@ -151,13 +151,12 @@ func (f *fakeContainer) NewQueryItemsPager(_ string, _ azcosmos.PartitionKey, o 
 	}
 
 	// Snapshot matching items under the lock.
+	// Filter by the document body's pk field to faithfully emulate Cosmos
+	// partition isolation — only docs actually stored in the "members" partition
+	// are returned, regardless of id prefix.
 	f.mu.Lock()
 	var items [][]byte
-	for id, doc := range f.items {
-		// Only member docs (id prefix "member:") in the "members" partition.
-		if len(id) < 7 || id[:7] != "member:" {
-			continue
-		}
+	for _, doc := range f.items {
 		var md memberDoc
 		if err := json.Unmarshal(doc.body, &md); err != nil {
 			continue
