@@ -25,6 +25,7 @@ package dynamodb
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -269,11 +270,13 @@ func (c *Coordinator) Close() error {
 	return nil
 }
 
-// lockKey derives the partition-key value for feedURL. We store the raw URL so
-// the table is human-debuggable (Scan shows which feed each lock guards);
-// DynamoDB partition keys have no length problem for feed URLs.
+// lockKey derives the partition-key value for feedURL. We use the SHA-256 hex
+// of the URL (the same scheme as the Redis and Postgres coordinators) so every
+// backend keys locks identically and the key is a fixed-length, safe string
+// regardless of the URL's contents.
 func lockKey(feedURL string) string {
-	return "rss2msg:coord:" + feedURL
+	sum := sha256.Sum256([]byte(feedURL))
+	return "rss2msg:coord:" + hex.EncodeToString(sum[:])
 }
 
 // newOwnerToken returns a unique per-process owner token:

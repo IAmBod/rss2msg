@@ -2,6 +2,8 @@ package cosmosdb
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -140,16 +142,28 @@ func TestOwnerTokenIsUniquePerProcess(t *testing.T) {
 }
 
 func TestLockKeyDerivation(t *testing.T) {
-	k1 := lockKey("https://a.example/feed")
+	const feed = "https://a.example/feed?q=1#frag"
+	k1 := lockKey(feed)
 	k2 := lockKey("https://b.example/feed")
 	if k1 == k2 {
 		t.Fatal("distinct feeds produced the same lock key")
 	}
-	if lockKey("https://a.example/feed") != k1 {
+	if lockKey(feed) != k1 {
 		t.Fatal("lock key is not deterministic")
 	}
 	if !strings.HasPrefix(k1, "rss2msg:coord:") {
 		t.Fatalf("lock key missing namespace prefix: %q", k1)
+	}
+	// The key must be the SHA-256 hex of the URL (same scheme as the Redis
+	// coordinator), not the raw URL.
+	sum := sha256.Sum256([]byte(feed))
+	if want := "rss2msg:coord:" + hex.EncodeToString(sum[:]); k1 != want {
+		t.Fatalf("lock key = %q, want hashed %q", k1, want)
+	}
+	// The key is used as both the Cosmos document id and partition key, which
+	// forbid '/', '\\', '?' and '#'. Hashing must keep those out of the key.
+	if suffix := strings.TrimPrefix(k1, "rss2msg:coord:"); strings.ContainsAny(suffix, `/\?#`) {
+		t.Fatalf("lock key contains characters Cosmos forbids in id: %q", k1)
 	}
 }
 

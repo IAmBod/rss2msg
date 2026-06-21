@@ -27,6 +27,7 @@ package cosmosdb
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -384,11 +385,14 @@ func marshalLease(key, owner string, expiry time.Time) ([]byte, error) {
 	})
 }
 
-// lockKey derives the partition-key/id value for feedURL. We store the raw URL
-// so the container is human-debuggable (a query shows which feed each lock
-// guards).
+// lockKey derives the partition-key/id value for feedURL. We use the SHA-256
+// hex of the URL (the same scheme as the Redis and Postgres coordinators) so
+// every backend keys locks identically. Hashing is also required here because
+// the value is used as the Cosmos document id and partition key, which forbid
+// '/', '\', '?' and '#' — characters that feed URLs routinely contain.
 func lockKey(feedURL string) string {
-	return "rss2msg:coord:" + feedURL
+	sum := sha256.Sum256([]byte(feedURL))
+	return "rss2msg:coord:" + hex.EncodeToString(sum[:])
 }
 
 // newOwnerToken returns a unique per-process owner token:
