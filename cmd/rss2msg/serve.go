@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/iambod/rss2msg/internal/coord"
 	"github.com/iambod/rss2msg/internal/feedsource"
 	k8ssource "github.com/iambod/rss2msg/internal/feedsource/sources/kubernetes"
 	"github.com/iambod/rss2msg/internal/health"
@@ -39,6 +40,20 @@ func newServeCmd(opts *rootOpts) *cobra.Command {
 			defer closeSources()
 
 			agg := feedsource.NewAggregator(sources...)
+
+			self := coord.NewMemberID()
+			provider, owner, err := maybeWrapProvider(cfg, w.coord, agg, self, w.instr)
+			if err != nil {
+				return err
+			}
+			if owner != nil {
+				go owner.Run(ctx)
+				defer func() {
+					cctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel()
+					_ = owner.Close(cctx) // deregister after ServeDynamic drains
+				}()
+			}
 
 			// Collect kubernetes sources so poll outcomes can be written back to
 			// their Feed CR .status. ReportPoll is a no-op for feeds a source does
@@ -90,7 +105,7 @@ func newServeCmd(opts *rootOpts) *cobra.Command {
 			}()
 
 			return scheduler.ServeDynamic(ctx, scheduler.DynamicConfig{
-				Provider:     agg,
+				Provider:     provider,
 				Factory:      w.factory,
 				DrainTimeout: cfg.Runtime.ShutdownDrainTimeout,
 				OnReconcile: func(added, removed, changed int) {
