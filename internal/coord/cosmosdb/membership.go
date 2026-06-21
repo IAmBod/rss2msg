@@ -116,17 +116,14 @@ func (m *cosmosMembership) upsertMember(ctx context.Context, now time.Time) erro
 }
 
 // queryLiveMembers runs a single-partition query against the "members"
-// partition and returns the trimmed member IDs whose lease_expiry > nowMs.
+// partition fetching ALL member docs (id + lease_expiry), then in Go splits
+// them into live (returned) and expired (best-effort deleted).
 func (m *cosmosMembership) queryLiveMembers(ctx context.Context, now time.Time) ([]string, error) {
 	nowMs := now.UnixMilli()
 	pk := azcosmosMemberPK()
 
-	const q = "SELECT c.id FROM c WHERE c.lease_expiry > @now"
-	pager := m.c.container.NewQueryItemsPager(q, pk, &azcosmos.QueryOptions{
-		QueryParameters: []azcosmos.QueryParameter{
-			{Name: "@now", Value: nowMs},
-		},
-	})
+	const q = "SELECT c.id, c.lease_expiry FROM c"
+	pager := m.c.container.NewQueryItemsPager(q, pk, nil)
 
 	var ids []string
 	for pager.More() {
@@ -136,7 +133,8 @@ func (m *cosmosMembership) queryLiveMembers(ctx context.Context, now time.Time) 
 		}
 		for _, raw := range page.Items {
 			var doc struct {
-				ID string `json:"id"`
+				ID          string `json:"id"`
+				LeaseExpiry int64  `json:"lease_expiry"`
 			}
 			if err := json.Unmarshal(raw, &doc); err != nil {
 				log.Warn().
@@ -146,7 +144,12 @@ func (m *cosmosMembership) queryLiveMembers(ctx context.Context, now time.Time) 
 					Msg("coord/cosmosdb: skipping malformed member document")
 				continue
 			}
-			ids = append(ids, strings.TrimPrefix(doc.ID, "member:"))
+			if doc.LeaseExpiry > nowMs {
+				ids = append(ids, strings.TrimPrefix(doc.ID, "member:"))
+			} else {
+				// Best-effort reap of expired member entry; ignore delete errors.
+				_, _ = m.c.container.DeleteItem(ctx, pk, doc.ID, nil)
+			}
 		}
 	}
 	return ids, nil

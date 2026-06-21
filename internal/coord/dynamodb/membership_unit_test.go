@@ -101,6 +101,41 @@ func TestMembershipExpiredExcluded(t *testing.T) {
 	}
 }
 
+// TestMembershipExpiredReaped checks that an expired member item is deleted
+// (best-effort reap) from the store during a later Heartbeat call.
+func TestMembershipExpiredReaped(t *testing.T) {
+	f := newFakeDDB()
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	c1 := newWithClient(f, Options{Table: "locks", Owner: "owner-1", LeaseDuration: 60 * time.Second, MemberTTL: 60 * time.Second})
+	c1.now = func() time.Time { return base }
+	c2 := newWithClient(f, Options{Table: "locks", Owner: "owner-2", LeaseDuration: 60 * time.Second, MemberTTL: 60 * time.Second})
+	c2.now = func() time.Time { return base.Add(2 * time.Minute) }
+
+	ctx := context.Background()
+
+	m1, _ := c1.Membership("inst-1")
+	m2, _ := c2.Membership("inst-2")
+
+	if _, err := m1.Heartbeat(ctx); err != nil {
+		t.Fatalf("m1.Heartbeat: %v", err)
+	}
+	// Verify inst-1's member item exists before the reap.
+	if f.get(memberPK("inst-1")) == nil {
+		t.Fatal("expected inst-1 member item to be present before reap")
+	}
+
+	// m2 heartbeats at t+2m; inst-1's lease is expired, so it should be reaped.
+	if _, err := m2.Heartbeat(ctx); err != nil {
+		t.Fatalf("m2.Heartbeat: %v", err)
+	}
+
+	// inst-1's member item must now be absent (best-effort reap).
+	if f.get(memberPK("inst-1")) != nil {
+		t.Fatal("expired member inst-1 was not reaped during Heartbeat")
+	}
+}
+
 // TestMembershipCloseIsNoOp ensures Close returns nil without panicking.
 func TestMembershipCloseIsNoOp(t *testing.T) {
 	f := newFakeDDB()

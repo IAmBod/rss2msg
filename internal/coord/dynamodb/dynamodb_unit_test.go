@@ -83,30 +83,18 @@ func (f *fakeDDB) DeleteItem(_ context.Context, in *dynamodb.DeleteItemInput, _ 
 }
 
 // Scan is an in-memory implementation sufficient to drive membership unit tests.
-// It iterates all items and filters those whose "pk" begins_with the :p prefix
-// AND whose "lease_expiry" is greater than :now. Pagination (ExclusiveStartKey)
-// is not simulated — the in-memory store is always small enough to return in a
-// single page.
+// It iterates all items and filters those whose "pk" begins_with the :p prefix.
+// The expiry split and reap are done in production code, not here.
+// Pagination (ExclusiveStartKey) is not simulated — in-memory store is small.
 func (f *fakeDDB) Scan(_ context.Context, in *dynamodb.ScanInput, _ ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	prefix := in.ExpressionAttributeValues[":p"].(*ddbtypes.AttributeValueMemberS).Value
-	nowStr := in.ExpressionAttributeValues[":now"].(*ddbtypes.AttributeValueMemberN).Value
-	nowMs, _ := strconv.ParseInt(nowStr, 10, 64)
 
 	var items []map[string]ddbtypes.AttributeValue
 	for pk, item := range f.items {
 		if !strings.HasPrefix(pk, prefix) {
-			continue
-		}
-		expiryAV, ok := item[expiryAttr]
-		if !ok {
-			continue
-		}
-		expStr := expiryAV.(*ddbtypes.AttributeValueMemberN).Value
-		expMs, _ := strconv.ParseInt(expStr, 10, 64)
-		if expMs <= nowMs {
 			continue
 		}
 		items = append(items, item)

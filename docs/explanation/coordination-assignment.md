@@ -78,6 +78,11 @@ A departing instance's feeds must return to the live fleet:
 - **Crash / SIGKILL / partition:** no deregister is possible, so the entry lingers
   and peers fall back to **`member_ttl` expiry** (default 30s).
 
+Expired member entries are also reclaimed at the storage layer: Redis removes them
+via native key TTL; Postgres, DynamoDB, and Cosmos DB perform a best-effort delete
+of each expired entry during `Heartbeat`. This bounds stored member state to the
+live count regardless of how many process restarts have occurred.
+
 There is a benign gap on graceful shutdown between "this instance stopped its
 tickers" and "a peer picked them up": those feeds are simply polled one interval
 later, which is harmless. If the windows overlap, the per-tick guard prevents any

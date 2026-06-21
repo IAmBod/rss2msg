@@ -60,10 +60,9 @@ func (m *dynamoMembership) Heartbeat(ctx context.Context) ([]string, error) {
 	for {
 		out, err := m.c.client.Scan(ctx, &dynamodb.ScanInput{
 			TableName:        aws.String(m.c.table),
-			FilterExpression: aws.String("begins_with(pk, :p) AND lease_expiry > :now"),
+			FilterExpression: aws.String("begins_with(pk, :p)"),
 			ExpressionAttributeValues: map[string]ddbtypes.AttributeValue{
-				":p":   &ddbtypes.AttributeValueMemberS{Value: memberPKPrefix()},
-				":now": &ddbtypes.AttributeValueMemberN{Value: strconv.FormatInt(nowMs, 10)},
+				":p": &ddbtypes.AttributeValueMemberS{Value: memberPKPrefix()},
 			},
 			ExclusiveStartKey: startKey,
 		})
@@ -71,8 +70,25 @@ func (m *dynamoMembership) Heartbeat(ctx context.Context) ([]string, error) {
 			return nil, err
 		}
 		for _, it := range out.Items {
-			if s, ok := it["pk"].(*ddbtypes.AttributeValueMemberS); ok {
-				ids = append(ids, strings.TrimPrefix(s.Value, memberPKPrefix()))
+			pkAV, ok := it["pk"].(*ddbtypes.AttributeValueMemberS)
+			if !ok {
+				continue
+			}
+			expAV, ok := it["lease_expiry"].(*ddbtypes.AttributeValueMemberN)
+			if !ok {
+				continue
+			}
+			expMs, _ := strconv.ParseInt(expAV.Value, 10, 64)
+			if expMs > nowMs {
+				ids = append(ids, strings.TrimPrefix(pkAV.Value, memberPKPrefix()))
+			} else {
+				// Best-effort reap of expired member entry; ignore delete errors.
+				_, _ = m.c.client.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+					TableName: aws.String(m.c.table),
+					Key: map[string]ddbtypes.AttributeValue{
+						"pk": &ddbtypes.AttributeValueMemberS{Value: pkAV.Value},
+					},
+				})
 			}
 		}
 		if out.LastEvaluatedKey == nil {

@@ -100,6 +100,45 @@ func TestMembershipExpiredExcluded(t *testing.T) {
 	}
 }
 
+// TestMembershipExpiredReaped checks that an expired member doc is deleted
+// (best-effort reap) from the store during a later Heartbeat call.
+func TestMembershipExpiredReaped(t *testing.T) {
+	f := newFakeContainer()
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	c1 := newWithContainer(f, Options{Database: "db", Owner: "owner-1", LeaseDuration: 60 * time.Second, MemberTTL: 60 * time.Second})
+	c1.now = func() time.Time { return base }
+	c2 := newWithContainer(f, Options{Database: "db", Owner: "owner-2", LeaseDuration: 60 * time.Second, MemberTTL: 60 * time.Second})
+	// c2 runs 2 minutes later; c1's member doc is already expired by then.
+	c2.now = func() time.Time { return base.Add(2 * time.Minute) }
+
+	ctx := context.Background()
+
+	m1, _ := c1.Membership("inst-1")
+	m2, _ := c2.Membership("inst-2")
+
+	if _, err := m1.Heartbeat(ctx); err != nil {
+		t.Fatalf("m1.Heartbeat: %v", err)
+	}
+	// Verify inst-1's member doc exists before reap.
+	if _, ok := f.items[memberDocID("inst-1")]; !ok {
+		t.Fatal("expected inst-1 member doc to be present before reap")
+	}
+
+	// m2 heartbeats at t+2m; inst-1's lease is expired and should be reaped.
+	if _, err := m2.Heartbeat(ctx); err != nil {
+		t.Fatalf("m2.Heartbeat: %v", err)
+	}
+
+	// inst-1's member doc must now be absent (best-effort reap).
+	f.mu.Lock()
+	_, inst1Exists := f.items[memberDocID("inst-1")]
+	f.mu.Unlock()
+	if inst1Exists {
+		t.Fatal("expired member inst-1 was not reaped during Heartbeat")
+	}
+}
+
 // TestMembershipCloseIsNoOp ensures Close returns nil without panicking.
 func TestMembershipCloseIsNoOp(t *testing.T) {
 	f := newFakeContainer()
@@ -131,29 +170,11 @@ func TestMemberTTLDefaultsToLeaseDuration(t *testing.T) {
 // --- helpers to make fakeContainer satisfy the extended containerAPI ---.
 
 // newQueryItemsPager builds a real *runtime.Pager[azcosmos.QueryItemsResponse] from
-// the fake's in-memory member docs, filtering by lease_expiry > @now.
-// This satisfies the new containerAPI.NewQueryItemsPager method without bypassing the
-// real pager type.
-func (f *fakeContainer) NewQueryItemsPager(_ string, _ azcosmos.PartitionKey, o *azcosmos.QueryOptions) *runtime.Pager[azcosmos.QueryItemsResponse] {
-	// Extract @now from the query parameters.
-	var nowMs int64
-	if o != nil {
-		for _, p := range o.QueryParameters {
-			if p.Name == "@now" {
-				switch v := p.Value.(type) {
-				case int64:
-					nowMs = v
-				case float64:
-					nowMs = int64(v)
-				}
-			}
-		}
-	}
-
-	// Snapshot matching items under the lock.
-	// Filter by the document body's pk field to faithfully emulate Cosmos
-	// partition isolation — only docs actually stored in the "members" partition
-	// are returned, regardless of id prefix.
+// the fake's in-memory member docs. It returns ALL member docs in the "members"
+// partition (live AND expired), projecting both id and lease_expiry — the production
+// code performs the expiry split and best-effort reap itself.
+func (f *fakeContainer) NewQueryItemsPager(_ string, _ azcosmos.PartitionKey, _ *azcosmos.QueryOptions) *runtime.Pager[azcosmos.QueryItemsResponse] {
+	// Snapshot all docs in the "members" partition under the lock.
 	f.mu.Lock()
 	var items [][]byte
 	for _, doc := range f.items {
@@ -164,11 +185,15 @@ func (f *fakeContainer) NewQueryItemsPager(_ string, _ azcosmos.PartitionKey, o 
 		if md.PK != memberPartitionKey {
 			continue
 		}
-		if md.LeaseExpiry <= nowMs {
+		// Project id and lease_expiry so production can split live vs expired.
+		projected, err := json.Marshal(struct {
+			ID          string `json:"id"`
+			LeaseExpiry int64  `json:"lease_expiry"`
+		}{ID: md.ID, LeaseExpiry: md.LeaseExpiry})
+		if err != nil {
 			continue
 		}
-		b := append([]byte(nil), doc.body...)
-		items = append(items, b)
+		items = append(items, projected)
 	}
 	f.mu.Unlock()
 
