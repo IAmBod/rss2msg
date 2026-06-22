@@ -12,9 +12,9 @@
 // per-instance SQLite store). UpsertItem/UpsertFeedMeta are idempotent
 // PutItems.
 //
-// When ItemTTL is configured, item rows are written with a TTL attribute
-// (epoch seconds) so DynamoDB auto-prunes old seen-items; meta rows are never
-// given a TTL.
+// When ItemTTL is configured, both item rows and meta rows are written with a
+// TTL attribute (epoch seconds) so DynamoDB auto-prunes old seen-items and
+// stale feed metadata.
 package dynamodb
 
 import (
@@ -176,6 +176,13 @@ func (s *Store) UpsertItem(ctx context.Context, feedURL, itemID, hash string, se
 	return nil
 }
 
+// PruneItemsBefore is a no-op for DynamoDB: old item rows are pruned by the
+// service from the write-time TTL attribute (see ItemTTL), so the application
+// never scans or deletes. It always returns (0, nil) to satisfy state.Store.
+func (s *Store) PruneItemsBefore(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
+}
+
 func (s *Store) GetFeedMeta(ctx context.Context, feedURL string) (state.FeedMeta, bool, error) {
 	out, err := s.client.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName:      aws.String(s.table),
@@ -206,24 +213,42 @@ func (s *Store) GetFeedMeta(ctx context.Context, feedURL string) (state.FeedMeta
 	return meta, true, nil
 }
 
-func (s *Store) UpsertFeedMeta(ctx context.Context, feedURL string, meta state.FeedMeta) error {
+// buildFeedMetaItem assembles the meta row. When a TTL attribute and item_ttl
+// are configured, it stamps an expiry (updated_at + item_ttl) so DynamoDB
+// prunes stale feed_meta the same way it prunes item rows.
+func (s *Store) buildFeedMetaItem(feedURL string, meta state.FeedMeta) map[string]ddbtypes.AttributeValue {
+	now := time.Now().UTC()
 	item := map[string]ddbtypes.AttributeValue{
 		pkAttr:       &ddbtypes.AttributeValueMemberS{Value: feedURL},
 		skAttr:       &ddbtypes.AttributeValueMemberS{Value: metaSK},
 		"etag":       &ddbtypes.AttributeValueMemberS{Value: meta.ETag},
-		"updated_at": &ddbtypes.AttributeValueMemberS{Value: time.Now().UTC().Format(time.RFC3339Nano)},
+		"updated_at": &ddbtypes.AttributeValueMemberS{Value: now.Format(time.RFC3339Nano)},
 	}
 	if !meta.LastModified.IsZero() {
 		item["last_modified"] = &ddbtypes.AttributeValueMemberS{Value: meta.LastModified.UTC().Format(time.RFC3339Nano)}
 	}
+	if s.ttlAttribute != "" && s.itemTTL > 0 {
+		expiry := now.Add(s.itemTTL).Unix()
+		item[s.ttlAttribute] = &ddbtypes.AttributeValueMemberN{Value: fmt.Sprintf("%d", expiry)}
+	}
+	return item
+}
+
+func (s *Store) UpsertFeedMeta(ctx context.Context, feedURL string, meta state.FeedMeta) error {
 	_, err := s.client.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: aws.String(s.table),
-		Item:      item,
+		Item:      s.buildFeedMetaItem(feedURL, meta),
 	})
 	if err != nil {
 		return fmt.Errorf("state/dynamodb: PutItem (meta): %w", err)
 	}
 	return nil
+}
+
+// PruneFeedMetaBefore is a no-op for DynamoDB: stale meta rows are pruned by
+// the service from the write-time TTL attribute (see buildFeedMetaItem).
+func (s *Store) PruneFeedMetaBefore(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
 }
 
 // itemKey builds the composite primary key for a given partition (feedURL)

@@ -30,8 +30,10 @@ func (m *memStore) GetFeedMeta(ctx context.Context, _ string) (state.FeedMeta, b
 func (m *memStore) UpsertFeedMeta(ctx context.Context, _ string, _ state.FeedMeta) error {
 	return nil
 }
-func (m *memStore) Ping(ctx context.Context) error { return nil }
-func (m *memStore) Close() error                   { return nil }
+func (m *memStore) PruneItemsBefore(context.Context, time.Time) (int64, error)    { return 0, nil }
+func (m *memStore) PruneFeedMetaBefore(context.Context, time.Time) (int64, error) { return 0, nil }
+func (m *memStore) Ping(ctx context.Context) error                                { return nil }
+func (m *memStore) Close() error                                                  { return nil }
 
 func sampleFeed(items ...*gofeed.Item) *gofeed.Feed {
 	return &gofeed.Feed{Title: "Sample", Items: items}

@@ -113,8 +113,10 @@ func (s *fakeStore) UpsertFeedMeta(ctx context.Context, feedURL string, meta sta
 	return nil
 }
 
-func (s *fakeStore) Ping(ctx context.Context) error { return nil }
-func (s *fakeStore) Close() error                   { return nil }
+func (s *fakeStore) PruneItemsBefore(context.Context, time.Time) (int64, error)    { return 0, nil }
+func (s *fakeStore) PruneFeedMetaBefore(context.Context, time.Time) (int64, error) { return 0, nil }
+func (s *fakeStore) Ping(ctx context.Context) error                                { return nil }
+func (s *fakeStore) Close() error                                                  { return nil }
 
 func (s *fakeStore) committedIDs() []string {
 	s.mu.Lock()

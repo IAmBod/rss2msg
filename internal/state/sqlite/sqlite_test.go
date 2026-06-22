@@ -98,6 +98,52 @@ func TestFeedMetaMissingThenUpsertedWithAndWithoutLastModified(t *testing.T) {
 	}
 }
 
+func TestPruneItemsBefore(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	ctx := context.Background()
+
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	// Two old items with DIFFERENT fractional-second widths straddling the
+	// naive-string-compare trap, plus one fresh item, plus a feed_meta row.
+	old1 := base.Add(-48 * time.Hour).Add(100 * time.Millisecond) // ...:00.1Z
+	old2 := base.Add(-48 * time.Hour).Add(120 * time.Millisecond) // ...:00.12Z
+	fresh := base.Add(-1 * time.Minute)
+	if err := s.UpsertItem(ctx, "f", "old1", "h", old1); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpsertItem(ctx, "f", "old2", "h", old2); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpsertItem(ctx, "f", "fresh", "h", fresh); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpsertFeedMeta(ctx, "f", state.FeedMeta{ETag: "e"}); err != nil {
+		t.Fatal(err)
+	}
+
+	cutoff := base.Add(-24 * time.Hour)
+	n, err := s.PruneItemsBefore(ctx, cutoff)
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("removed = %d, want 2", n)
+	}
+	// Fresh item survives.
+	if _, found, err := s.GetItem(ctx, "f", "fresh"); err != nil || !found {
+		t.Fatalf("fresh item gone: found=%v err=%v", found, err)
+	}
+	// Old items deleted.
+	if _, found, _ := s.GetItem(ctx, "f", "old1"); found {
+		t.Fatal("old1 not pruned")
+	}
+	// PruneItemsBefore does not touch feed_meta.
+	if _, found, err := s.GetFeedMeta(ctx, "f"); err != nil || !found {
+		t.Fatalf("feed_meta gone: found=%v err=%v", found, err)
+	}
+}
+
 func TestSchemaIsIdempotent(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -125,5 +171,47 @@ func TestInMemoryDatabase(t *testing.T) {
 	defer s.Close()
 	if err := s.Ping(context.Background()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPruneFeedMetaBefore(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	ctx := context.Background()
+
+	// feed_meta.updated_at is set to time.Now() inside UpsertFeedMeta, so we
+	// cannot backdate it directly through the API. Insert rows with explicit
+	// updated_at via the store's db is not exposed; instead upsert two metas,
+	// then backdate one with a raw UPDATE through a fresh connection.
+	if err := s.UpsertFeedMeta(ctx, "old-feed", state.FeedMeta{ETag: "e-old"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpsertFeedMeta(ctx, "fresh-feed", state.FeedMeta{ETag: "e-fresh"}); err != nil {
+		t.Fatal(err)
+	}
+	// Keep a seen_items row to prove it is NOT pruned by this method.
+	if err := s.UpsertItem(ctx, "old-feed", "i1", "h", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	// Backdate old-feed's updated_at well past the cutoff.
+	if err := s.SetFeedMetaUpdatedAtForTest(ctx, "old-feed", time.Now().Add(-48*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := s.PruneFeedMetaBefore(ctx, time.Now().Add(-24*time.Hour))
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("removed = %d, want 1", n)
+	}
+	if _, found, _ := s.GetFeedMeta(ctx, "old-feed"); found {
+		t.Fatal("old-feed meta not pruned")
+	}
+	if _, found, _ := s.GetFeedMeta(ctx, "fresh-feed"); !found {
+		t.Fatal("fresh-feed meta wrongly pruned")
+	}
+	if _, found, _ := s.GetItem(ctx, "old-feed", "i1"); !found {
+		t.Fatal("seen_items wrongly pruned by PruneFeedMetaBefore")
 	}
 }

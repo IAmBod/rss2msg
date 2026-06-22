@@ -204,3 +204,35 @@ func TestItemAndMetaShareNoID(t *testing.T) {
 		t.Fatal("meta lost")
 	}
 }
+
+func TestPruneItemsBeforeIsNoOp(t *testing.T) {
+	s := &Store{} // no client needed; method must not touch it
+	n, err := s.PruneItemsBefore(context.Background(), time.Now())
+	if err != nil || n != 0 {
+		t.Fatalf("got (%d, %v), want (0, nil)", n, err)
+	}
+}
+
+func TestPruneFeedMetaBeforeIsNoOp(t *testing.T) {
+	s := &Store{}
+	n, err := s.PruneFeedMetaBefore(context.Background(), time.Now())
+	if err != nil || n != 0 {
+		t.Fatalf("got (%d, %v), want (0, nil)", n, err)
+	}
+}
+
+func TestMetaDocTTLWhenConfigured(t *testing.T) {
+	s := &Store{itemTTL: time.Hour, now: time.Now}
+	doc := s.buildMetaDoc("https://f", state.FeedMeta{ETag: "e"})
+	if doc.TTL == nil || *doc.TTL < 1 {
+		t.Fatalf("expected positive ttl on meta doc, got %v", doc.TTL)
+	}
+}
+
+func TestMetaDocNoTTLWhenUnset(t *testing.T) {
+	s := &Store{now: time.Now} // itemTTL == 0
+	doc := s.buildMetaDoc("https://f", state.FeedMeta{ETag: "e"})
+	if doc.TTL != nil {
+		t.Fatalf("expected no ttl on meta doc, got %v", *doc.TTL)
+	}
+}

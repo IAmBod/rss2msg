@@ -154,13 +154,6 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		if strings.TrimSpace(c.State.DynamoDB.Table) == "" {
 			return *warnings, fmt.Errorf("state.dynamodb.table is required when state.driver=dynamodb")
 		}
-		d := c.State.DynamoDB
-		if (strings.TrimSpace(d.TTLAttribute) == "") != (d.ItemTTL <= 0) {
-			return *warnings, fmt.Errorf("state.dynamodb.ttl_attribute and item_ttl must both be set or both empty")
-		}
-		if d.ItemTTL < 0 {
-			return *warnings, fmt.Errorf("state.dynamodb.item_ttl %v must not be negative", d.ItemTTL)
-		}
 	case "cosmosdb":
 		d := c.State.CosmosDB
 		hasEndpoint := strings.TrimSpace(d.Endpoint) != ""
@@ -174,9 +167,36 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		if strings.TrimSpace(d.Database) == "" {
 			return *warnings, fmt.Errorf("state.cosmosdb.database is required when state.driver=cosmosdb")
 		}
-		if d.ItemTTL < 0 {
-			return *warnings, fmt.Errorf("state.cosmosdb.item_ttl %v must not be negative", d.ItemTTL)
+	}
+
+	// Unified state retention (item_ttl) + SQL sweep cadence (cleanup_interval).
+	if c.State.ItemTTL < 0 {
+		return *warnings, fmt.Errorf("state.item_ttl %v must not be negative", c.State.ItemTTL)
+	}
+	sqlCleanup := map[string]time.Duration{
+		"sqlite":   c.State.SQLite.CleanupInterval,
+		"postgres": c.State.Postgres.CleanupInterval,
+	}
+	for drv, iv := range sqlCleanup {
+		if c.State.Driver != drv {
+			continue
 		}
+		if iv < 0 {
+			return *warnings, fmt.Errorf("state.%s.cleanup_interval %v must not be negative", drv, iv)
+		}
+		if iv > 0 && c.State.ItemTTL == 0 {
+			return *warnings, fmt.Errorf("state.%s.cleanup_interval is set but state.item_ttl is 0 (cleanup disabled)", drv)
+		}
+	}
+	// DynamoDB needs the attribute name to write the expiry epoch.
+	if c.State.Driver == "dynamodb" && c.State.ItemTTL > 0 &&
+		strings.TrimSpace(c.State.DynamoDB.TTLAttribute) == "" {
+		return *warnings, fmt.Errorf("state.dynamodb.ttl_attribute is required when state.item_ttl is set")
+	}
+	// Short TTLs risk pruning items still in the feed (duplicate re-publish).
+	if c.State.ItemTTL > 0 && c.State.ItemTTL < time.Hour {
+		*warnings = append(*warnings,
+			fmt.Sprintf("state.item_ttl %v is very short; items still present in a feed may be pruned and re-published", c.State.ItemTTL))
 	}
 
 	if _, ok := knownCoordinationDrivers[c.Coordination.Driver]; !ok {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/iambod/rss2msg/internal/config"
 	"github.com/iambod/rss2msg/internal/coord"
@@ -534,7 +535,7 @@ func openStateStore(ctx context.Context, c config.StateConfig) (state.Store, err
 			Region:       c.DynamoDB.Region,
 			EndpointURL:  c.DynamoDB.EndpointURL,
 			TTLAttribute: c.DynamoDB.TTLAttribute,
-			ItemTTL:      c.DynamoDB.ItemTTL,
+			ItemTTL:      c.ItemTTL,
 		})
 	case "cosmosdb":
 		return statecosmos.New(ctx, statecosmos.Options{
@@ -544,11 +545,30 @@ func openStateStore(ctx context.Context, c config.StateConfig) (state.Store, err
 			Container:        c.CosmosDB.Container,
 			CreateIfMissing:  c.CosmosDB.CreateIfMissing,
 			Throughput:       c.CosmosDB.Throughput,
-			ItemTTL:          c.CosmosDB.ItemTTL,
+			ItemTTL:          c.ItemTTL,
 		})
 	default:
 		return nil, fmt.Errorf("unsupported state driver %q", c.Driver)
 	}
+}
+
+// stateCleanupInterval returns the effective background-sweep interval for SQL
+// state backends (default 1h when unset), or 0 for backends that prune natively
+// (dynamodb, cosmosdb) and therefore need no application sweep.
+func stateCleanupInterval(c config.StateConfig) time.Duration {
+	var iv time.Duration
+	switch c.Driver {
+	case "sqlite":
+		iv = c.SQLite.CleanupInterval
+	case "postgres":
+		iv = c.Postgres.CleanupInterval
+	default:
+		return 0
+	}
+	if iv <= 0 {
+		iv = time.Hour
+	}
+	return iv
 }
 
 func buildPublisher(ctx context.Context, sc config.SinkConfig, tel *telemetry.Telemetry) (sink.Publisher, error) {
