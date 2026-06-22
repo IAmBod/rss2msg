@@ -138,7 +138,7 @@ func TestPruneItemsBefore(t *testing.T) {
 	if _, found, _ := s.GetItem(ctx, "f", "old1"); found {
 		t.Fatal("old1 not pruned")
 	}
-	// feed_meta is never pruned.
+	// PruneItemsBefore does not touch feed_meta.
 	if _, found, err := s.GetFeedMeta(ctx, "f"); err != nil || !found {
 		t.Fatalf("feed_meta gone: found=%v err=%v", found, err)
 	}
