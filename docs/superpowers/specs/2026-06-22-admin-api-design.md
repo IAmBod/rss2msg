@@ -36,6 +36,15 @@ Settled during brainstorming:
 - **Auth packaging:** extract the feed-sink auth core into a shared
   `internal/httpauth` package; the feed sink delegates to it, the admin server reuses
   it. One source of truth.
+- **Dashboard forward-compat:** v1 stays a focused read/action API but takes two
+  near-free decisions so a future web dashboard isn't blocked by an API redesign:
+  (1) list endpoints return an **envelope** (`{"feeds":[...], "total":N}`) rather than
+  a bare array, so pagination/filtering can be added without a breaking shape change;
+  (2) a reserved **CORS config hook** (`admin.cors.allowed_origins`, empty = off) so
+  enabling a browser SPA is a config change, not a code change. The richer
+  dashboard-backend pieces (per-feed live poll-status registry, recent-activity/events
+  feed, `/v1/sinks` view, JSON metrics summary) are **deferred to a follow-up** — see
+  *Out of scope*.
 - **Delivery:** a single branch/PR (`feat/admin-api`).
 
 ## Config
@@ -58,12 +67,16 @@ admin:
       - name: ci
         key: "${ADMIN_API_KEY}"
     api_key_header: X-API-Key   # default when omitted
+  cors:
+    allowed_origins: []         # empty => CORS disabled (no browser SPA). e.g. ["https://ops.example.com"]
 ```
 
 - `internal/config/config.go`: add `Admin AdminConfig` to the top-level `Config`.
-  Define `AdminConfig{ Enabled bool; Listen string; Auth FeedAuthConfig }` with
-  `mapstructure` tags, **reusing the existing `FeedAuthConfig` type** (the same type
-  the feed sink uses) so the auth shape and its env/`${VAR}` handling are identical.
+  Define `AdminConfig{ Enabled bool; Listen string; Auth FeedAuthConfig; CORS
+  AdminCORSConfig }` with `mapstructure` tags, **reusing the existing `FeedAuthConfig`
+  type** (the same type the feed sink uses) so the auth shape and its env/`${VAR}`
+  handling are identical. `AdminCORSConfig{ AllowedOrigins []string
+  \`mapstructure:"allowed_origins"\` }` — empty slice means CORS is off (the default).
 - `internal/config/load.go`: register Viper defaults `admin.enabled` (`false`) and
   `admin.listen` (`":8090"`) in `applyDefaults()`.
 - `internal/config/validate.go`: `validateAdmin()` — when `enabled`:
@@ -75,7 +88,10 @@ admin:
     names/secrets, etc.);
   - **warn** (not fail) if `admin.listen` equals `health.listen` or
     `telemetry.prometheus.listen` — same collision-warning pattern health already
-    uses, since two servers cannot bind the same address.
+    uses, since two servers cannot bind the same address;
+  - each `cors.allowed_origins` entry, when present, must be a valid origin
+    (`scheme://host[:port]`, or the literal `*`); a `*` wildcard combined with auth
+    is permitted but **warns**, since credentialed wildcard CORS is a smell.
 
 Env overrides follow the existing scheme; `admin.enabled` / `admin.listen` have
 registered defaults so `RSS2MSG_ADMIN__ENABLED` / `RSS2MSG_ADMIN__LISTEN` bind.
@@ -154,6 +170,12 @@ func (s *Server) Shutdown(ctx context.Context) error
   `surface="admin"`, and on failure writes `401` + challenge. (Auth is mandatory at
   the config layer unless `auth.disabled`, in which case the middleware is a
   pass-through.)
+- **CORS middleware** (only active when `cors.allowed_origins` is non-empty): echoes
+  an allowed `Origin` into `Access-Control-Allow-Origin`, sets
+  `Access-Control-Allow-Credentials: true`, advertises the methods/headers the API
+  uses (incl. `Authorization`/`X-API-Key`), and short-circuits `OPTIONS` preflight
+  with `204`. When the list is empty the middleware is omitted entirely (no CORS
+  headers, identical to today). A disallowed origin simply gets no CORS headers.
 - All responses JSON. Errors: `{"error": "..."}` with the appropriate status code.
 - The narrow interfaces (`FeedLister`, `StateInspector`, `MembershipInspector`,
   `HealthInspector`) are satisfied structurally by the existing
@@ -167,7 +189,7 @@ func (s *Server) Shutdown(ctx context.Context) error
 | Method · Route | Returns |
 | --- | --- |
 | `GET /v1/status` | `instance_id`, `version`/`commit`/`date`, `uptime_seconds`, `started`, `draining`, `coordinator_driver`, `state_driver`, `assignment_enabled`, `sink_count`, `feed_count`, `member_count`. Non-secret effective settings only. |
-| `GET /v1/feeds` | array of `{url, interval_seconds, owned, last_polled, etag, last_modified}`. Feed list from `Feeds.Desired()`; per-feed metadata joined from `State.GetFeedMeta` (absent meta → null fields). `owned` is computed via `assign.Owned(self, feeds, members)` when assignment is on, else always `true`. |
+| `GET /v1/feeds` | envelope `{"feeds":[{url, interval_seconds, owned, last_polled, etag, last_modified}, ...], "total":N}` (envelope, not a bare array, so pagination/filtering can be added non-breakingly later). Feed list from `Feeds.Desired()`; per-feed metadata joined from `State.GetFeedMeta` (absent meta → null fields). `owned` is computed via `assign.Owned(self, feeds, members)` when assignment is on, else always `true`. |
 | `GET /v1/feeds/{id}` | one feed (see below for `{id}`); `404` if not in the desired set. |
 | `GET /v1/members` | `{self, members: [...], ownership: {feedURL: member}}`. Members from `MembershipInspector` when available; single-self response for memory/non-clustered backends. `ownership` computed with `assign.Owned`. |
 | `GET /v1/health` | machine-readable dependency pings (state, coordinator) + `started`/`draining` — a JSON sibling of `/readyz`. Reuses the same `health.Check` functions. |
@@ -232,7 +254,7 @@ tests unaffected). The poke triggers exactly the same `runTick` path as a normal
 - `docs/how-to/operate-the-admin-api.md` — enable it, configure auth, curl examples,
   security guidance (bind privately / put behind auth; do not expose with
   `auth.disabled`).
-- `docs/reference/configuration.md` — document the `admin:` block.
+- `docs/reference/configuration.md` — document the `admin:` block (incl. `cors`).
 - Add the `admin:` block to **both** `internal/config/example.yaml` and
   `examples/config.example.yaml` (must stay byte-identical — drift-guard test).
 - Cross-link from `docs/index.md` / relevant how-to hubs; run
@@ -241,10 +263,11 @@ tests unaffected). The poke triggers exactly the same `runTick` path as a normal
 
 ## Testing (TDD)
 
-- `internal/config`: defaults (`admin.enabled=false`, `admin.listen=":8090"`);
-  validation (enabled w/o listen → error; enabled w/o any credential and not
-  `auth.disabled` → error; enabled + `auth.disabled` → ok; enabled + credentials →
-  ok; listen collision with health/prometheus → warning).
+- `internal/config`: defaults (`admin.enabled=false`, `admin.listen=":8090"`,
+  `cors.allowed_origins` empty); validation (enabled w/o listen → error; enabled w/o
+  any credential and not `auth.disabled` → error; enabled + `auth.disabled` → ok;
+  enabled + credentials → ok; listen collision with health/prometheus → warning;
+  malformed CORS origin → error; `*` origin → warning).
 - `internal/httpauth`: unit tests for each method (accept/reject), constant-time
   path, challenge header, fail reasons, `Empty()`.
 - `internal/sink/feed`: characterization tests added **before** the extraction;
@@ -255,7 +278,10 @@ tests unaffected). The poke triggers exactly the same `runTick` path as a normal
   (fake membership) + ownership map, `/v1/health` pass/fail, reconcile invokes the
   closure (`202`), poll-now `404` for unknown feed and `202` + `running` flag via a
   fake `PollNow`, prune calls `Prune*` with the right cutoff and returns counts,
-  default-duration fallback to `item_ttl`.
+  default-duration fallback to `item_ttl`. Plus: `/v1/feeds` returns the
+  `{feeds,total}` envelope; CORS middleware echoes an allowed origin + handles
+  `OPTIONS` preflight, omits headers for a disallowed origin, and is absent entirely
+  when `allowed_origins` is empty.
 - `internal/scheduler`: `PollNow` triggers an extra `runTick` for the targeted feed;
   unknown/not-running URL is a no-op; coalescing (rapid pokes don't queue); nil
   `PollNow` leaves existing behavior identical.
@@ -273,7 +299,17 @@ tests unaffected). The poke triggers exactly the same `runTick` path as a normal
 - Full effective-config dump endpoint — deferred; would require robust secret
   redaction. `/v1/status` exposes only curated non-secret settings instead.
 - Drain toggle via API.
-- A web UI — JSON API only.
+- A web UI / dashboard itself — v1 is a JSON API only. The two cheap forward-compat
+  hooks (list envelope + CORS config) are *in* scope; building a dashboard is not.
+- **Deferred dashboard-backend data (follow-up issue), intentionally not in v1:**
+  - per-feed **live poll-status registry** (last poll time/result/error message, last
+    change count, consecutive-failure streak, next scheduled run) fed by the
+    scheduler's `OnPollComplete`/`OnPollOverrun` hooks — the one piece the current data
+    model can't reconstruct later;
+  - a **recent-activity / events** endpoint (changes & errors stream);
+  - a **`/v1/sinks`** health/delivery view;
+  - a **JSON metrics summary** (dashboards can scrape Prometheus `/metrics` meanwhile);
+  - **pagination/filtering** on `/v1/feeds` (the envelope shape reserves room for it).
 - mTLS for the admin listener (the chosen auth is bearer/basic/api-key; mTLS can be
   layered later by a reverse proxy if needed).
 
@@ -285,7 +321,11 @@ tests unaffected). The poke triggers exactly the same `runTick` path as a normal
   requests reach the endpoints.
 - `enabled: true` with no credentials and `auth.disabled` unset fails validation.
 - `GET /v1/status`, `/v1/feeds`, `/v1/feeds/{id}`, `/v1/members`, `/v1/health` return
-  correct JSON for both single-instance and clustered (assignment) deployments.
+  correct JSON for both single-instance and clustered (assignment) deployments;
+  `/v1/feeds` uses the `{feeds,total}` envelope.
+- With `admin.cors.allowed_origins` set, browser preflight (`OPTIONS`) and
+  cross-origin requests from a listed origin succeed; with it empty, no CORS headers
+  are emitted (behavior identical to having no CORS).
 - `POST /v1/feeds/reconcile` re-reads feed sources; `POST /v1/feeds/{id}/poll`
   forces an off-cycle poll of a running feed and `404`s an unknown one;
   `POST /v1/state/prune` removes aged rows and reports counts.
