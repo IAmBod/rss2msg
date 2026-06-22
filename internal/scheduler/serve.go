@@ -72,7 +72,7 @@ func Serve(ctx context.Context, cfg ServeConfig) error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			runFeedLoop(ctx, p, interval, collect, onOverrun, onComplete)
+			runFeedLoop(ctx, p, interval, nil, collect, onOverrun, onComplete)
 		}()
 	}
 
@@ -89,7 +89,7 @@ func Serve(ctx context.Context, cfg ServeConfig) error {
 	return errors.Join(joined...)
 }
 
-func runFeedLoop(ctx context.Context, p FeedPipeline, interval time.Duration, collect func(error), onOverrun func(took time.Duration), onComplete func(int, error, time.Time)) {
+func runFeedLoop(ctx context.Context, p FeedPipeline, interval time.Duration, poke <-chan struct{}, collect func(error), onOverrun func(took time.Duration), onComplete func(int, error, time.Time)) {
 	t := time.NewTicker(interval)
 	defer t.Stop()
 	// Tick once immediately on start so users don't wait an interval before the
@@ -100,6 +100,8 @@ func runFeedLoop(ctx context.Context, p FeedPipeline, interval time.Duration, co
 		case <-ctx.Done():
 			return
 		case <-t.C:
+			runTick(ctx, p, interval, collect, onOverrun, onComplete)
+		case <-poke:
 			runTick(ctx, p, interval, collect, onOverrun, onComplete)
 		}
 	}
