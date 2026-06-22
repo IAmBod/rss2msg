@@ -84,6 +84,13 @@ func TestRunSweepsImmediatelyThenOnTick(t *testing.T) {
 	if totalRemoved < 4 {
 		t.Fatalf("totalRemoved = %d, want >= 4 (2 per sweep × >= 2 sweeps)", totalRemoved)
 	}
+
+	// Verify that items and feed_meta were pruned with the same cutoff on each sweep.
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.cutoffs[0] != p.metaCutoffs[0] {
+		t.Fatalf("item and feed_meta pruned with different cutoffs: %v vs %v", p.cutoffs[0], p.metaCutoffs[0])
+	}
 }
 
 func TestRunReturnsImmediatelyWhenDisabled(t *testing.T) {
