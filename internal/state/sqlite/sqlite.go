@@ -154,3 +154,26 @@ func (s *Store) UpsertFeedMeta(ctx context.Context, feedURL string, meta state.F
     `, feedURL, meta.ETag, lm, now)
 	return err
 }
+
+// PruneFeedMetaBefore deletes feed_meta rows whose updated_at is older than
+// cutoff and returns the number of rows removed. seen_items is not touched.
+// updated_at is stored as RFC3339Nano text; datetime() normalizes both sides
+// so the comparison is correct regardless of fractional-second width.
+func (s *Store) PruneFeedMetaBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	res, err := s.db.ExecContext(ctx,
+		`DELETE FROM feed_meta WHERE datetime(updated_at) < datetime(?)`,
+		cutoff.UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		return 0, fmt.Errorf("state/sqlite: prune feed_meta: %w", err)
+	}
+	return res.RowsAffected()
+}
+
+// SetFeedMetaUpdatedAtForTest overwrites a feed's updated_at. Test-only seam:
+// UpsertFeedMeta always stamps time.Now(), so tests need a way to backdate.
+func (s *Store) SetFeedMetaUpdatedAtForTest(ctx context.Context, feedURL string, t time.Time) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE feed_meta SET updated_at=? WHERE feed_url=?`,
+		t.UTC().Format(time.RFC3339Nano), feedURL)
+	return err
+}
