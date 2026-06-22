@@ -4,11 +4,14 @@ package admin
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/iambod/rss2msg/internal/config"
@@ -169,6 +172,7 @@ func (s *Server) Start() error {
 	if err != nil {
 		return fmt.Errorf("admin listen on %q: %w", s.cfg.Listen, err)
 	}
+	s.server.Addr = ln.Addr().String()
 	go func() {
 		if err := s.serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.log.Error().Err(err).Msg("admin API server stopped unexpectedly")
@@ -178,9 +182,29 @@ func (s *Server) Start() error {
 	return nil
 }
 
-// serve runs the listener; TLS/mTLS is layered in Task 14.
+// serve runs the listener with optional TLS and mTLS (client-cert) enforcement.
 func (s *Server) serve(ln net.Listener) error {
-	return s.server.Serve(ln)
+	if !s.cfg.TLS.Enabled {
+		return s.server.Serve(ln)
+	}
+	cert, err := tls.LoadX509KeyPair(s.cfg.TLS.CertFile, s.cfg.TLS.KeyFile)
+	if err != nil {
+		return fmt.Errorf("admin tls keypair: %w", err)
+	}
+	tlsCfg := &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}
+	if s.cfg.TLS.ClientCAFile != "" {
+		caPEM, err := os.ReadFile(s.cfg.TLS.ClientCAFile)
+		if err != nil {
+			return fmt.Errorf("admin tls client CA: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caPEM) {
+			return fmt.Errorf("admin tls client CA %q: no certificates parsed", s.cfg.TLS.ClientCAFile)
+		}
+		tlsCfg.ClientCAs = pool
+		tlsCfg.ClientAuth = tls.RequireAndVerifyClientCert
+	}
+	return s.server.Serve(tls.NewListener(ln, tlsCfg))
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
