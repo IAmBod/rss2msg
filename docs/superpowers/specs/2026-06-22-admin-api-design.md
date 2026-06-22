@@ -230,9 +230,9 @@ func (s *Server) Shutdown(ctx context.Context) error
 | Method · Route | Returns |
 | --- | --- |
 | `GET /v1/status` | `instance_id`, `version`/`commit`/`date`, `uptime_seconds`, `started`, `draining`, `coordinator_driver`, `state_driver`, `assignment_enabled`, `sink_count`, `feed_count`, `member_count`. Non-secret effective settings only. |
-| `GET /v1/feeds` | envelope `{"feeds":[{url, interval_seconds, owned, last_polled, etag, last_modified}, ...], "total":N}` (envelope, not a bare array, so pagination/filtering can be added non-breakingly later). Feed list from `Feeds.Desired()`; per-feed metadata joined from `State.GetFeedMeta` (absent meta → null fields). `owned` is computed via `assign.Owned(self, feeds, members)` when assignment is on, else always `true`. |
+| `GET /v1/feeds` | envelope `{"feeds":[{url, interval_seconds, owned, etag, last_modified}, ...], "total":N}` (envelope, not a bare array, so pagination/filtering can be added non-breakingly later). Feed list from `Feeds.Desired()`; per-feed `etag`/`last_modified` joined from `State.GetFeedMeta` (absent meta → null fields). `owned` is computed via `assign.Owner(url, members) == self` when assignment is on, else always `true`. *(Note: a `last_polled` timestamp is intentionally absent — `state.FeedMeta` exposes only `{ETag, LastModified}`, the feed's own HTTP cache validators, not when we last polled. Last-poll time is part of the deferred poll-status registry.)* |
 | `GET /v1/feeds/{id}` | one feed (see below for `{id}`); `404` if not in the desired set. |
-| `GET /v1/members` | `{self, members: [...], ownership: {feedURL: member}}`. Members from `MembershipInspector` when available; single-self response for memory/non-clustered backends. `ownership` computed with `assign.Owned`. |
+| `GET /v1/members` | `{self, members: [...], ownership: {feedURL: member}}`. Members from `MembershipInspector` (an `OwnerProvider.Self()`/`Members()` snapshot — side-effect-free, not a coordinator heartbeat) when assignment is on; single-self response (`members:[self]`, every feed owned by self) for memory/non-clustered backends. `ownership` computed per feed with `assign.Owner(url, members)`. |
 | `GET /v1/health` | machine-readable dependency pings (state, coordinator) + `started`/`draining` — a JSON sibling of `/readyz`. Reuses the same `health.Check` functions. |
 
 **Safe actions**
