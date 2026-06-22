@@ -26,8 +26,8 @@ Each backend has its own page with the full config block and field reference:
 | ------ | ------------------- | ----------- | ---- |
 | `sqlite` | Single file on local disk. WAL + busy-timeout enabled by default; the store uses one connection so writes are serialised in-process. Not shared between processes/nodes. | Single-instance deployments, local dev, edge / embedded contexts. | [SQLite](state-stores/sqlite.md) |
 | `postgres` | Shared across instances; writers serialised by the DB. | Production, multi-instance, or when state already lives in Postgres. | [Postgres](state-stores/postgres.md) |
-| `dynamodb` | Shared, distributed-safe table; strongly-consistent reads. A feed's meta and items share a partition (`feed_url`) with the meta row under a reserved `#META` sort key. Optional TTL auto-pruning of old seen-items. | Production, multi-instance, AWS-native / serverless deployments. | [DynamoDB](state-stores/dynamodb.md) |
-| `cosmosdb` | Shared, distributed-safe container partitioned on `/feed_url`. Item rows are keyed by `sha256(item_id)`; a feed's meta row uses the reserved id `__meta__`. Optional per-item `ttl` auto-pruning of old seen-items. | Production, multi-instance, Azure-native / serverless deployments. | [Cosmos DB](state-stores/cosmosdb.md) |
+| `dynamodb` | Shared, distributed-safe table; strongly-consistent reads. A feed's meta and items share a partition (`feed_url`) with the meta row under a reserved `#META` sort key. When `item_ttl` is configured, both item rows and meta rows carry the TTL attribute so DynamoDB auto-prunes old seen-items and stale feed metadata. | Production, multi-instance, AWS-native / serverless deployments. | [DynamoDB](state-stores/dynamodb.md) |
+| `cosmosdb` | Shared, distributed-safe container partitioned on `/feed_url`. Item rows are keyed by `sha256(item_id)`; a feed's meta row uses the reserved id `__meta__`. When `item_ttl` is configured, both item rows and meta rows carry the Cosmos `ttl` property so the service auto-prunes old seen-items and stale feed metadata. | Production, multi-instance, Azure-native / serverless deployments. | [Cosmos DB](state-stores/cosmosdb.md) |
 
 > [!warning]
 > **Multiple instances need a shared store.** The `sqlite` store is a local
@@ -84,12 +84,12 @@ state:
 
 | backend | how pruning works |
 | ------- | ----------------- |
-| `sqlite` | App-side: a background goroutine runs `DELETE FROM seen_items WHERE last_seen_at < now - item_ttl` on every `cleanup_interval` tick. An immediate sweep runs at startup. |
-| `postgres` | Same app-side sweep as SQLite; `cleanup_interval` controls the cadence. |
-| `dynamodb` | Native: each item row is written with an epoch-seconds expiry; DynamoDB prunes expired rows automatically. Requires `state.dynamodb.ttl_attribute` to name the attribute. |
-| `cosmosdb` | Native: each item row is written with a Cosmos `ttl` property; the service prunes expired documents automatically. Requires TTL to be enabled on the container. |
+| `sqlite` | App-side: a background goroutine runs `DELETE FROM seen_items WHERE last_seen_at < now - item_ttl` on every `cleanup_interval` tick. An immediate sweep runs at startup. A companion `DELETE FROM feed_meta WHERE updated_at < now - item_ttl` runs in the same sweep. |
+| `postgres` | Same app-side sweep as SQLite; `cleanup_interval` controls the cadence. Both `seen_items` and `feed_meta` are deleted in each sweep. |
+| `dynamodb` | Native: each item row **and** each meta row are written with an epoch-seconds TTL attribute; DynamoDB prunes expired rows automatically. Requires `state.dynamodb.ttl_attribute` to name the attribute. |
+| `cosmosdb` | Native: each item row **and** each meta row are written with a Cosmos `ttl` property; the service prunes expired documents automatically. Requires TTL to be enabled on the container. |
 
-`feed_meta` rows (ETag / Last-Modified per feed) are **never** pruned by any backend.
+`feed_meta` rows (ETag / Last-Modified per feed) are also bounded by `item_ttl`, anchored on `updated_at` — the last time the feed's HTTP cache validators changed. A still-polled feed that only ever returns `304 Not Modified` does not refresh `updated_at`, so its cached validators may be pruned after `item_ttl` and re-fetched once on the next successful poll. This is harmless: no duplicate publishes occur because `seen_items` still deduplicates against the stored content hash.
 
 **Scaled-mode note (SQL backends).** The `DELETE` is partitioned by time, so multiple instances can run their sweeps concurrently without a coordinator lock — overlapping deletes simply remove the same already-eligible rows.
 

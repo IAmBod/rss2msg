@@ -139,7 +139,7 @@ Add one method to `state.Store` (`internal/state/state.go`):
 
 ```go
 // PruneItemsBefore deletes seen_items whose last_seen_at is older than cutoff.
-// It returns the number of rows removed. Feed metadata is never pruned.
+// It returns the number of rows removed.
 PruneItemsBefore(ctx context.Context, cutoff time.Time) (removed int64, err error)
 ```
 
@@ -151,9 +151,16 @@ PruneItemsBefore(ctx context.Context, cutoff time.Time) (removed int64, err erro
   backends prune natively via the write-time TTL, so there is nothing for the
   app to scan or delete (and a scan would be costly).
 
-`feed_meta` is **never** pruned. It holds one small row per feed carrying the
-ETag / Last-Modified used for conditional GET; deleting it would only cost
-bandwidth on the next poll.
+`feed_meta` is also pruned when `item_ttl > 0`, anchored on `updated_at` (the
+last time the feed's HTTP cache validators changed). For SQL backends the same
+sweep issues `DELETE FROM feed_meta WHERE updated_at < cutoff`; for
+DynamoDB/Cosmos the meta row is written with the same TTL attribute/property as
+item rows, so the service prunes it natively.
+
+**304 caveat:** a still-polled feed that only ever returns `304 Not Modified`
+does not refresh `updated_at`, so its cached validators may be pruned after
+`item_ttl` and re-fetched once on the next successful poll. This is harmless:
+`seen_items` still deduplicates, so no duplicate publishes occur.
 
 ## The cleanup loop (`cmd/rss2msg/serve.go`)
 
@@ -209,7 +216,7 @@ docs.
 
 ## Out of scope
 
-- Pruning `feed_meta`.
+- ~~Pruning `feed_meta`.~~ (Now in scope: `feed_meta` is pruned by `item_ttl` on `updated_at` — see addendum 2026-06-22.)
 - Per-feed TTL overrides (single global `state.item_ttl` only).
 - Active scanning/TTL emulation for DynamoDB/Cosmos (the service handles it).
 - Coordinator-elected single-sweeper (the idempotent DELETE makes it
