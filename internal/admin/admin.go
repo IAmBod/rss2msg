@@ -67,6 +67,7 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("GET /v1/health", s.handleHealth)
 	mux.HandleFunc("GET /v1/feeds", s.handleFeeds)
 	mux.HandleFunc("GET /v1/feeds/{id}", s.handleFeedByID)
+	mux.HandleFunc("POST /v1/feeds/{id}/poll", s.handleFeedPoll)
 	mux.HandleFunc("POST /v1/feeds/reconcile", s.handleReconcile)
 	mux.HandleFunc("GET /v1/members", s.handleMembers)
 	return s.withCORS(s.withAuth(mux))

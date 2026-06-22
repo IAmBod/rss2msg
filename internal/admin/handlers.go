@@ -108,6 +108,36 @@ func (s *Server) handleMembers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"self": self, "members": members, "ownership": ownership})
 }
 
+func (s *Server) handleFeedPoll(w http.ResponseWriter, r *http.Request) {
+	feedURL, err := url.PathUnescape(r.PathValue("id"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid feed id")
+		return
+	}
+	// Validate the feed is in the desired set.
+	feeds, err := s.deps.Feeds.Desired(r.Context())
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "list feeds: "+err.Error())
+		return
+	}
+	known := false
+	for _, fc := range feeds {
+		if fc.URL == feedURL {
+			known = true
+			break
+		}
+	}
+	if !known {
+		writeErr(w, http.StatusNotFound, "feed not found")
+		return
+	}
+	running := false
+	if s.deps.PollNow != nil {
+		running = s.deps.PollNow(feedURL)
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"status": "poll triggered", "running": running})
+}
+
 func (s *Server) handleReconcile(w http.ResponseWriter, _ *http.Request) {
 	if s.deps.Reconcile == nil {
 		writeErr(w, http.StatusServiceUnavailable, "reconcile unavailable")

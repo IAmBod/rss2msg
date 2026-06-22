@@ -247,4 +247,33 @@ func TestReconcile(t *testing.T) {
 	}
 }
 
+func TestPollNowEndpoint(t *testing.T) {
+	var got string
+	d := baseDeps()
+	d.Feeds = fakeFeeds{feeds: []config.FeedConfig{{URL: "https://a.com/f", Interval: time.Minute}}}
+	d.PollNow = func(u string) bool { got = u; return true }
+	s := testServer(t, &httpauth.Auth{}, nil, d)
+
+	// unknown feed => 404
+	rec := httptest.NewRecorder()
+	s.handler().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/feeds/"+url.PathEscape("https://nope/x")+"/poll", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("unknown: got %d want 404", rec.Code)
+	}
+	// known feed => 202, PollNow called, running:true
+	rec = httptest.NewRecorder()
+	s.handler().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/feeds/"+url.PathEscape("https://a.com/f")+"/poll", nil))
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("known: got %d want 202", rec.Code)
+	}
+	if got != "https://a.com/f" {
+		t.Fatalf("PollNow got %q", got)
+	}
+	var body map[string]any
+	_ = json.Unmarshal(rec.Body.Bytes(), &body)
+	if body["running"] != true {
+		t.Fatalf("running flag = %v", body["running"])
+	}
+}
+
 var _ = context.Background
