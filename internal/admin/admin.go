@@ -70,6 +70,7 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("POST /v1/feeds/{id}/poll", s.handleFeedPoll)
 	mux.HandleFunc("POST /v1/feeds/reconcile", s.handleReconcile)
 	mux.HandleFunc("GET /v1/members", s.handleMembers)
+	mux.HandleFunc("POST /v1/state/prune", s.handlePrune)
 	return s.withCORS(s.withAuth(mux))
 }
 

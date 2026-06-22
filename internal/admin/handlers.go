@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"time"
@@ -145,6 +146,47 @@ func (s *Server) handleReconcile(w http.ResponseWriter, _ *http.Request) {
 	}
 	s.deps.Reconcile()
 	writeJSON(w, http.StatusAccepted, map[string]string{"status": "reconcile triggered"})
+}
+
+type pruneRequest struct {
+	ItemsOlderThan    string `json:"items_older_than"`
+	FeedMetaOlderThan string `json:"feed_meta_older_than"`
+}
+
+func (s *Server) handlePrune(w http.ResponseWriter, r *http.Request) {
+	var req pruneRequest
+	if r.Body != nil {
+		_ = json.NewDecoder(r.Body).Decode(&req) // empty body => zero struct => defaults
+	}
+	itemDur, err := durationOrDefault(req.ItemsOlderThan, s.deps.ItemTTL)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "items_older_than: "+err.Error())
+		return
+	}
+	metaDur, err := durationOrDefault(req.FeedMetaOlderThan, s.deps.ItemTTL)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "feed_meta_older_than: "+err.Error())
+		return
+	}
+	now := time.Now()
+	items, err := s.deps.State.PruneItemsBefore(r.Context(), now.Add(-itemDur))
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "prune items: "+err.Error())
+		return
+	}
+	meta, err := s.deps.State.PruneFeedMetaBefore(r.Context(), now.Add(-metaDur))
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "prune feed meta: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items_removed": items, "feed_meta_removed": meta})
+}
+
+func durationOrDefault(s string, def time.Duration) (time.Duration, error) {
+	if s == "" {
+		return def, nil
+	}
+	return time.ParseDuration(s)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {

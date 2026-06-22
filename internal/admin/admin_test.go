@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -275,5 +276,46 @@ func TestPollNowEndpoint(t *testing.T) {
 		t.Fatalf("running flag = %v", body["running"])
 	}
 }
+
+func TestPrune(t *testing.T) {
+	fs := &fakeState{itemsRemoved: 7, metaRemoved: 3}
+	d := baseDeps()
+	d.State = fs
+	d.ItemTTL = 720 * time.Hour
+	s := testServer(t, &httpauth.Auth{}, nil, d)
+
+	// explicit durations
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/state/prune", stringsReader(`{"items_older_than":"1h","feed_meta_older_than":"2h"}`))
+	s.handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d", rec.Code)
+	}
+	var body struct {
+		ItemsRemoved    int64 `json:"items_removed"`
+		FeedMetaRemoved int64 `json:"feed_meta_removed"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &body)
+	if body.ItemsRemoved != 7 || body.FeedMetaRemoved != 3 {
+		t.Fatalf("counts = %+v", body)
+	}
+	// cutoff ~ now-1h
+	if d := time.Since(fs.lastItemCutoff); d < 55*time.Minute || d > 65*time.Minute {
+		t.Fatalf("item cutoff delta = %v", d)
+	}
+
+	// empty body => default to ItemTTL for both
+	fs.lastItemCutoff = time.Time{}
+	rec = httptest.NewRecorder()
+	s.handler().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/state/prune", stringsReader(`{}`)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("default prune got %d", rec.Code)
+	}
+	if d := time.Since(fs.lastItemCutoff); d < 719*time.Hour {
+		t.Fatalf("default cutoff should be ~ItemTTL ago, delta=%v", d)
+	}
+}
+
+func stringsReader(s string) *strings.Reader { return strings.NewReader(s) }
 
 var _ = context.Background
