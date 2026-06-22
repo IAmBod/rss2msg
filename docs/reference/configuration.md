@@ -45,6 +45,7 @@ retry:         # sink retry policy
 runtime:       # shutdown + run-once concurrency
 heartbeat:     # opt-in liveness log line (serve)
 health:        # Kubernetes-style probe endpoints (serve)
+admin:         # opt-in admin HTTP API (serve)
 state:         # seen-item store (required)
 coordination:  # multi-instance gating (optional)
 sinks:         # list, at least one (Publisher destinations)
@@ -52,6 +53,7 @@ feeds:         # static feed list (at least one of feeds / feed_sources)
 feed_sources:  # dynamic feed list, reconciled at runtime (optional)
 ```
 
+- [`admin`](admin-api.md) — opt-in admin HTTP API (disabled by default).
 - [`state`](../how-to/choose-a-state-store.md) — seen-item store (required).
 - [`coordination`](../how-to/run-multiple-instances.md) — multi-instance gating (optional).
 - [`sinks`](../how-to/choose-a-sink.md) — list, at least one (Publisher destinations).
@@ -333,6 +335,81 @@ Validation rules: each path must start with `/`; the three paths must be
 distinct; `listen` is required when `enabled: true`. If
 `telemetry.prometheus.enabled` is set and `health.listen` equals
 `telemetry.prometheus.listen`, validation warns that one server will fail to bind.
+
+## `admin`
+
+The opt-in admin HTTP API served by the `serve` daemon. Disabled by default.
+See [Admin API Reference](admin-api.md) for endpoint documentation and
+[Operate the Admin API](../how-to/operate-the-admin-api.md) for setup and
+security guidance.
+
+```yaml
+admin:
+  enabled: false
+  listen: ":8090"
+  tls:
+    enabled: false
+    cert_file: ""
+    key_file: ""
+    client_ca_file: ""
+  auth:
+    enabled: true
+    bearer_tokens:
+      - name: ops
+        token: "${ADMIN_TOKEN}"
+    basic_users: []
+    api_keys: []
+    api_key_header: X-API-Key
+  cors:
+    allowed_origins: []
+```
+
+### `admin` — top-level
+
+| field     | default   | notes |
+| --------- | --------- | ----- |
+| `enabled` | `false`   | `true` starts the admin listener under `serve`. No admin server is started under `run-once`. |
+| `listen`  | `:8090`   | Listener address. Required when `enabled: true`. Must not conflict with `health.listen` or `telemetry.prometheus.listen`. |
+
+### `admin.tls`
+
+Configures TLS and optional mutual TLS (mTLS) for the admin listener.
+
+| field             | default | notes |
+| ----------------- | ------- | ----- |
+| `enabled`         | `false` | `true` wraps the listener with TLS. `cert_file` and `key_file` are required when enabled. |
+| `cert_file`       | `""`    | Path to the server's TLS certificate (PEM). Required when `tls.enabled: true`. |
+| `key_file`        | `""`    | Path to the server's private key (PEM). Required when `tls.enabled: true`. |
+| `client_ca_file`  | `""`    | Path to the CA bundle (PEM) used to verify client certificates. When set, the server requires and verifies a client cert on every connection (`RequireAndVerifyClientCert`), enabling mTLS. |
+
+### `admin.auth`
+
+Application-level authentication for the admin API. `enabled` defaults to `true`
+(secure by default). When `enabled: true` and no credentials are configured, every
+request is rejected with `401 Unauthorized`. Set `enabled: false` only for
+loopback-only deployments.
+
+| field            | default      | notes |
+| ---------------- | ------------ | ----- |
+| `enabled`        | `true`       | `false` disables all application-level auth (pass-through). |
+| `bearer_tokens`  | `[]`         | List of `{name, token}` entries. Checked against `Authorization: Bearer <token>`. |
+| `basic_users`    | `[]`         | List of `{name, username, password}` entries. Checked against HTTP Basic auth. |
+| `api_keys`       | `[]`         | List of `{name, key}` entries. Checked against the configured `api_key_header`. |
+| `api_key_header` | `X-API-Key`  | Request header name for API key authentication. |
+
+### `admin.cors`
+
+Browser CORS for the admin API. An empty `allowed_origins` list (the default)
+disables CORS entirely.
+
+| field              | default | notes |
+| ------------------ | ------- | ----- |
+| `allowed_origins`  | `[]`    | List of allowed origin values. `"*"` permits any origin. When non-empty, the server adds `Access-Control-Allow-Origin`, `Vary: Origin`, `Access-Control-Allow-Credentials`, `Access-Control-Allow-Methods`, and `Access-Control-Allow-Headers` for matching requests and handles `OPTIONS` preflight. |
+
+Validation rules: `listen` is required when `enabled: true`; `tls.cert_file`
+and `tls.key_file` are both required when `tls.enabled: true`; `auth.enabled:
+true` with no credentials causes a validation warning (not an error). The admin
+listener address must not collide with the health or Prometheus listener.
 
 ## `feed_sources`
 
