@@ -67,6 +67,16 @@ func TestOwnerProviderFiltersToOwned(t *testing.T) {
 	}
 }
 
+func TestOwnerProviderAccessors(t *testing.T) {
+	op := NewOwnerProvider(&staticProvider{}, nil, "self-1", time.Second, nil)
+	if op.Self() != "self-1" {
+		t.Fatalf("Self() = %q", op.Self())
+	}
+	if got := op.Members(); len(got) != 1 || got[0] != "self-1" {
+		t.Fatalf("Members() baseline = %v", got) // fail-static baseline is [self]
+	}
+}
+
 func TestOwnerProviderSignalsOnMembershipChange(t *testing.T) {
 	inner := &fakeInner{feeds: feeds("https://e/a", "https://e/b"), ch: make(chan struct{}, 1)}
 	mem := &fakeMembership{members: []string{"self"}}

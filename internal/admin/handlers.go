@@ -89,4 +89,24 @@ func (s *Server) handleFeedByID(w http.ResponseWriter, r *http.Request) {
 	writeErr(w, http.StatusNotFound, "feed not found")
 }
 
+func (s *Server) handleMembers(w http.ResponseWriter, r *http.Request) {
+	self, members := s.selfAndMembers()
+	if len(members) == 0 {
+		members = []string{self}
+	}
+	ownership := map[string]string{}
+	if s.deps.Feeds != nil {
+		if feeds, err := s.deps.Feeds.Desired(r.Context()); err == nil {
+			for _, fc := range feeds {
+				if owner, ok := assign.Owner(fc.URL, members); ok {
+					ownership[fc.URL] = owner
+				} else {
+					ownership[fc.URL] = self
+				}
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"self": self, "members": members, "ownership": ownership})
+}
+
 var _ = config.FeedConfig{}

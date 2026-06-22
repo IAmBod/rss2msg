@@ -66,6 +66,7 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("GET /v1/status", s.handleStatus)
 	mux.HandleFunc("GET /v1/feeds", s.handleFeeds)
 	mux.HandleFunc("GET /v1/feeds/{id}", s.handleFeedByID)
+	mux.HandleFunc("GET /v1/members", s.handleMembers)
 	return s.withCORS(s.withAuth(mux))
 }
 

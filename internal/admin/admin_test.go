@@ -162,4 +162,48 @@ func TestFeedByIDNotFound(t *testing.T) {
 	}
 }
 
+type fakeMembers struct {
+	self    string
+	members []string
+}
+
+func (f fakeMembers) Self() string      { return f.self }
+func (f fakeMembers) Members() []string { return f.members }
+
+func TestMembersSingleInstance(t *testing.T) {
+	d := baseDeps() // Members == nil
+	s := testServer(t, &httpauth.Auth{}, nil, d)
+	rec := authedGet(s, "/v1/members")
+	var body struct {
+		Self    string   `json:"self"`
+		Members []string `json:"members"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &body)
+	if body.Self != "inst-1" || len(body.Members) != 1 || body.Members[0] != "inst-1" {
+		t.Fatalf("single-instance members = %+v", body)
+	}
+}
+
+func TestMembersClustered(t *testing.T) {
+	d := baseDeps()
+	d.Members = fakeMembers{self: "inst-1", members: []string{"inst-1", "inst-2"}}
+	d.Feeds = fakeFeeds{feeds: []config.FeedConfig{{URL: "https://a.com/f", Interval: time.Minute}}}
+	s := testServer(t, &httpauth.Auth{}, nil, d)
+	rec := authedGet(s, "/v1/members")
+	var body struct {
+		Self      string            `json:"self"`
+		Members   []string          `json:"members"`
+		Ownership map[string]string `json:"ownership"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Members) != 2 {
+		t.Fatalf("members = %v", body.Members)
+	}
+	if owner, ok := body.Ownership["https://a.com/f"]; !ok || (owner != "inst-1" && owner != "inst-2") {
+		t.Fatalf("ownership = %v", body.Ownership)
+	}
+}
+
 var _ = context.Background
