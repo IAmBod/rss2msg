@@ -6,6 +6,8 @@ import (
 	"time"
 
 	ddbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+
+	"github.com/iambod/rss2msg/internal/state"
 )
 
 func TestNewRequiresTable(t *testing.T) {
@@ -106,5 +108,31 @@ func TestPruneItemsBeforeIsNoOp(t *testing.T) {
 	n, err := s.PruneItemsBefore(context.Background(), time.Now())
 	if err != nil || n != 0 {
 		t.Fatalf("got (%d, %v), want (0, nil)", n, err)
+	}
+}
+
+func TestPruneFeedMetaBeforeIsNoOp(t *testing.T) {
+	s := &Store{}
+	n, err := s.PruneFeedMetaBefore(context.Background(), time.Now())
+	if err != nil || n != 0 {
+		t.Fatalf("got (%d, %v), want (0, nil)", n, err)
+	}
+}
+
+func TestUpsertFeedMetaWritesTTLWhenConfigured(t *testing.T) {
+	// A store configured with a TTL attribute + item_ttl must write that
+	// attribute on the meta row so DynamoDB prunes stale feed_meta.
+	s := &Store{ttlAttribute: "expires_at", itemTTL: time.Hour}
+	item := s.buildFeedMetaItem("https://f", state.FeedMeta{ETag: "e"})
+	if _, ok := item["expires_at"]; !ok {
+		t.Fatal("expected ttl attribute on meta item when item_ttl set")
+	}
+}
+
+func TestUpsertFeedMetaNoTTLWhenUnset(t *testing.T) {
+	s := &Store{} // no ttlAttribute / itemTTL
+	item := s.buildFeedMetaItem("https://f", state.FeedMeta{ETag: "e"})
+	if _, ok := item["expires_at"]; ok {
+		t.Fatal("did not expect a ttl attribute when item_ttl unset")
 	}
 }

@@ -13,9 +13,9 @@
 // writes the same container, so cross-instance dedup works (unlike the
 // per-instance SQLite store). UpsertItem/UpsertFeedMeta are idempotent upserts.
 //
-// When ItemTTL is configured, item rows are written with Cosmos' reserved `ttl`
-// property (integer seconds) so the service auto-prunes old seen-items; meta
-// rows are never given a ttl. The container must have TTL enabled
+// When ItemTTL is configured, both item rows and meta rows are written with
+// Cosmos' reserved `ttl` property (integer seconds) so the service auto-prunes
+// old seen-items and stale feed metadata. The container must have TTL enabled
 // (DefaultTimeToLive = -1); CreateIfMissing enables it on creation.
 package cosmosdb
 
@@ -112,6 +112,7 @@ type metaDoc struct {
 	ETag         string `json:"etag"`
 	LastModified string `json:"last_modified,omitempty"`
 	UpdatedAt    string `json:"updated_at"`
+	TTL          *int   `json:"ttl,omitempty"`
 }
 
 // Store implements state.Store on top of a single Cosmos DB container.
@@ -309,7 +310,10 @@ func (s *Store) GetFeedMeta(ctx context.Context, feedURL string) (state.FeedMeta
 	return meta, true, nil
 }
 
-func (s *Store) UpsertFeedMeta(ctx context.Context, feedURL string, meta state.FeedMeta) error {
+// buildMetaDoc assembles the meta document. When item_ttl is configured it sets
+// the reserved `ttl` property so Cosmos prunes stale feed_meta the same way it
+// prunes item rows. ttl is relative to last write, so each upsert extends it.
+func (s *Store) buildMetaDoc(feedURL string, meta state.FeedMeta) metaDoc {
 	doc := metaDoc{
 		ID:        metaID,
 		FeedURL:   feedURL,
@@ -319,7 +323,18 @@ func (s *Store) UpsertFeedMeta(ctx context.Context, feedURL string, meta state.F
 	if !meta.LastModified.IsZero() {
 		doc.LastModified = meta.LastModified.UTC().Format(time.RFC3339Nano)
 	}
-	body, err := json.Marshal(doc)
+	if s.itemTTL > 0 {
+		secs := int(s.itemTTL.Seconds())
+		if secs < 1 {
+			secs = 1
+		}
+		doc.TTL = &secs
+	}
+	return doc
+}
+
+func (s *Store) UpsertFeedMeta(ctx context.Context, feedURL string, meta state.FeedMeta) error {
+	body, err := json.Marshal(s.buildMetaDoc(feedURL, meta))
 	if err != nil {
 		return fmt.Errorf("state/cosmosdb: marshal meta: %w", err)
 	}
@@ -327,6 +342,12 @@ func (s *Store) UpsertFeedMeta(ctx context.Context, feedURL string, meta state.F
 		return fmt.Errorf("state/cosmosdb: UpsertItem (meta): %w", err)
 	}
 	return nil
+}
+
+// PruneFeedMetaBefore is a no-op for Cosmos DB: stale meta rows are pruned by
+// the service from the write-time `ttl` property (see buildMetaDoc).
+func (s *Store) PruneFeedMetaBefore(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
 }
 
 // docID derives a Cosmos-safe document id from a raw item GUID. Cosmos ids
