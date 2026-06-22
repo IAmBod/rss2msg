@@ -64,7 +64,8 @@ func New(cfg config.AdminConfig, auth *httpauth.Auth, deps Deps, log zerolog.Log
 func (s *Server) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/status", s.handleStatus)
-	// (later tasks register more routes here)
+	mux.HandleFunc("GET /v1/feeds", s.handleFeeds)
+	mux.HandleFunc("GET /v1/feeds/{id}", s.handleFeedByID)
 	return s.withCORS(s.withAuth(mux))
 }
 

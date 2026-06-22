@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
 	"github.com/iambod/rss2msg/internal/config"
 	"github.com/iambod/rss2msg/internal/httpauth"
+	"github.com/iambod/rss2msg/internal/state"
 	"github.com/rs/zerolog"
 )
 
@@ -87,6 +89,76 @@ func TestCORS(t *testing.T) {
 	s.handler().ServeHTTP(rec, req)
 	if rec.Header().Get("Access-Control-Allow-Origin") != "" {
 		t.Fatal("disallowed origin should get no ACAO")
+	}
+}
+
+// fakes for Task 8 tests
+type fakeFeeds struct{ feeds []config.FeedConfig }
+
+func (f fakeFeeds) Desired(context.Context) ([]config.FeedConfig, error) { return f.feeds, nil }
+
+type fakeState struct {
+	meta                       map[string]state.FeedMeta
+	itemsRemoved, metaRemoved  int64
+	lastItemCutoff, lastMetaCutoff time.Time
+}
+
+func (f *fakeState) GetFeedMeta(_ context.Context, feedURL string) (state.FeedMeta, bool, error) {
+	m, ok := f.meta[feedURL]
+	return m, ok, nil
+}
+func (f *fakeState) PruneItemsBefore(_ context.Context, c time.Time) (int64, error) {
+	f.lastItemCutoff = c
+	return f.itemsRemoved, nil
+}
+func (f *fakeState) PruneFeedMetaBefore(_ context.Context, c time.Time) (int64, error) {
+	f.lastMetaCutoff = c
+	return f.metaRemoved, nil
+}
+func (f *fakeState) Ping(context.Context) error { return nil }
+
+func authedGet(s *Server, path string) *httptest.ResponseRecorder {
+	rec := httptest.NewRecorder()
+	s.handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+	return rec
+}
+
+func TestFeedsEnvelope(t *testing.T) {
+	d := baseDeps()
+	d.Feeds = fakeFeeds{feeds: []config.FeedConfig{{URL: "https://a.com/f", Interval: 5 * time.Minute}}}
+	d.State = &fakeState{meta: map[string]state.FeedMeta{"https://a.com/f": {ETag: `"x"`, LastModified: time.Unix(1000, 0).UTC()}}}
+	s := testServer(t, &httpauth.Auth{}, nil, d)
+
+	rec := authedGet(s, "/v1/feeds")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d", rec.Code)
+	}
+	var env struct {
+		Feeds []map[string]any `json:"feeds"`
+		Total int              `json:"total"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatal(err)
+	}
+	if env.Total != 1 || len(env.Feeds) != 1 {
+		t.Fatalf("envelope = %+v", env)
+	}
+	if env.Feeds[0]["url"] != "https://a.com/f" || env.Feeds[0]["etag"] != `"x"` || env.Feeds[0]["owned"] != true {
+		t.Fatalf("feed = %+v", env.Feeds[0])
+	}
+}
+
+func TestFeedByIDNotFound(t *testing.T) {
+	d := baseDeps()
+	d.Feeds = fakeFeeds{feeds: []config.FeedConfig{{URL: "https://a.com/f", Interval: time.Minute}}}
+	d.State = &fakeState{meta: map[string]state.FeedMeta{}}
+	s := testServer(t, &httpauth.Auth{}, nil, d)
+
+	if rec := authedGet(s, "/v1/feeds/"+url.PathEscape("https://nope.com/x")); rec.Code != http.StatusNotFound {
+		t.Fatalf("unknown feed: got %d want 404", rec.Code)
+	}
+	if rec := authedGet(s, "/v1/feeds/"+url.PathEscape("https://a.com/f")); rec.Code != http.StatusOK {
+		t.Fatalf("known feed: got %d want 200", rec.Code)
 	}
 }
 
