@@ -100,8 +100,8 @@ type fakeFeeds struct{ feeds []config.FeedConfig }
 func (f fakeFeeds) Desired(context.Context) ([]config.FeedConfig, error) { return f.feeds, nil }
 
 type fakeState struct {
-	meta                       map[string]state.FeedMeta
-	itemsRemoved, metaRemoved  int64
+	meta                           map[string]state.FeedMeta
+	itemsRemoved, metaRemoved      int64
 	lastItemCutoff, lastMetaCutoff time.Time
 }
 

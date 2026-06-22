@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/iambod/rss2msg/internal/assign"
-	"github.com/iambod/rss2msg/internal/config"
-	"github.com/iambod/rss2msg/internal/health"
 )
 
 type feedView struct {
@@ -127,6 +125,3 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, code, map[string]any{"ok": ok, "checks": checks})
 }
-
-var _ = config.FeedConfig{}
-var _ health.Check // anchor the health import (handleHealth range iterates []health.Check from Deps)
