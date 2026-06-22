@@ -137,11 +137,15 @@ coordination:
     rebalance_grace: 5s
 
 state:
-  driver: sqlite   # postgres | sqlite | dynamodb
+  driver: sqlite   # postgres | sqlite | dynamodb | cosmosdb
+  # item_ttl: 720h            # retention since an item was last seen; 0/unset = keep forever (default).
+                              # Honored by every backend: SQL sweeps; DynamoDB/Cosmos prune natively.
   sqlite:
     path: ./rss2msg.db    # filesystem path; ":memory:" and "?_pragma=..." are accepted
+    # cleanup_interval: 1h    # SQL-only: how often this instance sweeps expired items (default 1h when item_ttl > 0)
   # postgres:
   #   dsn: ${POSTGRES_DSN}
+  #   cleanup_interval: 1h    # SQL-only: sweep cadence (default 1h when item_ttl > 0)
   #   tls:                  # only takes effect when DSN does not set sslmode=disable
   #     ca_file: /etc/ssl/pg-ca.pem
   #     cert_file: /etc/ssl/pg-client.pem   # mTLS: both cert_file and key_file or neither
@@ -152,8 +156,7 @@ state:
   #   table: rss2msg-state   # required; table with PK feed_url (S) + SK item_id (S), provisioned out of band
   #   region: us-east-1      # optional; SDK default chain (env / shared config) when empty
   #   endpoint_url:          # optional; LocalStack / DynamoDB Local override
-  #   ttl_attribute: expires_at   # optional; enables DynamoDB-native pruning of old seen-items
-  #   item_ttl: 720h              # required iff ttl_attribute is set; how long item rows live
+  #   ttl_attribute: expires_at   # required when state.item_ttl is set; names the TTL attribute the table prunes on
 
 sinks:
   # A composite fans every change out to its children. Used as `default`, so

@@ -3,7 +3,7 @@ title: Choose a State Store
 type: how-to
 tags: [rss2msg/docs, state, scaling]
 summary: Persist seen-item state and HTTP cache validators with the sqlite, postgres, dynamodb, or cosmosdb state store.
-updated: 2026-06-09
+updated: 2026-06-22
 ---
 
 # Choose a State Store
@@ -63,12 +63,42 @@ CREATE TABLE feed_meta (
 );
 ```
 
+## Retention and cleanup
+
+Set `state.item_ttl` to automatically remove seen-item rows that have not been observed for the configured duration. `0` (the default) keeps rows forever — this is the behavior prior to this feature.
+
+```yaml
+state:
+  driver: sqlite       # or postgres | dynamodb | cosmosdb
+  item_ttl: 720h       # delete rows last seen more than 30 days ago; 0/unset = keep forever
+  sqlite:
+    cleanup_interval: 1h   # SQL-only: how often to sweep (default 1h when item_ttl > 0)
+```
+
+**Anchor: `last_seen_at`, not first-seen.** The expiry clock is reset on every `UpsertItem` call. An item that is still present in a feed has its `last_seen_at` refreshed on every poll, so it is never eligible for pruning while it remains in the feed. Only items that have fallen off the feed for the full `item_ttl` duration are deleted.
+
+> [!warning]
+> **Set `item_ttl` comfortably longer than any feed's re-publication window.** If an item disappears from a feed and reappears within the `item_ttl` window it is safe — `last_seen_at` will have been refreshed. But if the TTL expires before the item reappears, the row is deleted; the next poll re-detects the item as new and re-publishes it. Very short TTLs (under one hour) trigger a validation warning for this reason.
+
+**Backend behaviour:**
+
+| backend | how pruning works |
+| ------- | ----------------- |
+| `sqlite` | App-side: a background goroutine runs `DELETE FROM seen_items WHERE last_seen_at < now - item_ttl` on every `cleanup_interval` tick. An immediate sweep runs at startup. |
+| `postgres` | Same app-side sweep as SQLite; `cleanup_interval` controls the cadence. |
+| `dynamodb` | Native: each item row is written with an epoch-seconds expiry; DynamoDB prunes expired rows automatically. Requires `state.dynamodb.ttl_attribute` to name the attribute. |
+| `cosmosdb` | Native: each item row is written with a Cosmos `ttl` property; the service prunes expired documents automatically. Requires TTL to be enabled on the container. |
+
+`feed_meta` rows (ETag / Last-Modified per feed) are **never** pruned by any backend.
+
+**Scaled-mode note (SQL backends).** The `DELETE` is partitioned by time, so multiple instances can run their sweeps concurrently without a coordinator lock — overlapping deletes simply remove the same already-eligible rows.
+
 ## Related
 
 - [SQLite state store](state-stores/sqlite.md) — the single-instance default.
 - [Postgres state store](state-stores/postgres.md) — shared store for multi-instance.
-- [DynamoDB state store](state-stores/dynamodb.md) — shared store with optional TTL pruning.
-- [Cosmos DB state store](state-stores/cosmosdb.md) — Azure-native shared store with optional per-item TTL.
+- [DynamoDB state store](state-stores/dynamodb.md) — shared store with DynamoDB-native TTL pruning.
+- [Cosmos DB state store](state-stores/cosmosdb.md) — Azure-native shared store with Cosmos-native TTL pruning.
 - [Run Multiple Instances](run-multiple-instances.md) — pairing a shared store with a distributed coordinator.
 - [Secure Connections (TLS)](secure-connections-tls.md) — TLS for the Postgres state store.
 - [Configuration Reference](../reference/configuration.md) — loading order, env vars, and every other field.

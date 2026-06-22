@@ -3,7 +3,7 @@ title: SQLite state store
 type: how-to
 tags: [rss2msg/docs, state, sqlite]
 summary: Persist seen-item state in a local SQLite file — the single-instance default.
-updated: 2026-06-09
+updated: 2026-06-22
 ---
 
 # SQLite state store
@@ -17,13 +17,17 @@ between processes or nodes.
 ```yaml
 state:
   driver: sqlite
+  # item_ttl: 720h            # retention since last_seen_at; 0/unset = keep forever (default)
   sqlite:
     path: ./rss2msg.db
+    # cleanup_interval: 1h    # how often to sweep expired rows (default 1h when item_ttl > 0)
 ```
 
 | field | required | notes |
 | --- | --- | --- |
 | `sqlite.path` | yes | Filesystem path passed verbatim to the `modernc.org/sqlite` driver. `:memory:` and `?_pragma=…` query strings are accepted. |
+| `state.item_ttl` | no | Retention duration since an item was last seen (e.g. `720h`). `0`/unset keeps rows forever. See [Choose a State Store — Retention and cleanup](../choose-a-state-store.md#retention-and-cleanup). |
+| `sqlite.cleanup_interval` | no | How often the background sweep runs. Defaults to `1h` when `item_ttl > 0`; ignored when `item_ttl` is `0`. |
 
 **When to use:** single-instance deployments, local dev, edge / embedded contexts.
 
