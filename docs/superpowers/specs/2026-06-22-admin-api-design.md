@@ -28,8 +28,12 @@ Settled during brainstorming:
 - **Surface:** introspection (read) endpoints **plus** safe control actions.
 - **Listener:** its own `admin:` config block + dedicated listener (not mounted on
   the health probe port, which is typically exposed unauthenticated).
-- **Auth:** reuse the existing feed-sink auth model (bearer / basic / API-key),
-  **required by default** when the API is enabled.
+- **Auth:** reuse the existing feed-sink auth model (bearer / basic / API-key) for
+  application auth, controlled by `admin.auth.enabled` which is **`true` by default**
+  (you must deliberately turn it off). Additionally support **mTLS** (client-cert auth)
+  as an independent transport-layer option via `admin.tls`. Validation refuses to start
+  an admin API that is neither application-authenticated nor mTLS-protected unless the
+  operator explicitly opts into an open API.
 - **Actions for v1:** reconcile feeds, prune state, **and** per-feed poll-now.
   *(Drain toggle was considered and dropped — marginal for a non-serving poller and
   currently irreversible.)*
@@ -55,13 +59,19 @@ New top-level section, sibling to `health` / `heartbeat`:
 admin:
   enabled: false            # default off
   listen: ":8090"           # dedicated listener; required when enabled
-  auth:                     # same shape as a feed-sink surface auth block
-    disabled: false         # must be set true to run the API without auth (opt-out)
+  tls:                      # optional transport security + mTLS client-cert auth
+    enabled: false
+    cert_file: ""           # server cert (PEM); required when tls.enabled
+    key_file: ""            # server key  (PEM); required when tls.enabled
+    client_ca_file: ""      # when set => require & verify client certs (mTLS)
+  auth:                     # token / basic / api-key application auth
+    enabled: true           # default ON; set false to deliberately disable token auth
     bearer_tokens:
       - name: ops
         token: "${ADMIN_TOKEN}"
     basic_users:
-      - username: admin
+      - name: admin
+        username: admin
         password: "${ADMIN_PASSWORD}"
     api_keys:
       - name: ci
@@ -72,20 +82,37 @@ admin:
 ```
 
 - `internal/config/config.go`: add `Admin AdminConfig` to the top-level `Config`.
-  Define `AdminConfig{ Enabled bool; Listen string; Auth FeedAuthConfig; CORS
-  AdminCORSConfig }` with `mapstructure` tags, **reusing the existing `FeedAuthConfig`
-  type** (the same type the feed sink uses) so the auth shape and its env/`${VAR}`
-  handling are identical. `AdminCORSConfig{ AllowedOrigins []string
-  \`mapstructure:"allowed_origins"\` }` — empty slice means CORS is off (the default).
-- `internal/config/load.go`: register Viper defaults `admin.enabled` (`false`) and
-  `admin.listen` (`":8090"`) in `applyDefaults()`.
-- `internal/config/validate.go`: `validateAdmin()` — when `enabled`:
+  Define `AdminConfig{ Enabled bool; Listen string; TLS AdminTLSConfig; Auth
+  AdminAuthConfig; CORS AdminCORSConfig }` with `mapstructure` tags.
+  - `AdminAuthConfig` has an **`Enabled bool` (default `true`)** plus the credential
+    lists, reusing the existing element types `FeedBasicAuthConfig` /
+    `FeedBearerCred` / `FeedAPIKeyCred` and `api_key_header`. *(It does **not** reuse
+    `FeedAuthConfig` directly, because that type carries the feed-sink's `disabled`
+    flag; admin uses the clearer `enabled`/default-on semantic. The credential element
+    types and the `httpauth` builder are still shared — only the on/off field
+    differs.)*
+  - `AdminTLSConfig{ Enabled bool; CertFile, KeyFile, ClientCAFile string }` — when
+    `ClientCAFile` is set the server requires and verifies client certs
+    (`tls.RequireAndVerifyClientCert`), i.e. mTLS. Mirrors the existing sink/server TLS
+    config shape.
+  - `AdminCORSConfig{ AllowedOrigins []string \`mapstructure:"allowed_origins"\` }` —
+    empty slice means CORS is off (the default).
+- `internal/config/load.go`: register Viper defaults `admin.enabled` (`false`),
+  `admin.listen` (`":8090"`), and **`admin.auth.enabled` (`true`)** in
+  `applyDefaults()`.
+- `internal/config/validate.go`: `validateAdmin()` — when `admin.enabled`:
   - `listen` is required (non-empty);
-  - **auth is required**: at least one credential across `bearer_tokens` /
-    `basic_users` / `api_keys` must be present **unless** `auth.disabled: true` is set
-    explicitly (secure-by-default — you must opt out of auth on purpose);
-  - reuse the feed-sink auth validation for credential well-formedness (non-empty
-    names/secrets, etc.);
+  - **the API must not be left unauthenticated by accident.** It is considered
+    authenticated if **either** mTLS is on (`tls.enabled` + `tls.client_ca_file` set)
+    **or** application auth is on (`auth.enabled` *and* ≥1 credential across
+    `bearer_tokens` / `basic_users` / `api_keys`). If `auth.enabled` is true (the
+    default) but **no** credential is configured → **error** ("admin.auth enabled but
+    no credentials"). If `auth.enabled: false` **and** mTLS is not configured → the API
+    is fully open; allow it (it is now an explicit opt-out) but emit a loud
+    **warning**;
+  - reuse the credential well-formedness checks (non-empty names/secrets);
+  - TLS: when `tls.enabled`, `cert_file` and `key_file` are required; `client_ca_file`
+    set while `tls.enabled` is false → **error** (mTLS needs TLS);
   - **warn** (not fail) if `admin.listen` equals `health.listen` or
     `telemetry.prometheus.listen` — same collision-warning pattern health already
     uses, since two servers cannot bind the same address;
@@ -93,10 +120,11 @@ admin:
     (`scheme://host[:port]`, or the literal `*`); a `*` wildcard combined with auth
     is permitted but **warns**, since credentialed wildcard CORS is a smell.
 
-Env overrides follow the existing scheme; `admin.enabled` / `admin.listen` have
-registered defaults so `RSS2MSG_ADMIN__ENABLED` / `RSS2MSG_ADMIN__LISTEN` bind.
-(Nested auth lists, like the feed sink's, must be set in the file — slices don't bind
-from env.)
+Env overrides follow the existing scheme; `admin.enabled` / `admin.listen` /
+`admin.auth.enabled` have registered defaults so `RSS2MSG_ADMIN__ENABLED` /
+`RSS2MSG_ADMIN__LISTEN` / `RSS2MSG_ADMIN__AUTH__ENABLED` bind. (Nested credential
+lists and TLS file paths must be set in the file — slices don't bind from env, and
+file paths are best kept in config.)
 
 ## Shared auth package (`internal/httpauth`)
 
@@ -135,8 +163,13 @@ func (a *Auth) Empty() bool
 - Before refactoring, add **characterization tests** that pin the current feed-sink
   auth behavior (each method accept/reject, constant-time path, challenge header,
   fail reasons) so the extraction is provably behavior-preserving.
-- Provide a single converter `FeedAuthConfig -> httpauth.Auth` (reused by both the
-  feed-sink wiring and the admin wiring) so config→auth mapping lives in one place.
+- Provide a shared builder in `httpauth` that constructs an `httpauth.Auth` from the
+  credential element slices (`[]FeedBasicAuthConfig` / `[]FeedBearerCred` /
+  `[]FeedAPIKeyCred` + `api_key_header`). Both the feed-sink converter
+  (`FeedAuthConfig -> httpauth.Auth`) and the admin converter
+  (`AdminAuthConfig -> httpauth.Auth`) call it, so the config→auth mapping lives in one
+  place. The admin converter additionally honors `AdminAuthConfig.Enabled`: when
+  `false` it yields an empty `Auth` (middleware becomes a pass-through).
 
 ## Admin server (`internal/admin`)
 
@@ -167,9 +200,17 @@ func (s *Server) Shutdown(ctx context.Context) error
 
 - `net/http.ServeMux`; every route wrapped by an auth middleware that runs
   `auth.Authenticate`, records the same OTel success/failure metrics with
-  `surface="admin"`, and on failure writes `401` + challenge. (Auth is mandatory at
-  the config layer unless `auth.disabled`, in which case the middleware is a
-  pass-through.)
+  `surface="admin"`, and on failure writes `401` + challenge. When application auth is
+  off (`auth.enabled: false` → the passed `httpauth.Auth` is empty), the middleware is
+  a pass-through. Validation guarantees that this only happens when mTLS is configured
+  or the operator explicitly opted into an open API.
+- **TLS / mTLS** (`Start()`): when `cfg.TLS.Enabled`, serve over TLS using
+  `cert_file`/`key_file`; when `cfg.TLS.ClientCAFile` is set, build a `tls.Config` with
+  `ClientCAs` = that CA pool and `ClientAuth: tls.RequireAndVerifyClientCert` — every
+  request must present a client cert signed by that CA (mTLS). mTLS and the
+  bearer/basic/api-key auth are independent layers and may be combined (defence in
+  depth) or used alone. Reuses the existing server-TLS helper pattern used by other
+  listeners in the repo. Plain HTTP remains the default when `tls.enabled` is false.
 - **CORS middleware** (only active when `cors.allowed_origins` is non-empty): echoes
   an allowed `Origin` into `Access-Control-Allow-Origin`, sets
   `Access-Control-Allow-Credentials: true`, advertises the methods/headers the API
@@ -235,7 +276,8 @@ tests unaffected). The poke triggers exactly the same `runTick` path as a normal
 
 - After the health server starts and before/around `scheduler.ServeDynamic`,
   construct the admin server when `cfg.Admin.Enabled`:
-  - build `httpauth.Auth` from `cfg.Admin.Auth` via the shared converter;
+  - build `httpauth.Auth` from `cfg.Admin.Auth` via the shared converter (honoring
+    `auth.enabled`), and pass `cfg.Admin.TLS` through for the listener;
   - assemble `admin.Deps` from the already-wired aggregator (`Feeds`, `Reconcile`),
     state store (`State`), coordinator membership (`Members`, when it implements
     `MembershipProvider`), health checks (`Health`), the poll-now closure, instance
@@ -251,10 +293,12 @@ tests unaffected). The poke triggers exactly the same `runTick` path as a normal
 
 - `docs/reference/admin-api.md` — endpoint reference (routes, request/response JSON,
   auth, status codes), standard frontmatter + `## Related` footer.
-- `docs/how-to/operate-the-admin-api.md` — enable it, configure auth, curl examples,
-  security guidance (bind privately / put behind auth; do not expose with
-  `auth.disabled`).
-- `docs/reference/configuration.md` — document the `admin:` block (incl. `cors`).
+- `docs/how-to/operate-the-admin-api.md` — enable it, configure auth (token/basic/
+  api-key) and/or **mTLS**, curl examples, security guidance (bind privately; keep
+  `auth.enabled: true` or use mTLS; only set `auth.enabled: false` deliberately). Link
+  to the existing TLS how-to (`secure-connections-tls.md`) for cert setup.
+- `docs/reference/configuration.md` — document the `admin:` block (incl. `tls`/mTLS
+  and `cors`).
 - Add the `admin:` block to **both** `internal/config/example.yaml` and
   `examples/config.example.yaml` (must stay byte-identical — drift-guard test).
 - Cross-link from `docs/index.md` / relevant how-to hubs; run
@@ -264,10 +308,12 @@ tests unaffected). The poke triggers exactly the same `runTick` path as a normal
 ## Testing (TDD)
 
 - `internal/config`: defaults (`admin.enabled=false`, `admin.listen=":8090"`,
-  `cors.allowed_origins` empty); validation (enabled w/o listen → error; enabled w/o
-  any credential and not `auth.disabled` → error; enabled + `auth.disabled` → ok;
-  enabled + credentials → ok; listen collision with health/prometheus → warning;
-  malformed CORS origin → error; `*` origin → warning).
+  `admin.auth.enabled=true`, `cors.allowed_origins` empty); validation
+  (enabled w/o listen → error; `auth.enabled` (default) + no credential → error;
+  `auth.enabled:false` + no mTLS → ok **with warning**; `auth.enabled:false` + mTLS →
+  ok, no warning; enabled + credentials → ok; `tls.enabled` w/o cert/key → error;
+  `client_ca_file` set while `tls.enabled:false` → error; listen collision with
+  health/prometheus → warning; malformed CORS origin → error; `*` origin → warning).
 - `internal/httpauth`: unit tests for each method (accept/reject), constant-time
   path, challenge header, fail reasons, `Empty()`.
 - `internal/sink/feed`: characterization tests added **before** the extraction;
@@ -281,7 +327,12 @@ tests unaffected). The poke triggers exactly the same `runTick` path as a normal
   default-duration fallback to `item_ttl`. Plus: `/v1/feeds` returns the
   `{feeds,total}` envelope; CORS middleware echoes an allowed origin + handles
   `OPTIONS` preflight, omits headers for a disallowed origin, and is absent entirely
-  when `allowed_origins` is empty.
+  when `allowed_origins` is empty. Auth middleware is a pass-through when the built
+  `httpauth.Auth` is empty (`auth.enabled:false`).
+- mTLS (`internal/admin` or `cmd/rss2msg` serve-level, using `httptest.NewTLSServer`
+  / a `tls.Config` with a test CA + client cert): a request with a valid client cert
+  succeeds; a request with no / an untrusted client cert is rejected at the TLS layer;
+  a server configured without `client_ca_file` does not require a client cert.
 - `internal/scheduler`: `PollNow` triggers an extra `runTick` for the targeted feed;
   unknown/not-running URL is a no-op; coalescing (rapid pokes don't queue); nil
   `PollNow` leaves existing behavior identical.
@@ -310,8 +361,6 @@ tests unaffected). The poke triggers exactly the same `runTick` path as a normal
   - a **`/v1/sinks`** health/delivery view;
   - a **JSON metrics summary** (dashboards can scrape Prometheus `/metrics` meanwhile);
   - **pagination/filtering** on `/v1/feeds` (the envelope shape reserves room for it).
-- mTLS for the admin listener (the chosen auth is bearer/basic/api-key; mTLS can be
-  layered later by a reverse proxy if needed).
 
 ## Acceptance criteria
 
@@ -319,7 +368,11 @@ tests unaffected). The poke triggers exactly the same `runTick` path as a normal
 - With `admin.enabled: true` + a configured credential, the listener binds on
   `admin.listen`; unauthenticated requests get `401` with a challenge; authenticated
   requests reach the endpoints.
-- `enabled: true` with no credentials and `auth.disabled` unset fails validation.
+- `admin.enabled: true` with `auth.enabled: true` (default) and no credentials fails
+  validation; `auth.enabled: false` without mTLS validates but warns.
+- With `admin.tls.client_ca_file` set, the listener requires a valid client cert
+  (mTLS): a trusted client cert is accepted, an absent/untrusted one is rejected at the
+  TLS handshake; mTLS may be used alone or alongside token/basic/api-key auth.
 - `GET /v1/status`, `/v1/feeds`, `/v1/feeds/{id}`, `/v1/members`, `/v1/health` return
   correct JSON for both single-instance and clustered (assignment) deployments;
   `/v1/feeds` uses the `{feeds,total}` envelope.
