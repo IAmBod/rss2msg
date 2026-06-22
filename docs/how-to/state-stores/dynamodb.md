@@ -30,8 +30,8 @@ state:
 | `dynamodb.table` | yes | DynamoDB table name. Provision it out of band with partition key `feed_url` (String) and sort key `item_id` (String); the store does not create it. |
 | `dynamodb.region` | no | AWS region. Empty uses the SDK default chain (env, shared config, instance metadata). |
 | `dynamodb.endpoint_url` | no | Service endpoint override for LocalStack / DynamoDB Local. |
-| `dynamodb.ttl_attribute` | required when `state.item_ttl > 0` | Names the DynamoDB TTL attribute (epoch seconds) written on item rows. Must match the table's `TimeToLiveSpecification` for DynamoDB-native pruning to take effect. |
-| `state.item_ttl` | no | Universal retention duration (e.g. `720h`) since an item was last seen. `0`/unset keeps rows forever. When set, each item row is written with an epoch-seconds expiry in `ttl_attribute`; DynamoDB prunes expired rows automatically. See [Choose a State Store — Retention and cleanup](../choose-a-state-store.md#retention-and-cleanup). |
+| `dynamodb.ttl_attribute` | required when `state.item_ttl > 0` | Names the DynamoDB TTL attribute (epoch seconds) written on item rows and the meta (`#META`) row. Must match the table's `TimeToLiveSpecification` for DynamoDB-native pruning to take effect. |
+| `state.item_ttl` | no | Universal retention duration (e.g. `720h`) since an item was last seen. `0`/unset keeps rows forever. When set, both item rows and the meta row (`#META`) are written with an epoch-seconds expiry in `ttl_attribute`; DynamoDB prunes expired rows automatically, including stale feed metadata. See [Choose a State Store — Retention and cleanup](../choose-a-state-store.md#retention-and-cleanup). |
 
 **When to use:** production, multi-instance, AWS-native / serverless deployments.
 

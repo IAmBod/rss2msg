@@ -168,4 +168,3 @@ func (s *Store) PruneFeedMetaBefore(ctx context.Context, cutoff time.Time) (int6
 	}
 	return res.RowsAffected()
 }
-

@@ -10,7 +10,7 @@ updated: 2026-06-22
 
 A shared, distributed-safe container partitioned on `/feed_url`. Item rows are keyed
 by `sha256(item_id)`; a feed's meta row uses the reserved id `__meta__`. Old
-seen-items can be auto-pruned with Cosmos-native TTL (the meta row never expires).
+seen-items and stale feed metadata can be auto-pruned with Cosmos-native TTL.
 
 ## Configure
 
@@ -36,7 +36,7 @@ state:
 | `cosmosdb.container` | no | Container name; defaults to `feed_state`. Partitioned on `/feed_url`; provision out of band (with TTL enabled if you use `state.item_ttl`) unless `create_if_missing`. |
 | `cosmosdb.create_if_missing` | no | Create the database/container on startup (TTL-enabled when `state.item_ttl` is set). Dev/test convenience; pre-provision in production. |
 | `cosmosdb.throughput` | no | Manual RU/s applied when creating the container; `0` leaves it unset (serverless / shared). |
-| `state.item_ttl` | no | Universal retention duration (e.g. `720h`) since an item was last seen. `0`/unset keeps rows forever. When set, each item row is written with Cosmos' reserved `ttl` property (seconds); the service prunes expired documents automatically. Requires the container to have TTL enabled. Meta rows never expire. See [Choose a State Store — Retention and cleanup](../choose-a-state-store.md#retention-and-cleanup). |
+| `state.item_ttl` | no | Universal retention duration (e.g. `720h`) since an item was last seen. `0`/unset keeps rows forever. When set, both item rows and the meta row (`__meta__`) are written with Cosmos' reserved `ttl` property (seconds) so the service auto-prunes stale seen-items and stale feed metadata. Requires the container to have TTL enabled. Meta rows persist only when `item_ttl` is unset. See [Choose a State Store — Retention and cleanup](../choose-a-state-store.md#retention-and-cleanup). |
 
 **When to use:** production, multi-instance, Azure-native / serverless deployments.
 
