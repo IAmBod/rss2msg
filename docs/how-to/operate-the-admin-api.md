@@ -33,9 +33,14 @@ Set `ADMIN_TOKEN` to a strong random value (e.g. `openssl rand -hex 32`). The
 
 ## Configure token authentication
 
-`auth.enabled` defaults to `true`. The server will start, but if no credentials
-are configured, every request will be rejected with `401 Unauthorized` unless
-you explicitly set `auth.enabled: false` (see [Disabling auth](#disabling-auth)).
+`auth.enabled` defaults to `true`. Auth is enforced only when `auth.enabled: true`
+**and** at least one credential is configured. If you enable auth but provide no
+credentials, config validation fails and the daemon refuses to start — this is
+the secure-by-default guard that prevents accidentally running an open API with the
+default setting still in place. To make the API fully open you must explicitly set
+`auth.enabled: false` (see [Disabling auth](#disabling-auth)); the middleware then
+becomes a pass-through and config validation warns that the API is open unless mTLS
+is also configured.
 
 Three credential methods are supported; any combination may be configured:
 

@@ -255,9 +255,19 @@ Both fields are Go duration strings (e.g. `"720h"`, `"30d"` is not valid — use
 ## Authentication
 
 The admin API enforces application-level authentication independently of TLS.
-`auth.enabled` defaults to `true`. Configure at least one credential method
-before enabling the server; the auth middleware rejects unauthenticated requests
-with `401 Unauthorized` and a `WWW-Authenticate` challenge header.
+`auth.enabled` defaults to `true`. There are three distinct auth states:
+
+- **`auth.enabled: true` + at least one credential configured** — auth is
+  enforced; the middleware rejects unauthenticated requests with `401 Unauthorized`
+  and a `WWW-Authenticate` challenge header. This is the normal, secure setup.
+- **`auth.enabled: true` + no credentials configured** — config validation
+  fails at startup and the daemon refuses to start. This is a secure-by-default
+  guard that prevents accidentally running an open server while `auth.enabled`
+  is still set to its default.
+- **`auth.enabled: false`** — the auth middleware becomes a pass-through and
+  the API is fully open. Config validation emits a warning unless mTLS is also
+  configured. Only use this deliberately in loopback-only or mTLS-protected
+  deployments.
 
 ### Bearer token
 
@@ -339,8 +349,8 @@ for security guidance.
 ## CORS
 
 When `admin.cors.allowed_origins` is non-empty, the server adds CORS response
-headers for matching origins and handles `OPTIONS` preflight requests. An empty
-list (the default) disables CORS entirely.
+headers for matching origins and handles `OPTIONS` preflight requests, responding
+with `204 No Content`. An empty list (the default) disables CORS entirely.
 
 Allowed methods: `GET`, `POST`, `OPTIONS`.
 Allowed request headers: `Authorization`, `Content-Type`, `X-API-Key`.

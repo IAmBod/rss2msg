@@ -385,9 +385,13 @@ Configures TLS and optional mutual TLS (mTLS) for the admin listener.
 ### `admin.auth`
 
 Application-level authentication for the admin API. `enabled` defaults to `true`
-(secure by default). When `enabled: true` and no credentials are configured, every
-request is rejected with `401 Unauthorized`. Set `enabled: false` only for
-loopback-only deployments.
+(secure by default). Three states are possible:
+
+- `enabled: true` + at least one credential → auth enforced (`401` on bad/missing creds).
+- `enabled: true` + no credentials → config validation fails; the daemon refuses to start.
+- `enabled: false` → auth middleware is a pass-through; the API is fully open (validation
+  warns unless mTLS is configured). Set only deliberately for loopback-only or mTLS-protected
+  deployments.
 
 | field            | default      | notes |
 | ---------------- | ------------ | ----- |
@@ -395,7 +399,7 @@ loopback-only deployments.
 | `bearer_tokens`  | `[]`         | List of `{name, token}` entries. Checked against `Authorization: Bearer <token>`. |
 | `basic_users`    | `[]`         | List of `{name, username, password}` entries. Checked against HTTP Basic auth. |
 | `api_keys`       | `[]`         | List of `{name, key}` entries. Checked against the configured `api_key_header`. |
-| `api_key_header` | `X-API-Key`  | Request header name for API key authentication. |
+| `api_key_header` | —            | Request header name for API key authentication. Effective default `X-API-Key` (applied by the httpauth layer when unset). |
 
 ### `admin.cors`
 
@@ -408,8 +412,10 @@ disables CORS entirely.
 
 Validation rules: `listen` is required when `enabled: true`; `tls.cert_file`
 and `tls.key_file` are both required when `tls.enabled: true`; `auth.enabled:
-true` with no credentials causes a validation warning (not an error). The admin
-listener address must not collide with the health or Prometheus listener.
+true` with no credentials is a validation **error** (the daemon refuses to start).
+`auth.enabled: false` with no mTLS configured causes a validation **warning** that
+the API is fully open. The admin listener address must not collide with the health
+or Prometheus listener.
 
 ## `feed_sources`
 
