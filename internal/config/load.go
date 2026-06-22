@@ -97,6 +97,9 @@ func applyDefaults(v *viper.Viper, d Config) {
 	v.SetDefault("health.liveness_path", d.Health.LivenessPath)
 	v.SetDefault("health.readiness_path", d.Health.ReadinessPath)
 	v.SetDefault("health.startup_path", d.Health.StartupPath)
+	v.SetDefault("admin.enabled", d.Admin.Enabled)
+	v.SetDefault("admin.listen", d.Admin.Listen)
+	v.SetDefault("admin.auth.enabled", d.Admin.Auth.Enabled)
 }
 
 // expandEnvHook returns a mapstructure DecodeHookFunc that substitutes

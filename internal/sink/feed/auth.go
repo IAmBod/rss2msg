@@ -1,111 +1,38 @@
 package feed
 
 import (
-	"crypto/subtle"
 	"net/http"
-	"strings"
+
+	"github.com/iambod/rss2msg/internal/httpauth"
 )
 
-const defaultAPIKeyHeader = "X-API-Key"
-
 // SurfaceAuth is the resolved auth requirement for one surface. A nil
-// *SurfaceAuth means the surface is public. The config layer resolves
-// default+override and collapses "disabled" / "no methods" to nil before
-// constructing this, so a non-nil SurfaceAuth always carries >=1 method.
-type SurfaceAuth struct {
-	BasicUsers   []BasicCred
-	BearerTokens []NamedSecret
-	APIKeys      []NamedSecret
-	APIKeyHeader string // header to read API keys from; empty => X-API-Key
-}
+// *SurfaceAuth means the surface is public. It aliases httpauth.Auth so the feed
+// sink and admin API share one credential-checking core.
+type SurfaceAuth = httpauth.Auth
 
-// BasicCred is one accepted HTTP Basic credential with an optional name.
-type BasicCred struct {
-	Name     string
-	Username string
-	Password string
-}
-
-// NamedSecret is one accepted opaque secret (bearer token or API key) with an
-// optional name for observability.
-type NamedSecret struct {
-	Name   string
-	Secret string
-}
+// BasicCred and NamedSecret alias the shared httpauth types.
+type BasicCred = httpauth.BasicCred
+type NamedSecret = httpauth.NamedSecret
 
 // authenticate reports whether r satisfies a (nil => public, always passes) and
-// returns the matched credential's name (may be "" for an unnamed credential or
-// the public case). Token methods are OR'd: any one valid credential passes.
+// returns the matched credential's name.
 func authenticate(a *SurfaceAuth, r *http.Request) (name string, ok bool) {
 	if a == nil {
 		return "", true
 	}
-	if got := r.Header.Get("Authorization"); strings.HasPrefix(got, "Bearer ") {
-		tok := got[len("Bearer "):]
-		for _, c := range a.BearerTokens {
-			if ctEqual(tok, c.Secret) {
-				return c.Name, true
-			}
-		}
-	}
-	if u, pw, has := r.BasicAuth(); has {
-		for _, c := range a.BasicUsers {
-			// Evaluate both comparisons unconditionally (no && short-circuit) so
-			// timing doesn't reveal whether the username alone matched. Note: the
-			// loop still returns early on the first match, so an attacker who knows
-			// the credential list length/order could in principle distinguish which
-			// position matched by timing — an accepted tradeoff (it requires prior
-			// knowledge of the list and the delta is sub-microsecond).
-			userOK := ctEqual(u, c.Username)
-			passOK := ctEqual(pw, c.Password)
-			if userOK && passOK {
-				return c.Name, true
-			}
-		}
-	}
-	if key := r.Header.Get(a.apiKeyHeader()); key != "" {
-		for _, c := range a.APIKeys {
-			if ctEqual(key, c.Secret) {
-				return c.Name, true
-			}
-		}
-	}
-	return "", false
-}
-
-func (a *SurfaceAuth) apiKeyHeader() string {
-	if a.APIKeyHeader == "" {
-		return defaultAPIKeyHeader
-	}
-	return a.APIKeyHeader
+	return a.Authenticate(r)
 }
 
 // authFailReason classifies a failed authentication for the failure metric.
-// Low-cardinality: "no_credentials" when the request presented nothing,
-// "bad_token" otherwise. (PR-B adds "no_client_cert" for mTLS.)
 func authFailReason(a *SurfaceAuth, r *http.Request) string {
 	if a == nil {
 		return ""
 	}
-	if r.Header.Get("Authorization") == "" && r.Header.Get(a.apiKeyHeader()) == "" {
-		return "no_credentials"
-	}
-	return "bad_token"
+	return a.FailReason(r)
 }
 
-// writeAuthChallenge writes a 401, advertising Basic when basic auth is among
-// the accepted methods (otherwise Bearer). It is only called on authentication
-// failure for a protected surface, so a is always non-nil in practice (nil
-// means public and never reaches this path).
+// writeAuthChallenge writes a 401 advertising the appropriate scheme.
 func writeAuthChallenge(a *SurfaceAuth, w http.ResponseWriter) {
-	if a != nil && len(a.BasicUsers) > 0 {
-		w.Header().Set("WWW-Authenticate", `Basic realm="rss2msg"`)
-	} else {
-		w.Header().Set("WWW-Authenticate", `Bearer realm="rss2msg"`)
-	}
-	http.Error(w, "unauthorized", http.StatusUnauthorized)
-}
-
-func ctEqual(a, b string) bool {
-	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
+	a.WriteChallenge(w)
 }

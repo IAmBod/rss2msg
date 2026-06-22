@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -149,4 +150,121 @@ func TestServeCommandRejectsMissingConfig(t *testing.T) {
 	root := newRootCmd()
 	root.SetArgs([]string{"serve", "--config", filepath.Join(t.TempDir(), "nope.yaml")})
 	require.Error(t, root.ExecuteContext(context.Background()))
+}
+
+// writeServeConfigWithAdmin extends writeServeConfig with an admin block, bound
+// to the given listen address.
+func writeServeConfigWithAdmin(t *testing.T, statePath, feedURL, adminListen, token string) string {
+	t.Helper()
+	body := fmt.Sprintf(`log:
+  level: error
+  format: json
+coordination:
+  driver: memory
+state:
+  driver: sqlite
+  sqlite:
+    path: %s
+runtime:
+  shutdown_drain_timeout: 2s
+health:
+  enabled: true
+  listen: 127.0.0.1:0
+  liveness_path: /healthz
+  readiness_path: /readyz
+  startup_path: /startupz
+admin:
+  enabled: true
+  listen: %s
+  auth:
+    enabled: true
+    bearer_tokens:
+      - name: ops
+        token: %s
+sinks:
+  - name: default
+    driver: stdout
+    stdout:
+      target: stdout
+      format: json
+feeds:
+  - url: %s
+    interval: 1m
+    sinks: [default]
+`, statePath, adminListen, token, feedURL)
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+	return path
+}
+
+func TestServeStartsAdminAPI(t *testing.T) {
+	// Use a feed server to signal first poll (same pattern as the main serve test).
+	fetched := make(chan struct{}, 1)
+	feedSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		select {
+		case fetched <- struct{}{}:
+		default:
+		}
+		w.Header().Set("Content-Type", "application/rss+xml")
+		_, _ = w.Write([]byte(serveFeedBody))
+	}))
+	defer feedSrv.Close()
+
+	// Pick a free port for the admin listener by binding and releasing it.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	adminAddr := ln.Addr().String()
+	require.NoError(t, ln.Close())
+
+	const token = "test-secret-token"
+	statePath := filepath.Join(t.TempDir(), "state.db")
+	cfgPath := writeServeConfigWithAdmin(t, statePath, feedSrv.URL, adminAddr, token)
+
+	restore := silenceOutput(t)
+	defer restore()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	errCh := make(chan error, 1)
+	go func() {
+		root := newRootCmd()
+		root.SetArgs([]string{"serve", "--config", cfgPath})
+		errCh <- root.ExecuteContext(ctx)
+	}()
+
+	// Wait for the daemon to poll the feed once (deterministic boot signal).
+	select {
+	case <-fetched:
+	case err := <-errCh:
+		t.Fatalf("serve exited before polling the feed: %v", err)
+	case <-time.After(20 * time.Second):
+		t.Fatal("serve did not poll the feed within 20s")
+	}
+
+	// Poll the admin port until it accepts connections (it should be up already
+	// since it starts before ServeDynamic, but add a short retry window).
+	adminURL := "http://" + adminAddr
+	var resp *http.Response
+	require.Eventually(t, func() bool {
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, adminURL+"/v1/status", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		var doErr error
+		resp, doErr = http.DefaultClient.Do(req)
+		if doErr != nil {
+			return false
+		}
+		_ = resp.Body.Close()
+		return true
+	}, 5*time.Second, 100*time.Millisecond, "admin API did not respond within 5s")
+
+	require.Equal(t, http.StatusOK, resp.StatusCode, "GET /v1/status must return 200")
+
+	// Cancelling the context must drain and return without error.
+	cancel()
+	select {
+	case err := <-errCh:
+		require.NoError(t, err, "serve must shut down cleanly on context cancel")
+	case <-time.After(20 * time.Second):
+		t.Fatal("serve did not shut down within 20s of cancel")
+	}
 }

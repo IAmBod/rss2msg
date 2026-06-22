@@ -34,6 +34,7 @@ Start here. Pages are grouped the way you use them.
     - [GCP Cloud Run](how-to/deploy/gcp-cloud-run.md)
     - [Helm chart](how-to/deploy/helm.md)
 - [Configure Kubernetes Health Probes](how-to/configure-kubernetes-health-probes.md)
+- [Operate the Admin API](how-to/operate-the-admin-api.md)
 - [Run with Docker](how-to/run-with-docker.md)
 - [Run Multiple Instances](how-to/run-multiple-instances.md)
 - [Secure Connections (TLS)](how-to/secure-connections-tls.md)
@@ -41,6 +42,7 @@ Start here. Pages are grouped the way you use them.
 ## Reference
 
 - [Configuration Reference](reference/configuration.md)
+- [Admin API Reference](reference/admin-api.md)
 - [Change Envelope](reference/change-envelope.md)
 - [Sink Wire Formats](reference/wire-formats.md)
 - [Telemetry](reference/telemetry.md)

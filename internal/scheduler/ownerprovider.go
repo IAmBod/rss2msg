@@ -45,6 +45,13 @@ func NewOwnerProvider(inner FeedProvider, m coord.Membership, self string, heart
 	}
 }
 
+// Self returns this instance's identity.
+func (o *OwnerProvider) Self() string { return o.self }
+
+// Members returns a copy of the last-known live member set (side-effect-free;
+// does not trigger a heartbeat).
+func (o *OwnerProvider) Members() []string { return o.snapshot() }
+
 func (o *OwnerProvider) snapshot() []string {
 	o.mu.RLock()
 	defer o.mu.RUnlock()

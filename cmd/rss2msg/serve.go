@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/iambod/rss2msg/internal/admin"
 	"github.com/iambod/rss2msg/internal/coord"
 	"github.com/iambod/rss2msg/internal/feedsource"
 	k8ssource "github.com/iambod/rss2msg/internal/feedsource/sources/kubernetes"
@@ -99,6 +100,47 @@ func newServeCmd(opts *rootOpts) *cobra.Command {
 				hs.SetDraining()
 			}()
 
+			pollNow := make(chan string, 16)
+
+			if cfg.Admin.Enabled {
+				var members admin.MembershipInspector
+				if owner != nil {
+					members = owner
+				}
+				adminSrv := admin.New(cfg.Admin, cfg.Admin.Auth.ToHTTPAuth(), admin.Deps{
+					Build: admin.BuildInfo{
+						Version:    version,
+						Commit:     commit,
+						Date:       date,
+						InstanceID: cfg.Telemetry.InstanceID,
+					},
+					StartedAt: time.Now(),
+					Feeds:     agg,
+					State:     w.store,
+					Members:   members,
+					Checks:    readyChecks,
+					Reconcile: agg.Trigger,
+					PollNow: func(u string) bool {
+						select {
+						case pollNow <- u:
+							return true
+						default:
+							return false
+						}
+					},
+					Self:    self,
+					ItemTTL: cfg.State.ItemTTL,
+				}, tel.Logger)
+				if err := adminSrv.Start(); err != nil {
+					return err
+				}
+				defer func() {
+					sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel()
+					_ = adminSrv.Shutdown(sctx)
+				}()
+			}
+
 			// Opt-in liveness heartbeat: emit a steady log line while the service
 			// runs so a quiet-but-healthy daemon still produces an alertable signal.
 			if cfg.Heartbeat.Enabled {
@@ -152,6 +194,7 @@ func newServeCmd(opts *rootOpts) *cobra.Command {
 				Provider:     provider,
 				Factory:      w.factory,
 				DrainTimeout: cfg.Runtime.ShutdownDrainTimeout,
+				PollNow:      pollNow,
 				OnReconcile: func(added, removed, changed int) {
 					if added+removed+changed > 0 {
 						tel.Logger.Info().

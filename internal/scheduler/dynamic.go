@@ -37,12 +37,16 @@ type DynamicConfig struct {
 	// OnPollComplete, if set, is called after every poll of a running feed with
 	// the change count and poll error. Optional.
 	OnPollComplete func(feedURL string, changeCount int, err error, when time.Time)
+	// PollNow, if set, accepts feed URLs. Sending a URL triggers an immediate
+	// off-cycle poll of that feed's loop. When nil, the capability is disabled.
+	PollNow <-chan string
 }
 
 type runningFeed struct {
 	cfg    config.FeedConfig
 	cancel context.CancelFunc
 	done   chan struct{}
+	poke   chan struct{}
 }
 
 // ServeDynamic runs the daemon with a reconcilable feed set. It reconciles once
@@ -124,6 +128,13 @@ func ServeDynamic(ctx context.Context, cfg DynamicConfig) error {
 			return nil
 		case <-cfg.Provider.Changes():
 			reconcile()
+		case url := <-cfg.PollNow:
+			if rf, ok := running[url]; ok {
+				select {
+				case rf.poke <- struct{}{}:
+				default: // a poke is already pending; coalesce
+				}
+			}
 		}
 	}
 }
@@ -135,6 +146,7 @@ func startFeed(parent context.Context, fc config.FeedConfig, p FeedPipeline,
 ) *runningFeed {
 	fctx, cancel := context.WithCancel(parent)
 	done := make(chan struct{})
+	poke := make(chan struct{}, 1)
 	var onOverrun func(took time.Duration)
 	if onPollOverrun != nil {
 		onOverrun = func(took time.Duration) { onPollOverrun(fc.URL, took, fc.Interval) }
@@ -147,9 +159,9 @@ func startFeed(parent context.Context, fc config.FeedConfig, p FeedPipeline,
 		defer close(done)
 		// Per-tick RunOnce errors are logged inside the pipeline; the dynamic
 		// scheduler does not aggregate them (unlike static Serve).
-		runFeedLoop(fctx, p, fc.Interval, func(error) {}, onOverrun, onComplete)
+		runFeedLoop(fctx, p, fc.Interval, poke, func(error) {}, onOverrun, onComplete)
 	}()
-	return &runningFeed{cfg: fc, cancel: cancel, done: done}
+	return &runningFeed{cfg: fc, cancel: cancel, done: done, poke: poke}
 }
 
 // drainAll cancels every running feed and waits for them all to finish,

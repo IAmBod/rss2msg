@@ -87,6 +87,27 @@ health:
   readiness_path: /readyz       # 200 when started, not draining, deps reachable
   startup_path: /startupz       # 503 until boot completes, then 200
 
+admin:
+  # Opt-in admin HTTP API: JSON introspection (status, feeds, members, health)
+  # and safe actions (reconcile, per-feed poll, state prune). Disabled by default.
+  enabled: false
+  listen: ":8090"               # dedicated listener; required when enabled
+  tls:
+    enabled: false
+    cert_file: ""               # server cert (PEM); required when tls.enabled
+    key_file: ""                # server key  (PEM); required when tls.enabled
+    client_ca_file: ""          # set => require & verify client certs (mTLS)
+  auth:
+    enabled: true               # ON by default; set false to deliberately disable token auth
+    bearer_tokens:
+      - name: ops
+        token: "${ADMIN_TOKEN}"
+    basic_users: []
+    api_keys: []
+    api_key_header: X-API-Key
+  cors:
+    allowed_origins: []         # empty => CORS off. e.g. ["https://ops.example.com"]
+
 coordination:
   driver: memory   # memory | postgres | redis ; default memory
   # postgres:

@@ -422,6 +422,10 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 	}
 
+	if err := validateAdmin(warnings, c); err != nil {
+		return *warnings, err
+	}
+
 	if c.Telemetry.Graphite.Enabled {
 		if strings.TrimSpace(c.Telemetry.Graphite.Address) == "" {
 			return *warnings, fmt.Errorf("telemetry.graphite.address is required when telemetry.graphite.enabled=true")
@@ -968,6 +972,53 @@ func validate(warnings *[]string, c Config) ([]string, error) {
 		}
 	}
 	return *warnings, nil
+}
+
+func validateAdmin(warnings *[]string, c Config) error {
+	a := c.Admin
+	if !a.Enabled {
+		return nil
+	}
+	if strings.TrimSpace(a.Listen) == "" {
+		return fmt.Errorf("admin.listen is required when admin.enabled=true")
+	}
+	// TLS / mTLS shape.
+	mtls := false
+	if a.TLS.Enabled {
+		if strings.TrimSpace(a.TLS.CertFile) == "" || strings.TrimSpace(a.TLS.KeyFile) == "" {
+			return fmt.Errorf("admin.tls.cert_file and admin.tls.key_file are required when admin.tls.enabled=true")
+		}
+		mtls = strings.TrimSpace(a.TLS.ClientCAFile) != ""
+	} else if strings.TrimSpace(a.TLS.ClientCAFile) != "" {
+		return fmt.Errorf("admin.tls.client_ca_file requires admin.tls.enabled=true (mTLS needs TLS)")
+	}
+	// Application auth.
+	if a.Auth.Enabled {
+		if !a.Auth.HasCredentials() {
+			return fmt.Errorf("admin.auth is enabled but no credentials are configured; add bearer_tokens/basic_users/api_keys or set admin.auth.enabled=false")
+		}
+	} else if !mtls {
+		*warnings = append(*warnings, "admin.enabled=true but the API has no authentication (admin.auth.enabled=false and no mTLS): it is fully open")
+	}
+	// Listener collisions (warn).
+	if c.Health.Enabled && a.Listen == c.Health.Listen {
+		*warnings = append(*warnings, fmt.Sprintf("admin.listen %q is the same as health.listen; one server will fail to bind", a.Listen))
+	}
+	if c.Telemetry.Prometheus.Enabled && a.Listen == c.Telemetry.Prometheus.Listen {
+		*warnings = append(*warnings, fmt.Sprintf("admin.listen %q is the same as telemetry.prometheus.listen; one server will fail to bind", a.Listen))
+	}
+	// CORS origins.
+	for _, o := range a.CORS.AllowedOrigins {
+		if o == "*" {
+			*warnings = append(*warnings, "admin.cors.allowed_origins contains \"*\" (wildcard) combined with credentialed requests; prefer explicit origins")
+			continue
+		}
+		u, err := url.Parse(o)
+		if err != nil || u.Scheme == "" || u.Host == "" {
+			return fmt.Errorf("admin.cors.allowed_origins entry %q is not a valid origin (scheme://host[:port])", o)
+		}
+	}
+	return nil
 }
 
 // validSQLIdentifier reports whether s is a safe unquoted SQL identifier (used
