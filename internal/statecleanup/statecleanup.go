@@ -1,6 +1,7 @@
-// Package statecleanup runs a periodic sweep that deletes seen-item state older
-// than a TTL. It carries no logging or config dependency so it can be tested in
-// isolation; the caller injects what each sweep reports via onResult.
+// Package statecleanup runs a periodic sweep that deletes seen-item state and
+// feed metadata older than a TTL. It carries no logging or config dependency so
+// it can be tested in isolation; the caller injects what each sweep reports via
+// onResult.
 package statecleanup
 
 import (
@@ -11,20 +12,29 @@ import (
 // Pruner is the subset of state.Store this loop needs.
 type Pruner interface {
 	PruneItemsBefore(ctx context.Context, cutoff time.Time) (int64, error)
+	PruneFeedMetaBefore(ctx context.Context, cutoff time.Time) (int64, error)
 }
 
 // Run blocks until ctx is cancelled. It performs an immediate sweep, then one
-// sweep per interval. Each sweep deletes items last seen before now-ttl and, if
-// onResult is non-nil, reports the rows removed and any error. Run returns
-// immediately if interval or ttl is non-positive.
+// sweep per interval. Each sweep deletes seen-items and feed metadata older than
+// now-ttl and, if onResult is non-nil, reports the combined rows removed and any
+// error. Run returns immediately if interval or ttl is non-positive.
 func Run(ctx context.Context, interval, ttl time.Duration, p Pruner, onResult func(removed int64, err error)) {
 	if interval <= 0 || ttl <= 0 {
 		return
 	}
 	sweep := func() {
-		n, err := p.PruneItemsBefore(ctx, time.Now().Add(-ttl))
+		cutoff := time.Now().Add(-ttl)
+		nItems, err := p.PruneItemsBefore(ctx, cutoff)
+		if err != nil {
+			if onResult != nil {
+				onResult(nItems, err)
+			}
+			return
+		}
+		nMeta, err := p.PruneFeedMetaBefore(ctx, cutoff)
 		if onResult != nil {
-			onResult(n, err)
+			onResult(nItems+nMeta, err)
 		}
 	}
 	sweep() // clear the backlog at startup instead of waiting a full interval

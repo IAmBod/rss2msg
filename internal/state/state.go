@@ -27,6 +27,11 @@ type Store interface {
 	// implement this as a no-op returning (0, nil).
 	PruneItemsBefore(ctx context.Context, cutoff time.Time) (removed int64, err error)
 
+	// PruneFeedMetaBefore deletes per-feed HTTP cache metadata whose UpdatedAt
+	// is older than cutoff and returns the number of rows removed. Backends with
+	// service-managed TTL (DynamoDB, Cosmos) may implement this as a no-op.
+	PruneFeedMetaBefore(ctx context.Context, cutoff time.Time) (removed int64, err error)
+
 	GetFeedMeta(ctx context.Context, feedURL string) (meta FeedMeta, found bool, err error)
 	UpsertFeedMeta(ctx context.Context, feedURL string, meta FeedMeta) error
 
