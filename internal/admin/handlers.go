@@ -8,6 +8,7 @@ import (
 
 	"github.com/iambod/rss2msg/internal/assign"
 	"github.com/iambod/rss2msg/internal/config"
+	"github.com/iambod/rss2msg/internal/health"
 )
 
 type feedView struct {
@@ -109,4 +110,23 @@ func (s *Server) handleMembers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"self": self, "members": members, "ownership": ownership})
 }
 
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	checks := map[string]string{}
+	ok := true
+	for _, c := range s.deps.Checks {
+		if err := c.Fn(r.Context()); err != nil {
+			checks[c.Name] = err.Error()
+			ok = false
+		} else {
+			checks[c.Name] = "ok"
+		}
+	}
+	code := http.StatusOK
+	if !ok {
+		code = http.StatusServiceUnavailable
+	}
+	writeJSON(w, code, map[string]any{"ok": ok, "checks": checks})
+}
+
 var _ = config.FeedConfig{}
+var _ health.Check // anchor the health import (handleHealth range iterates []health.Check from Deps)

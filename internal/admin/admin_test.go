@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/iambod/rss2msg/internal/config"
+	"github.com/iambod/rss2msg/internal/health"
 	"github.com/iambod/rss2msg/internal/httpauth"
 	"github.com/iambod/rss2msg/internal/state"
 	"github.com/rs/zerolog"
@@ -203,6 +205,29 @@ func TestMembersClustered(t *testing.T) {
 	}
 	if owner, ok := body.Ownership["https://a.com/f"]; !ok || (owner != "inst-1" && owner != "inst-2") {
 		t.Fatalf("ownership = %v", body.Ownership)
+	}
+}
+
+func TestHealthEndpoint(t *testing.T) {
+	d := baseDeps()
+	d.Checks = []health.Check{
+		{Name: "state", Fn: func(context.Context) error { return nil }},
+		{Name: "coordination", Fn: func(context.Context) error { return errors.New("down") }},
+	}
+	s := testServer(t, &httpauth.Auth{}, nil, d)
+	rec := authedGet(s, "/v1/health")
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("one failing check => got %d want 503", rec.Code)
+	}
+	var body struct {
+		OK     bool              `json:"ok"`
+		Checks map[string]string `json:"checks"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.OK || body.Checks["state"] != "ok" || body.Checks["coordination"] != "down" {
+		t.Fatalf("health body = %+v", body)
 	}
 }
 
