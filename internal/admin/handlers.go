@@ -108,6 +108,15 @@ func (s *Server) handleMembers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"self": self, "members": members, "ownership": ownership})
 }
 
+func (s *Server) handleReconcile(w http.ResponseWriter, _ *http.Request) {
+	if s.deps.Reconcile == nil {
+		writeErr(w, http.StatusServiceUnavailable, "reconcile unavailable")
+		return
+	}
+	s.deps.Reconcile()
+	writeJSON(w, http.StatusAccepted, map[string]string{"status": "reconcile triggered"})
+}
+
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	checks := map[string]string{}
 	ok := true

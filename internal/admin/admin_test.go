@@ -231,4 +231,20 @@ func TestHealthEndpoint(t *testing.T) {
 	}
 }
 
+func TestReconcile(t *testing.T) {
+	called := false
+	d := baseDeps()
+	d.Reconcile = func() { called = true }
+	s := testServer(t, &httpauth.Auth{}, nil, d)
+
+	rec := httptest.NewRecorder()
+	s.handler().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/feeds/reconcile", nil))
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("got %d want 202", rec.Code)
+	}
+	if !called {
+		t.Fatal("Reconcile not invoked")
+	}
+}
+
 var _ = context.Background
