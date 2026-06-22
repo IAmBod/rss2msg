@@ -191,15 +191,23 @@ docs.
 - **Unit (`task test`, no containers):**
   - SQLite `PruneItemsBefore`: insert rows with old and fresh `last_seen_at`
     plus a `feed_meta` row; prune; assert only old `seen_items` rows are gone and
-    both fresh `seen_items` and `feed_meta` survive; assert the returned count.
-  - DynamoDB / Cosmos `PruneItemsBefore`: assert it returns `(0, nil)` and makes
-    no remote calls (no-op).
+    both fresh `seen_items` and the `feed_meta` row survive (this method only
+    touches `seen_items`); assert the returned count.
+  - SQLite `PruneFeedMetaBefore` (feed_meta addendum): insert two `feed_meta`
+    rows plus a `seen_items` row, backdate one meta row's `updated_at` past the
+    cutoff; prune; assert only the old meta row is gone and the fresh meta row
+    **and** the `seen_items` row survive; assert the returned count.
+  - DynamoDB / Cosmos `PruneItemsBefore` and `PruneFeedMetaBefore`: assert each
+    returns `(0, nil)` and makes no remote calls (no-op; the service prunes
+    items and meta rows via their write-time TTL). Also assert the meta
+    row/document carries the native TTL when `item_ttl` is configured and none
+    when it is unset.
   - Config validation: negative durations rejected; `cleanup_interval > 0` with
     `item_ttl == 0` rejected; short-`item_ttl` warning emitted; DynamoDB
     `ttl_attribute`-required rule.
 - **Integration (`task test-integration`, Docker):**
-  - Postgres `PruneItemsBefore` against a real database via testcontainers
-    (same shape as the SQLite unit test).
+  - Postgres `PruneItemsBefore` and `PruneFeedMetaBefore` against a real
+    database via testcontainers (same shape as the SQLite unit tests).
 - Run `task test`, `task vet`, `task lint`, and `task test-integration` (this
   change touches the state store) before opening the PR.
 
