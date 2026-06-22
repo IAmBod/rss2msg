@@ -17,6 +17,7 @@ import (
 	"github.com/iambod/rss2msg/internal/health"
 	"github.com/iambod/rss2msg/internal/heartbeat"
 	"github.com/iambod/rss2msg/internal/scheduler"
+	"github.com/iambod/rss2msg/internal/statecleanup"
 )
 
 func newServeCmd(opts *rootOpts) *cobra.Command {
@@ -104,6 +105,31 @@ func newServeCmd(opts *rootOpts) *cobra.Command {
 				go heartbeat.Run(ctx, cfg.Heartbeat.Interval, func() {
 					tel.Logger.Info().Str("component", "heartbeat").Msg("heartbeat: service alive")
 				})
+			}
+
+			// Opt-in state cleanup: periodically delete seen-items not seen
+			// within state.item_ttl. Only SQL backends sweep here; DynamoDB and
+			// Cosmos prune natively (stateCleanupInterval returns 0 for them).
+			// The DELETE is idempotent and time-partitioned, so every instance
+			// can sweep independently — no coordinator lock is needed.
+			if cfg.State.ItemTTL > 0 {
+				if iv := stateCleanupInterval(cfg.State); iv > 0 {
+					go statecleanup.Run(ctx, iv, cfg.State.ItemTTL, w.store, func(removed int64, err error) {
+						if err != nil {
+							tel.Logger.Error().Err(err).
+								Str("component", "state-cleanup").
+								Msg("state cleanup sweep failed")
+							return
+						}
+						ev := tel.Logger.Debug()
+						if removed > 0 {
+							ev = tel.Logger.Info()
+						}
+						ev.Int64("removed", removed).
+							Str("component", "state-cleanup").
+							Msg("state cleanup sweep complete")
+					})
+				}
 			}
 
 			// SIGHUP forces a re-read of all sources.
