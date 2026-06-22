@@ -2,7 +2,7 @@
 title: Cosmos DB state store
 type: how-to
 tags: [rss2msg/docs, state, cosmosdb, azure]
-summary: Persist seen-item state in a shared Azure Cosmos DB container with optional per-item TTL pruning.
+summary: Persist seen-item state in a shared Azure Cosmos DB container with Cosmos-native TTL pruning.
 updated: 2026-06-22
 ---
 

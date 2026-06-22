@@ -2,7 +2,7 @@
 title: DynamoDB state store
 type: how-to
 tags: [rss2msg/docs, state, dynamodb, aws]
-summary: Persist seen-item state in a shared DynamoDB table with optional TTL auto-pruning.
+summary: Persist seen-item state in a shared DynamoDB table with DynamoDB-native TTL auto-pruning.
 updated: 2026-06-22
 ---
 
