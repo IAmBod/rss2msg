@@ -1,6 +1,10 @@
 package config
 
-import "time"
+import (
+	"time"
+
+	"github.com/iambod/rss2msg/internal/httpauth"
+)
 
 type Config struct {
 	Log          LogConfig          `mapstructure:"log"`
@@ -12,6 +16,7 @@ type Config struct {
 	Coordination CoordinationConfig `mapstructure:"coordination"`
 	State        StateConfig        `mapstructure:"state"`
 	Health       HealthConfig       `mapstructure:"health"`
+	Admin        AdminConfig        `mapstructure:"admin"`
 	Sinks        []SinkConfig       `mapstructure:"sinks"`
 	Feeds        []FeedConfig       `mapstructure:"feeds"`
 	FeedSources  []FeedSourceConfig `mapstructure:"feed_sources"`
@@ -251,6 +256,64 @@ type HealthConfig struct {
 	LivenessPath  string `mapstructure:"liveness_path"`
 	ReadinessPath string `mapstructure:"readiness_path"`
 	StartupPath   string `mapstructure:"startup_path"`
+}
+
+// AdminConfig configures the opt-in admin HTTP API.
+type AdminConfig struct {
+	Enabled bool            `mapstructure:"enabled"`
+	Listen  string          `mapstructure:"listen"`
+	TLS     AdminTLSConfig  `mapstructure:"tls"`
+	Auth    AdminAuthConfig `mapstructure:"auth"`
+	CORS    AdminCORSConfig `mapstructure:"cors"`
+}
+
+// AdminTLSConfig configures TLS and optional mTLS for the admin listener.
+type AdminTLSConfig struct {
+	Enabled      bool   `mapstructure:"enabled"`
+	CertFile     string `mapstructure:"cert_file"`
+	KeyFile      string `mapstructure:"key_file"`
+	ClientCAFile string `mapstructure:"client_ca_file"` // set => require & verify client certs (mTLS)
+}
+
+// AdminAuthConfig is the admin API's application auth. Unlike the feed sink's
+// FeedAuthConfig (which uses a "disabled" flag), admin auth uses Enabled,
+// defaulting ON, for secure-by-default semantics.
+type AdminAuthConfig struct {
+	Enabled      bool                  `mapstructure:"enabled"`
+	BasicUsers   []FeedBasicAuthConfig `mapstructure:"basic_users"`
+	BearerTokens []FeedBearerCred      `mapstructure:"bearer_tokens"`
+	APIKeys      []FeedAPIKeyCred      `mapstructure:"api_keys"`
+	APIKeyHeader string                `mapstructure:"api_key_header"`
+}
+
+// HasCredentials reports whether any credential method is configured.
+func (a AdminAuthConfig) HasCredentials() bool {
+	return len(a.BasicUsers) > 0 || len(a.BearerTokens) > 0 || len(a.APIKeys) > 0
+}
+
+// ToHTTPAuth maps the config to a shared httpauth.Auth. When auth is disabled it
+// returns an empty Auth (the middleware then becomes a pass-through).
+func (a AdminAuthConfig) ToHTTPAuth() *httpauth.Auth {
+	out := &httpauth.Auth{APIKeyHeader: a.APIKeyHeader}
+	if !a.Enabled {
+		return &httpauth.Auth{}
+	}
+	for _, b := range a.BasicUsers {
+		out.BasicUsers = append(out.BasicUsers, httpauth.BasicCred{Name: b.Name, Username: b.Username, Password: b.Password})
+	}
+	for _, t := range a.BearerTokens {
+		out.BearerTokens = append(out.BearerTokens, httpauth.NamedSecret{Name: t.Name, Secret: t.Token})
+	}
+	for _, k := range a.APIKeys {
+		out.APIKeys = append(out.APIKeys, httpauth.NamedSecret{Name: k.Name, Secret: k.Key})
+	}
+	return out
+}
+
+// AdminCORSConfig configures browser CORS for the admin API. Empty AllowedOrigins
+// disables CORS entirely.
+type AdminCORSConfig struct {
+	AllowedOrigins []string `mapstructure:"allowed_origins"`
 }
 
 type StateConfig struct {
@@ -797,6 +860,11 @@ func Defaults() Config {
 			LivenessPath:  "/healthz",
 			ReadinessPath: "/readyz",
 			StartupPath:   "/startupz",
+		},
+		Admin: AdminConfig{
+			Enabled: false,
+			Listen:  ":8090",
+			Auth:    AdminAuthConfig{Enabled: true},
 		},
 	}
 }
