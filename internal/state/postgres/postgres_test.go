@@ -87,6 +87,41 @@ func TestStoreFeedMetaRoundTrip(t *testing.T) {
 	}
 }
 
+func TestPruneFeedMetaBefore(t *testing.T) {
+	store := setupStore(t)
+	ctx := context.Background()
+
+	if err := store.UpsertFeedMeta(ctx, "old-feed", state.FeedMeta{ETag: "e-old"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.UpsertFeedMeta(ctx, "fresh-feed", state.FeedMeta{ETag: "e-fresh"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.UpsertItem(ctx, "old-feed", "i1", "h", time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetFeedMetaUpdatedAtForTest(ctx, "old-feed", time.Now().Add(-48*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := store.PruneFeedMetaBefore(ctx, time.Now().Add(-24*time.Hour))
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("removed = %d, want 1", n)
+	}
+	if _, found, _ := store.GetFeedMeta(ctx, "old-feed"); found {
+		t.Fatal("old-feed meta not pruned")
+	}
+	if _, found, _ := store.GetFeedMeta(ctx, "fresh-feed"); !found {
+		t.Fatal("fresh-feed meta wrongly pruned")
+	}
+	if _, found, _ := store.GetItem(ctx, "old-feed", "i1"); !found {
+		t.Fatal("seen_items wrongly pruned")
+	}
+}
+
 func TestPruneItemsBefore(t *testing.T) {
 	store := setupStore(t)
 	ctx := context.Background()

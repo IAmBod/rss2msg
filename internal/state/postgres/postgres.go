@@ -183,6 +183,16 @@ func (s *Store) PruneItemsBefore(ctx context.Context, cutoff time.Time) (int64, 
 	return tag.RowsAffected(), nil
 }
 
+// PruneFeedMetaBefore deletes feed_meta rows whose updated_at is older than
+// cutoff and returns the number of rows removed. seen_items is not touched.
+func (s *Store) PruneFeedMetaBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	tag, err := s.pool.Exec(ctx, `DELETE FROM feed_meta WHERE updated_at < $1`, cutoff)
+	if err != nil {
+		return 0, fmt.Errorf("state/postgres: prune feed_meta: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 func (s *Store) GetFeedMeta(ctx context.Context, feedURL string) (state.FeedMeta, bool, error) {
 	row := s.pool.QueryRow(ctx, `SELECT etag, last_modified FROM feed_meta WHERE feed_url=$1`, feedURL)
 	var out state.FeedMeta
