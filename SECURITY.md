@@ -21,7 +21,7 @@ Instead, use one of these private channels:
 1. **GitHub private vulnerability reporting** (preferred) — open the repository's
    **Security** tab and click **Report a vulnerability**. This opens a private
    advisory visible only to the maintainers.
-2. **Email** — send the details to **info@randombullsh.it** with a subject line
+2. **Email** — send the details to **info@iambod.dev** with a subject line
    starting `SECURITY:`.
 
 Please include as much of the following as you can:
