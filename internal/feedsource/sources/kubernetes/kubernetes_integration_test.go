@@ -51,7 +51,7 @@ func TestKubernetesSourceK3sRoundTrip(t *testing.T) {
 		t.Fatalf("dynamic client: %v", err)
 	}
 
-	crd := loadYAMLDoc(t, filepath.Join("..", "..", "deploy", "crds", "feeds.rss2msg.io.yaml"))
+	crd := loadYAMLDoc(t, crdManifestPath)
 	if _, err := dyn.Resource(crdGVR).Create(ctx, crd, metav1.CreateOptions{}); err != nil {
 		t.Fatalf("apply CRD: %v", err)
 	}
