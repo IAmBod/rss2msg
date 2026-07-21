@@ -1,11 +1,66 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
-
+# Dependabot version updates.
+#
+# Commit prefixes match cliff.toml's changelog grouping:
+#   chore(deps) -> "Dependencies", ci(deps) -> "Build & CI".
+#
+# Minor and patch bumps are grouped into one PR per ecosystem to keep the review
+# queue short. Majors are deliberately left ungrouped so each arrives as its own
+# reviewable PR.
+#
+# Every label below must already exist in the repository — Dependabot does not
+# create missing labels, it just drops them.
 version: 2
+
 updates:
-  - package-ecosystem: "" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  # Go module dependencies (go.mod / go.sum).
+  - package-ecosystem: gomod
+    directory: /
     schedule:
-      interval: "weekly"
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - go
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      go-modules:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  # Actions used by ci.yml, release.yml, and warm-build-cache.yml. Without this,
+  # pinned actions never move — which is why every job currently warns that
+  # actions/checkout@v4 and actions/setup-go@v5 target the deprecated Node 20.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    commit-message:
+      prefix: ci(deps)
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  # Base images in the multi-stage Dockerfile (golang, distroless).
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore(deps)
