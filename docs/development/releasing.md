@@ -3,7 +3,7 @@ title: Releasing
 type: how-to
 tags: [rss2msg/docs, development, release]
 summary: The release pipeline — golangci-lint in CI, git-cliff for the changelog and version bumps, and GoReleaser for multi-platform binaries, Linux packages (.deb/.rpm/.apk), a multi-arch Docker image, and a Homebrew formula, all driven by a semver tag.
-updated: 2026-06-16
+updated: 2026-07-21
 ---
 
 # Releasing
@@ -50,17 +50,27 @@ confirmed tag push). To do it by hand:
    ```bash
    git cliff --bumped-version      # e.g. prints v0.3.0
    ```
-3. Regenerate `CHANGELOG.md` for the new version and commit it to `main`. This commit
-   carries the populated changelog that GoReleaser bundles into the release artifacts:
+3. Roll the [Change Date](#change-date) in `LICENSE` forward to four years from today —
+   the BUSL maximum — so this version gets its full protection window:
+   ```bash
+   sed -i "s/^Change Date:.*/Change Date:          $(date -u -d '+4 years' +%Y-%m-%d)/" LICENSE
+   grep '^Change Date:' LICENSE   # verify
+   ```
+4. Regenerate `CHANGELOG.md` for the new version and commit it to `main` together with
+   the `LICENSE` bump. This commit carries the populated changelog that GoReleaser
+   bundles into the release artifacts:
    ```bash
    git cliff --config cliff.toml --tag v0.3.0 --output CHANGELOG.md
-   git add CHANGELOG.md            # explicit pathspec only
-   git commit -m "chore(release): update CHANGELOG.md for v0.3.0 [skip ci]"
+   git add CHANGELOG.md LICENSE    # explicit pathspecs only
+   git commit -m "chore(release): update CHANGELOG.md for v0.3.0"
    git push origin main
    ```
    `cliff.toml` skips `chore(release):` commits, so this never pollutes a future
-   changelog, and `[skip ci]` avoids a redundant CI run.
-4. Tag that commit and push. The tag is what triggers the release workflow:
+   changelog. **Do not add `[skip ci]`** — the next step tags this exact commit, and
+   GitHub honors `[skip ci]` on a tag push's HEAD commit, silently skipping the release
+   workflow. (This is what happened to v0.3.0.) One redundant CI run is the cheaper
+   outcome.
+5. Tag that commit and push. The tag is what triggers the release workflow:
    ```bash
    git tag v0.3.0
    git push origin v0.3.0
@@ -88,6 +98,31 @@ The release workflow then:
   macOS archives and commits it to `IAmBod/homebrew-tap` (skipped for prerelease tags,
   see [`homebrew_casks:` in `.goreleaser.yaml`](../../.goreleaser.yaml));
 - publishes a GitHub Release whose notes are the git-cliff section for that tag.
+
+## Change Date
+
+rss2msg ships under the [Business Source License 1.1](../../LICENSE). Each version stays
+source-available until its **Change Date**, then converts to the Apache License 2.0.
+BUSL applies "separately for each version", and the Change Date "may vary for each
+version" — so the date is a **per-release** value, not a repository-wide constant.
+
+That is why step 3 of [Cut a release](#cut-a-release) rolls `Change Date:` in `LICENSE`
+forward to four years from the release day, and stages `LICENSE` alongside `CHANGELOG.md`.
+Because the tag captures the tree, every tag — and every archive and package GoReleaser
+builds from it — carries the Change Date that belongs to that version:
+
+| Tagged | `Change Date` in that tag's `LICENSE` | Converts to Apache-2.0 |
+| --- | --- | --- |
+| v0.4.0 on 2026-07-21 | 2030-07-21 | 2030-07-21 |
+| v0.5.0 on 2027-03-02 | 2031-03-02 | 2031-03-02 |
+
+Four years is the ceiling, not a free parameter: BUSL converts on the Change Date **or**
+"the fourth anniversary of the first publicly available distribution of a specific
+version … whichever comes first". A later date in the file would have no effect.
+
+Skipping this step is what makes the window shrink — leave the date fixed and a version
+released three years from now would convert after one year instead of four. Leave it in
+the past and the release ships already converted.
 
 ## Version metadata
 
