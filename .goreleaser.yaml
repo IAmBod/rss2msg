@@ -79,7 +79,7 @@ nfpms:
     package_name: rss2msg
     vendor: IAmBod
     homepage: https://github.com/IAmBod/rss2msg
-    maintainer: Bödei Károly <info@randombullsh.it>
+    maintainer: Bödei Károly <info@iambod.dev>
     license: BUSL-1.1
     description: |-
       RSS/Atom/JSON feed-to-message bridge.
