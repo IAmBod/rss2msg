@@ -67,4 +67,4 @@ under, which would fracture the licensing of the codebase.
 
 Signing is automated: open a PR, and a bot comments with a link to the document and the
 one-line comment to reply with. You are only asked once. Contributing on behalf of a
-company? Email <info@randombullsh.it> for a Corporate CLA first.
+company? Email <info@iambod.dev> for a Corporate CLA first.

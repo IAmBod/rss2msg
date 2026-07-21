@@ -59,4 +59,4 @@ purposes** — the one exception is that you may not offer rss2msg to third part
 as a hosted or managed "Feed-to-Message Service" without a separate commercial
 license. Each released version converts to the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
 on its Change Date, four years after that version is released. See [`LICENSE`](./LICENSE)
-for the exact terms; for commercial-licensing questions, contact info@randombullsh.it.
+for the exact terms; for commercial-licensing questions, contact info@iambod.dev.
