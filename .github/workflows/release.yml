@@ -44,7 +44,7 @@ jobs:
       # to a cold compile; trigger the "Warm release build cache" workflow manually
       # to pre-warm before a release if needed.
       - name: Restore Go build cache (warmed on main)
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: |
             ~/.cache/go-build
