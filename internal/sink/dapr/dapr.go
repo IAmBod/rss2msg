@@ -80,7 +80,7 @@ func newPublisher(opts Options) (*Publisher, error) {
 	}, nil
 }
 
-func New(_ context.Context, opts Options) (*Publisher, error) {
+func New(ctx context.Context, opts Options) (*Publisher, error) {
 	p, err := newPublisher(opts)
 	if err != nil {
 		return nil, err
@@ -88,7 +88,7 @@ func New(_ context.Context, opts Options) (*Publisher, error) {
 
 	var c daprclient.Client
 	if opts.Address != "" {
-		c, err = daprclient.NewClientWithAddress(opts.Address)
+		c, err = daprclient.NewClientWithAddressContext(ctx, opts.Address)
 	} else {
 		c, err = daprclient.NewClient()
 	}
