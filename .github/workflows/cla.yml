@@ -30,12 +30,20 @@ jobs:
   cla:
     name: CLA Assistant
     runs-on: ubuntu-latest
+    # Lifted to job level so the step's `if` can test it: the `secrets` context is not
+    # available in an `if` expression, but `env` is.
+    env:
+      CLA_SIGNATURES_TOKEN: ${{ secrets.CLA_SIGNATURES_TOKEN }}
     steps:
       - name: Check or record CLA signature
+        # Stays inert until CLA_SIGNATURES_TOKEN exists: without it the action cannot
+        # write the signature file and fails every pull request, which — with no branch
+        # protection requiring this check — is pure noise rather than a gate.
         if: >-
-          github.event_name == 'pull_request_target' ||
+          env.CLA_SIGNATURES_TOKEN != '' &&
+          (github.event_name == 'pull_request_target' ||
           github.event.comment.body == 'recheck' ||
-          github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA'
+          github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA')
         uses: contributor-assistant/github-action@v2.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
