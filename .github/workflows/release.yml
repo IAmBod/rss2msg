@@ -27,7 +27,7 @@ jobs:
           # git-cliff and GoReleaser need full history and tags.
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           # The cross-compile build cache is restored explicitly below. setup-go's
