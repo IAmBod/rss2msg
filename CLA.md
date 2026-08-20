@@ -109,7 +109,7 @@ I have read the CLA Document and I hereby sign the CLA
 Your signature is recorded against your GitHub username in the `cla-signatures` branch of
 this repository. You will not be asked again on later pull requests.
 
-**Contributing on behalf of a company?** Email <info@randombullsh.it> for a Corporate CLA
+**Contributing on behalf of a company?** Email <info@iambod.dev> for a Corporate CLA
 before submitting.
 
 ## Related

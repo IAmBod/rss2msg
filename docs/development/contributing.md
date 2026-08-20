@@ -74,7 +74,7 @@ Signing is automated by [`.github/workflows/cla.yml`](../../.github/workflows/cl
 open a pull request, and a bot comments with a link to the document and the exact reply
 that records your signature. You are only asked once — signatures live in the
 `cla-signatures` branch. Contributing on behalf of a company? Email
-<info@randombullsh.it> for a Corporate CLA before submitting.
+<info@iambod.dev> for a Corporate CLA before submitting.
 
 ## Related
 
