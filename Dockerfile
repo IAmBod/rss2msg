@@ -23,7 +23,7 @@
 ############################
 # base — shared module cache
 ############################
-FROM golang:1.25-bookworm AS base
+FROM golang:1.26-bookworm AS base
 WORKDIR /src
 # Download modules first so this layer is cached until go.mod/go.sum change.
 COPY go.mod go.sum ./
