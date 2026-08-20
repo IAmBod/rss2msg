@@ -2,8 +2,8 @@
 title: Contributing
 type: how-to
 tags: [rss2msg/docs, development]
-summary: Branch, commit, test, and pull-request conventions used in this repository.
-updated: 2026-05-31
+summary: Branch, commit, test, and pull-request conventions used in this repository, plus the license terms and the Contributor License Agreement.
+updated: 2026-07-21
 ---
 
 # Contributing
@@ -26,6 +26,8 @@ changes get made.
    Run `task test-integration` too if your change touches a sink, the state store,
    or a coordinator backend (requires Docker).
 4. Open a pull request against `main`.
+5. Sign the [Contributor License Agreement](#licensing-and-the-cla) — a bot asks on
+   your first pull request.
 
 ## Commit messages
 
@@ -52,8 +54,31 @@ Docs live under [`docs/`](../index.md) and follow a Diátaxis structure
   `updated`) and a `## Related` footer.
 - Run `bash scripts/check-doc-links.sh` and confirm it prints `OK` before committing.
 
+## Licensing and the CLA
+
+rss2msg is **source-available, not open source**. It ships under the
+[Business Source License 1.1](../../LICENSE): use, modification, and redistribution are
+permitted, including commercially, with one carve-out — offering rss2msg to third
+parties as a hosted or managed "Feed-to-Message Service" requires a separate commercial
+license from the maintainer. Each version converts to the Apache License 2.0 on its
+Change Date, four years after that version is released (see
+[Releasing](releasing.md#change-date)).
+
+Because of that model, contributions are covered by a
+[Contributor License Agreement](../../CLA.md), adapted from the Apache Software
+Foundation's Individual CLA. You keep your copyright; the CLA grants the maintainer the
+right to offer your contribution under the licenses above, including the separate
+commercial licenses and the eventual Apache-2.0 conversion.
+
+Signing is automated by [`.github/workflows/cla.yml`](../../.github/workflows/cla.yml):
+open a pull request, and a bot comments with a link to the document and the exact reply
+that records your signature. You are only asked once — signatures live in the
+`cla-signatures` branch. Contributing on behalf of a company? Email
+<info@iambod.dev> for a Corporate CLA before submitting.
+
 ## Related
 
 - [Building and Testing](building-and-testing.md) — the commands the checks run.
 - [Project Layout](project-layout.md) — where to make a given change.
 - [Releasing](releasing.md) — how conventional commits become tagged releases and a changelog.
+- [CLA.md](../../CLA.md) — the Contributor License Agreement itself.

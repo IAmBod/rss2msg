@@ -1,6 +1,6 @@
 ---
 name: cut-release
-description: Use when cutting a new rss2msg release / version — derives the next semver from Conventional Commits with git-cliff, commits the regenerated CHANGELOG.md to main, then tags and pushes to trigger the GoReleaser pipeline. Triggers on "cut a release", "new version", "release vX.Y.Z", "/release".
+description: Use when cutting a new rss2msg release / version — derives the next semver from Conventional Commits with git-cliff, rolls the BUSL Change Date in LICENSE, commits both to main, then tags and pushes to trigger the GoReleaser pipeline. Triggers on "cut a release", "new version", "release vX.Y.Z", "/release".
 ---
 
 # Cutting a new rss2msg release
@@ -10,10 +10,12 @@ rss2msg ships through a **tag-driven** pipeline: pushing a `vX.Y.Z` tag triggers
 multi-platform binaries, Linux packages, a multi-arch Docker image, the Homebrew cask,
 and the GitHub Release. The version comes entirely from the pushed tag.
 
-This skill owns the changelog locally: it regenerates and **commits `CHANGELOG.md` to
-`main` before tagging**, so the tagged commit already carries the populated changelog
-that GoReleaser bundles into the artifacts. The workflow does **not** regenerate or sync
-the changelog — that is this skill's job.
+This skill owns two per-release files locally: it regenerates and **commits
+`CHANGELOG.md` to `main` before tagging**, so the tagged commit already carries the
+populated changelog that GoReleaser bundles into the artifacts, and it **rolls the BUSL
+`Change Date` in `LICENSE`** so each version converts to Apache-2.0 four years after its
+own release. The workflow does **not** regenerate or sync either file — that is this
+skill's job.
 
 See [docs/development/releasing.md](../../../docs/development/releasing.md) for the full
 pipeline reference.
@@ -32,12 +34,12 @@ copy.
 ## Hard rules
 
 - **Never `git add -A` / `git add .`** — this repo is an Obsidian vault with
-  auto-staging. Stage **only** `CHANGELOG.md` with an explicit pathspec.
+  auto-staging. Stage **only** `CHANGELOG.md` and `LICENSE` with explicit pathspecs.
 - **Never** `--no-verify` or bypass hooks.
 - **Confirm with the user before pushing the tag** — that push triggers the public
   release. Pushing the changelog commit to `main` happens first and does not trigger the
   release (only a tag push does).
-- **Never put `[skip ci]` in the changelog commit message.** Step 5 tags that exact
+- **Never put `[skip ci]` in the changelog commit message.** Step 6 tags that exact
   commit, and GitHub honors `[skip ci]` on a tag push's HEAD commit — so a `[skip ci]`
   changelog commit silently **skips the release workflow**. (This bit v0.3.0.)
 - **Abort** on any failed preflight check and report exactly what failed; do not paper over it.
@@ -92,14 +94,33 @@ Get explicit go-ahead on the version before changing any files. If the commits s
 last tag are thin or unconventional (git-cliff skips non-Conventional and merge commits),
 point that out.
 
-### 4. Regenerate and commit CHANGELOG.md to main
+### 4. Roll the BUSL Change Date in LICENSE
 
-Regenerate the full changelog with the new tag label, then stage **only** that file:
+rss2msg ships under the Business Source License 1.1, and the Change Date is a
+**per-version** value — BUSL applies "separately for each version". Each release must
+carry a Change Date four years out (the BUSL ceiling), or that version's
+source-available window silently shrinks.
+
+```bash
+sed -i "s/^Change Date:.*/Change Date:          $(date -u -d '+4 years' +%Y-%m-%d)/" LICENSE
+grep '^Change Date:' LICENSE               # verify: four years from today, YYYY-MM-DD
+git diff --stat LICENSE                    # verify: exactly one line changed
+```
+
+- Change **only** the `Change Date:` line. If `git diff` shows anything else touched,
+  revert and stop — the rest of `LICENSE` is legal text and is never edited by this skill.
+- The value is always today + 4 years. Do not carry the previous release's date forward,
+  and do not invent a different horizon.
+
+### 5. Regenerate and commit CHANGELOG.md to main
+
+Regenerate the full changelog with the new tag label, then stage **only** the changelog
+and the license bump from step 4:
 
 ```bash
 git cliff --config cliff.toml --tag "<version>" --output CHANGELOG.md
-git add CHANGELOG.md                       # explicit pathspec — nothing else
-git status                                 # verify ONLY CHANGELOG.md is staged
+git add CHANGELOG.md LICENSE               # explicit pathspecs — nothing else
+git status                                 # verify ONLY these two files are staged
 git commit -m "chore(release): update CHANGELOG.md for <version>"
 git push origin main
 ```
@@ -107,13 +128,13 @@ git push origin main
 Notes:
 - The `chore(release):` prefix matters: `cliff.toml` skips `^chore\(release\):` commits,
   so this commit never pollutes a future changelog.
-- **Do not append `[skip ci]`.** Step 5 tags this same commit, and GitHub skips the
+- **Do not append `[skip ci]`.** Step 6 tags this same commit, and GitHub skips the
   tag-triggered release workflow when its HEAD commit message contains `[skip ci]` — which
   is exactly how the v0.3.0 release got silently skipped. The cost of omitting it is one
   redundant CI run on `main`, which is acceptable; a skipped release is not.
-- Verify the staged set is **only** `CHANGELOG.md` before committing (auto-staging hazard).
+- Verify the staged set is **only** `CHANGELOG.md` and `LICENSE` before committing (auto-staging hazard).
 
-### 5. Tag, confirm, and push
+### 6. Tag, confirm, and push
 
 ```bash
 git tag "<version>"        # tags the changelog commit you just pushed
@@ -126,7 +147,7 @@ release. On confirmation:
 git push origin "<version>"
 ```
 
-### 6. Report
+### 7. Report
 
 Print the link to the running release workflow so the user can watch it:
 
@@ -143,7 +164,7 @@ Homebrew cask for non-prerelease tags, and the GitHub Release).
 - **Prerelease tags** (`-rc.1`, etc.): valid and supported. GoReleaser skips the Homebrew
   cask for prereleases automatically (`skip_upload: auto`).
 - **`v0.0.*` tags** are ignored by git-cliff (`skip_tags`), so don't use them.
-- If the `git push origin main` in step 4 is rejected because `main` is branch-protected
+- If the `git push origin main` in step 5 is rejected because `main` is branch-protected
   against direct pushes, stop — the changelog must reach `main` before the tag. Surface
   this to the maintainer rather than forcing it.
 - **Release skipped (no Release run after the tag push)?** The usual cause is `[skip ci]`

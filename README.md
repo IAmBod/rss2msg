@@ -39,13 +39,24 @@ Full documentation lives in [`docs/`](./docs/index.md). Start there, or jump in:
 
 ---
 
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) for the workflow
+and [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) for the ground rules. Please report
+security issues privately per [SECURITY.md](./SECURITY.md) rather than as public issues.
+
+Before a first pull request is merged, contributors sign the
+[Contributor License Agreement](./CLA.md) — a bot handles it, and you keep your
+copyright.
+
 ## License
 
-rss2msg is licensed under the [Business Source License 1.1](./LICENSE).
+rss2msg is **source-available**, not open source. It is distributed under the
+[Business Source License 1.1](./LICENSE).
 
 You may use, modify, and redistribute it freely, **including for commercial
 purposes** — the one exception is that you may not offer rss2msg to third parties
 as a hosted or managed "Feed-to-Message Service" without a separate commercial
 license. Each released version converts to the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
-on its Change Date (four years after release). See [`LICENSE`](./LICENSE) for the
-exact terms; for commercial-licensing questions, contact info@iambod.dev.
+on its Change Date, four years after that version is released. See [`LICENSE`](./LICENSE)
+for the exact terms; for commercial-licensing questions, contact info@iambod.dev.
