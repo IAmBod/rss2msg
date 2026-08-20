@@ -3,6 +3,7 @@ package dapr
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"sync"
 	"testing"
@@ -101,5 +102,30 @@ func TestPublishThroughRealSDK(t *testing.T) {
 	}
 	if md["partitionKey"] != "feeds" {
 		t.Errorf("metadata partitionKey = %q, want feeds", md["partitionKey"])
+	}
+}
+
+// TestNewHonoursContextCancellation pins that the caller's context governs the
+// Dapr client's connection setup. The SDK dials with grpc.WithBlock, so an
+// already-cancelled context must abort the dial instead of connecting anyway —
+// which is what the deprecated, context-less constructor did.
+func TestNewHonoursContextCancellation(t *testing.T) {
+	addr, _ := startFakeDapr(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	p, err := New(ctx, Options{
+		Name:       "out",
+		Address:    addr,
+		PubsubName: "rss-pubsub",
+		Topic:      "rss.changes",
+	})
+	if err == nil {
+		t.Cleanup(func() { _ = p.Close() })
+		t.Fatal("New with a cancelled context returned no error; the context is being ignored")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("New error = %v, want it to wrap context.Canceled", err)
 	}
 }
