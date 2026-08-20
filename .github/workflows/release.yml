@@ -22,7 +22,7 @@ jobs:
     name: build & publish
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # git-cliff and GoReleaser need full history and tags.
           fetch-depth: 0
