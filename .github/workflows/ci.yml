@@ -119,7 +119,7 @@ jobs:
       - name: build binary
         run: go build ./cmd/rss2msg
       - name: validate GoReleaser config
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           version: "~> v2"
           args: check
